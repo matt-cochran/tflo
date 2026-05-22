@@ -214,7 +214,11 @@ pub mod builder;
 pub mod combinators;
 pub mod comp;
 pub mod compile;
-pub mod custom_node;
+pub mod operator;
+/// Backward-compatible re-export of the operator module under the old name.
+pub mod custom_node {
+    pub use crate::operator::*;
+}
 pub mod duration;
 pub mod error;
 pub mod event;
@@ -261,6 +265,7 @@ pub mod prelude {
     };
     pub use crate::iter_ext::TFlowIteratorExt;
     pub use crate::keyed::{OutOfOrderPolicy, TFloKeyedIter};
+    pub use crate::operator::{BoxedOperator, Operator, OperatorFactory, OperatorLoadError};
     pub use crate::pipeline::{
         Hybrid, HybridItem, KeyedTimestamped, PipelineContext, PipelineItem, Sequenced,
         SequencedItem, Timestamped, TimestampedItem,

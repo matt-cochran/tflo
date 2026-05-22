@@ -1,16 +1,20 @@
-//! Custom graph nodes contributed by external crates.
+//! Operator and custom-node plugin traits for the tflo engine.
 //!
-//! [`CustomNode`] is the extension point for runtime computation nodes that
-//! `tflo-core` does not provide built in. An external crate implements this
-//! trait and attaches instances to a computation graph with
+//! [`Operator`] is the unified extension point for runtime computation nodes
+//! contributed by external crates. [`CustomNode`] is the legacy extension
+//! point kept for backward compatibility; new code should implement
+//! [`Operator`] instead.
+//!
+//! Attach a custom node to a computation graph with
 //! [`Comp::custom_node`](crate::comp::Comp::custom_node) or
-//! [`Comp::custom_node1`](crate::comp::Comp::custom_node1).
+//! [`Comp::custom_node1`](crate::comp::Comp::custom_node1); those builder
+//! entry points are switched over to accept [`Operator`] in a later step.
 //!
 //! This is the mechanism the `tflo-fintech` crate uses to provide indicators
 //! such as ADX, ATR, and KAMA without any finance-specific code living in
 //! `tflo-core`.
 
-use crate::compile::{Absent, Computed};
+use crate::compile::{Absent, Computed, NodeOutput};
 use std::sync::Arc;
 
 /// A user-defined stateful computation node.
@@ -141,3 +145,95 @@ pub type BoxedCustomNode = Box<dyn CustomNode>;
 /// the description stays cheaply cloneable and every compiled graph (including
 /// each per-key graph in keyed execution) receives its own independent state.
 pub type CustomNodeFactory = Arc<dyn Fn() -> BoxedCustomNode + Send + Sync>;
+
+// ---------------------------------------------------------------------------
+// Operator — unified plugin trait
+// ---------------------------------------------------------------------------
+
+/// A node kind contributed to the engine — the single plugin mechanism.
+///
+/// `tflo-core` defines only sources and closure transforms natively; every
+/// other node kind (the `tflo-ops` catalog, `tflo-fintech` indicators, user
+/// plugins) reaches the engine as an `Operator`.
+///
+/// Unlike the legacy [`CustomNode`] trait, `Operator` receives the record
+/// timestamp (`ts`) on every call and returns a [`NodeOutput`] that can carry
+/// any `'static` typed value, not just a `f64`.
+pub trait Operator: Send + Sync + 'static {
+    /// Evaluate against this record's resolved inputs and timestamp.
+    ///
+    /// `inputs` holds one [`Computed`] per wired input, in declaration order.
+    /// `ts` is the record timestamp (needed by time-windowed operators).
+    fn eval(&mut self, inputs: &[Computed], ts: i64) -> NodeOutput;
+
+    /// Reset to the freshly-constructed state. Default: no-op.
+    fn reset(&mut self) {}
+
+    /// Human-readable name for graph-plan/debug output. Default: `"operator"`.
+    fn name(&self) -> &str {
+        "operator"
+    }
+
+    /// Serialize state for checkpointing. Default `None` = not checkpointable.
+    fn save(&self) -> Option<Vec<u8>> {
+        None
+    }
+
+    /// Restore state from `save()` bytes. Default errors.
+    fn load(&mut self, _bytes: &[u8]) -> Result<(), OperatorLoadError> {
+        Err(OperatorLoadError::new(
+            "operator does not support checkpoint restore",
+        ))
+    }
+}
+
+/// Error returned by [`Operator::load`] when checkpoint bytes cannot be
+/// applied to an operator.
+#[derive(Debug, Clone)]
+pub struct OperatorLoadError {
+    /// Human-readable reason the load failed.
+    pub reason: String,
+}
+
+impl OperatorLoadError {
+    /// Construct a load error with the given reason.
+    #[must_use]
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for OperatorLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "operator load failed: {}", self.reason)
+    }
+}
+
+impl std::error::Error for OperatorLoadError {}
+
+/// Boxed live operator instance held by a compiled graph.
+pub type BoxedOperator = Box<dyn Operator>;
+
+/// Factory producing fresh [`Operator`] instances (one per compiled graph).
+pub type OperatorFactory = std::sync::Arc<dyn Fn() -> BoxedOperator + Send + Sync>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compile::NodeOutput;
+
+    #[test]
+    fn operator_emits_typed_output() {
+        struct Tagger;
+        impl Operator for Tagger {
+            fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+                NodeOutput::other(require(inputs, 0).is_ok())
+            }
+        }
+        let mut op = Tagger;
+        let out = op.eval(&[Ok(1.0)], 0);
+        assert_eq!(out.as_any().downcast_ref::<bool>(), Some(&true));
+    }
+}
