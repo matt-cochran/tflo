@@ -19,6 +19,7 @@ full = ["async"]
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+postcard = { workspace = true }
 # Async support (optional)
 tokio = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }

@@ -39,7 +39,11 @@ fn sample_detections() -> Vec<Detection> {
 async fn main() {
     let detections = sample_detections();
     if let Some(first) = detections.first() {
-        println!("Monitoring {} detections at {} MHz", detections.len(), first.freq_mhz);
+        println!(
+            "Monitoring {} detections at {} MHz",
+            detections.len(),
+            first.freq_mhz
+        );
     }
 
     // ---- Manual graph: build, compile, step ----
@@ -70,7 +74,9 @@ async fn main() {
     assert!(plan.node_count > 0);
 
     // ---- Snapshot ----
-    let snapshot = graph.snapshot();
+    let Ok(snapshot) = graph.snapshot() else {
+        return;
+    };
     assert!(!snapshot.data.is_empty());
 
     // ---- Restore ----

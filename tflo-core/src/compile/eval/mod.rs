@@ -1,4 +1,7 @@
 mod ctx;
+// The `eval` submodule shares its parent's name — a deliberate
+// `eval/{ctx,eval,helpers}.rs` split of the evaluation code.
+#[allow(clippy::module_inception)]
 mod eval;
 mod helpers;
 
@@ -137,7 +140,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     /// for tick in ticks {
     ///     match graph.step_with_status(&tick) {
     ///         StepResult::Ready(item) => println!("At {}: value={}", item.ctx, item.value),
-    ///         StepResult::WarmingUp { remaining } => println!("Warming up, {} more needed", remaining),
+    ///         StepResult::WarmingUp { remaining, .. } => println!("Warming up, {} more needed", remaining),
     ///         StepResult::Error(e) => eprintln!("Error: {}", e),
     ///     }
     /// }
@@ -175,6 +178,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         if self.records_seen < self.min_warmup {
             return StepResult::WarmingUp {
                 remaining: self.min_warmup - self.records_seen,
+                reason: crate::compile::Absent::WarmingUp,
             };
         }
 
@@ -198,11 +202,16 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             }
         }
 
-        // Extract typed output and wrap in PipelineItem
+        // Extract typed output and wrap in PipelineItem. Extraction only fails
+        // when an output node has not been evaluated yet (a composition node
+        // still warming up) — a base node always stores a `Computed`, and an
+        // absent base node still extracts (as `NaN` for `O = f64`, or the
+        // typed reason for `O = Computed`).
         match O::extract(&self.store, &self.output_ids) {
             Some(value) => StepResult::Ready(PipelineItem { ctx, value }),
             None => StepResult::WarmingUp {
                 remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
             },
         }
     }
@@ -293,37 +302,68 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
 
     /// Take a snapshot of the current computation state for checkpointing.
     ///
-    /// Returns an opaque `StateSnapshot` that can be persisted and later
-    /// passed to [`restore()`](Self::restore).
+    /// Returns a `StateSnapshot` — the full per-node state encoded with
+    /// `postcard` — that can be persisted and later passed to
+    /// [`restore()`](Self::restore).
     ///
-    /// The snapshot captures the graph topology (node structure, output IDs)
-    /// and current runtime state (records seen, warmup status). Full node
-    /// state serialization (window buffers, accumulators, etc.) is a work in
-    /// progress — see [GAPS.md](../../GAPS.md#24).
+    /// # Errors
+    ///
+    /// Returns [`ComputeError::InvalidInput`](crate::error::ComputeError::InvalidInput)
+    /// if the graph contains state that cannot be captured: a `scan`/`scan2`
+    /// node, a `fold` composition node, or a
+    /// [`CustomNode`](crate::custom_node::CustomNode) that does not override
+    /// [`save`](crate::custom_node::CustomNode::save). The snapshot is
+    /// all-or-nothing — it never writes a partial checkpoint.
     ///
     /// # Usage
     ///
     /// ```ignore
-    /// let snapshot = graph.snapshot();
+    /// let snapshot = graph.snapshot()?;
     /// // persist `snapshot` somewhere
     /// // ... later ...
     /// let mut restored = CompiledGraph::compile(ts_fn, nodes, output_ids);
-    /// restored.restore(&snapshot).unwrap();
+    /// restored.restore(&snapshot)?;
     /// ```
-    #[must_use]
-    pub fn snapshot(&self) -> crate::keyed::StateSnapshot {
+    pub fn snapshot(&self) -> Result<crate::keyed::StateSnapshot, crate::error::ComputeError> {
+        use super::snapshot::GraphSnapshot;
+        use crate::error::ComputeError;
         use crate::keyed::{SnapshotMetadata, StateSnapshot};
 
-        let snapshot_data = crate::keyed::SnapshotData {
+        // `fold` composition nodes hold opaque accumulator state; `map` nodes
+        // are stateless and fine.
+        if self
+            .composition_nodes
+            .iter()
+            .any(|e| matches!(e.kind, super::CompositionNodeKind::Fold { .. }))
+        {
+            return Err(ComputeError::InvalidInput {
+                reason: "graph has a fold composition node, which cannot be checkpointed",
+            });
+        }
+
+        let mut node_states = Vec::with_capacity(self.nodes.len());
+        for node in &self.nodes {
+            match node.state.to_snapshot() {
+                Some(s) => node_states.push(s),
+                None => {
+                    return Err(ComputeError::InvalidInput {
+                        reason: "graph has a non-checkpointable node (scan/scan2, or a \
+                                 custom node without save())",
+                    });
+                }
+            }
+        }
+
+        let graph = GraphSnapshot {
             records_seen: self.records_seen,
             min_warmup: self.min_warmup,
-            // Node state serialization is not yet implemented for all 45+ variants.
-            // See GAPS.md item #24 for the full implementation plan.
             node_count: self.nodes.len(),
             output_count: self.output_ids.len(),
+            node_states,
         };
-
-        let data = serde_json::to_vec(&snapshot_data).unwrap_or_default();
+        let data = postcard::to_stdvec(&graph).map_err(|_| ComputeError::InvalidInput {
+            reason: "snapshot encoding failed",
+        })?;
 
         let timestamp_ms: i64 = {
             #[cfg(not(target_arch = "wasm32"))]
@@ -340,51 +380,64 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             }
         };
 
-        StateSnapshot {
+        Ok(StateSnapshot {
             data,
             metadata: SnapshotMetadata {
                 key: None,
                 timestamp_ms,
                 version: 1,
             },
-        }
+        })
     }
 
     /// Restore computation state from a previously taken snapshot.
     ///
     /// The snapshot must have been taken from an identically structured
-    /// compiled graph (same node topology, same output IDs). Returns an
-    /// error if the snapshot data is invalid or the graph structure
-    /// doesn't match.
+    /// compiled graph (same node topology, same output IDs). Every node's
+    /// state — window buffers, accumulators, detector state machines — is
+    /// restored.
     ///
-    /// Currently restores top-level metadata (records_seen, min_warmup).
-    /// Full per-node state restoration is a work in progress.
+    /// # Errors
+    ///
+    /// Returns [`ComputeError::InvalidInput`](crate::error::ComputeError::InvalidInput)
+    /// if the snapshot bytes are malformed, or if the graph structure does not
+    /// match the snapshot (different node count, output count, or a node whose
+    /// kind differs from the snapshot's).
     pub fn restore(
         &mut self,
         snapshot: &crate::keyed::StateSnapshot,
     ) -> Result<(), crate::error::ComputeError> {
-        let snapshot_data: crate::keyed::SnapshotData = serde_json::from_slice(&snapshot.data)
-            .map_err(|_| crate::error::ComputeError::InvalidInput {
-                reason: "snapshot data invalid: expected SnapshotData format",
+        use super::snapshot::GraphSnapshot;
+        use crate::error::ComputeError;
+
+        let graph: GraphSnapshot =
+            postcard::from_bytes(&snapshot.data).map_err(|_| ComputeError::InvalidInput {
+                reason: "snapshot data invalid: expected GraphSnapshot format",
             })?;
 
-        // Verify graph structure compatibility
-        if snapshot_data.node_count != self.nodes.len() {
-            return Err(crate::error::ComputeError::InvalidInput {
+        // Verify graph structure compatibility.
+        if graph.node_count != self.nodes.len() || graph.node_states.len() != self.nodes.len() {
+            return Err(ComputeError::InvalidInput {
                 reason: "snapshot node count mismatch: graph topology has changed",
             });
         }
-
-        if snapshot_data.output_count != self.output_ids.len() {
-            return Err(crate::error::ComputeError::InvalidInput {
+        if graph.output_count != self.output_ids.len() {
+            return Err(ComputeError::InvalidInput {
                 reason: "snapshot output count mismatch: graph topology has changed",
             });
         }
 
-        self.records_seen = snapshot_data.records_seen;
-        self.min_warmup = snapshot_data.min_warmup;
+        for (index, (node, snap)) in self.nodes.iter_mut().zip(graph.node_states).enumerate() {
+            snap.apply_to(&mut node.state, index)
+                .map_err(|_| ComputeError::InvalidInput {
+                    reason: "snapshot node-state mismatch: graph topology has changed",
+                })?;
+        }
 
-        // Clear the value store to reset cached evaluations
+        self.records_seen = graph.records_seen;
+        self.min_warmup = graph.min_warmup;
+
+        // Clear the value store to reset cached evaluations.
         self.store.clear();
 
         Ok(())

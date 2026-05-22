@@ -119,11 +119,7 @@ impl WelfordAccumulator {
     /// Returns `f64::NAN` if empty.
     #[must_use]
     pub fn mean(&self) -> f64 {
-        if self.count == 0 {
-            f64::NAN
-        } else {
-            self.mean
-        }
+        if self.count == 0 { f64::NAN } else { self.mean }
     }
 
     /// Get the population variance.

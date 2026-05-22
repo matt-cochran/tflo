@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! S3-compatible object store backend for tflo checkpoints.
 //!
 //! This crate provides a `StateStore` implementation that persists

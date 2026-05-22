@@ -32,7 +32,7 @@ use std::time::Duration;
 /// let result = wma.wma();
 /// assert!((result - 23.333333).abs() < 0.001);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WmaCountWindow {
     max_count: usize,
     buffer: VecDeque<f64>,
@@ -102,7 +102,7 @@ impl WmaCountWindow {
 ///
 /// Uses time-based weights where more recent values have higher weights
 /// based on their proximity to the current time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WmaTimeWindow {
     window_ms: i64,
     buffer: VecDeque<(i64, f64)>,

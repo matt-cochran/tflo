@@ -73,9 +73,14 @@ where
     I: Iterator<Item = T>,
     T: IntoCelContext,
 {
+    /// # Panics
+    ///
+    /// Panics if `expr` is not a valid CEL expression. The fallible
+    /// [`CelFilterResult`] path returns the compile error instead.
+    #[allow(clippy::panic)]
     fn new(iter: I, expr: &str) -> Self {
         let program = Program::compile(expr)
-            .unwrap_or_else(|e| unreachable!("Failed to compile CEL expression '{expr}': {e}"));
+            .unwrap_or_else(|e| panic!("failed to compile CEL expression '{expr}': {e}"));
         Self { iter, program }
     }
 }
@@ -163,13 +168,13 @@ where
                     return Some(Err(CelError::TypeError {
                         expected: "bool".to_string(),
                         actual: format!("{v:?}"),
-                    }))
+                    }));
                 }
                 Err(e) => {
                     return Some(Err(CelError::EvaluationError {
                         expression: self.expression.clone(),
                         message: e.to_string(),
-                    }))
+                    }));
                 }
             }
         }

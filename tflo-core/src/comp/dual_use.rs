@@ -30,11 +30,7 @@ impl<R: 'static> Comp<R, f64> {
     /// Known in finance as Bollinger Bands; `tflo-fintech` re-exports this as
     /// `bollinger_bands`.
     #[must_use]
-    pub fn deviation_band(
-        &self,
-        window: impl Into<Window>,
-        k: f64,
-    ) -> (Comp<R>, Comp<R>, Comp<R>) {
+    pub fn deviation_band(&self, window: impl Into<Window>, k: f64) -> (Comp<R>, Comp<R>, Comp<R>) {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);

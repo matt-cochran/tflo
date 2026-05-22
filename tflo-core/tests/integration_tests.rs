@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! Integration tests for tflow.
 
 use tflo_core::prelude::*;
@@ -323,8 +324,13 @@ fn test_dedupe() {
         }, // Outside window
     ];
 
-    let deduped: Vec<Tick> =
-        dedupe_by_key(ticks.into_iter(), |t| t.symbol.clone(), |t| t.ts, 2_u64.secs()).collect();
+    let deduped: Vec<Tick> = dedupe_by_key(
+        ticks.into_iter(),
+        |t| t.symbol.clone(),
+        |t| t.ts,
+        2_u64.secs(),
+    )
+    .collect();
 
     assert_eq!(deduped.len(), 3);
     assert_eq!(deduped[0].symbol, "AAPL");

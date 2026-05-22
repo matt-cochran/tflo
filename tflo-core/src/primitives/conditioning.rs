@@ -149,8 +149,8 @@
 //!                                (gain=0.25, offset=0)
 //! ```
 
-use std::collections::VecDeque;
 pub use super::calibration::{GainOffsetCalibrator, LinearRegressor};
+use std::collections::VecDeque;
 
 // ============================================================================
 // DC REMOVAL
@@ -536,7 +536,7 @@ mod tests {
         // Baseline should be around 10th percentile
         // For 100, 105, 110, ..., 195: 10th percentile ≈ 110
         let baseline = corrector.baseline();
-        assert!(baseline >= 100.0 && baseline <= 120.0);
+        assert!((100.0..=120.0).contains(&baseline));
     }
 
     // --- RangeNormalizer Tests ---

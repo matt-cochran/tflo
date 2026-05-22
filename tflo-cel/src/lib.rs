@@ -1,3 +1,7 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// The `into_cel_context` conversion trait deliberately borrows rather than
+// consuming `self`.
+#![allow(clippy::wrong_self_convention)]
 //! # tflow-cel
 //!
 //! CEL (Common Expression Language) rule engine integration for tflow.

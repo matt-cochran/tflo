@@ -59,8 +59,8 @@ fn main() {
             t.timestamp(|x| x.ts);
             let moisture = t.prop(|x| x.moisture_pct);
             let sma = moisture.sma(3usize);
-            let double = &sma * 2.0;
-            double
+
+            &sma * 2.0
         })
         .collect();
     for (reading, val) in soil_with_dropouts.iter().zip(&permissive) {
@@ -79,8 +79,8 @@ fn main() {
             t.timestamp(|x| x.ts);
             let moisture = t.prop(|x| x.moisture_pct);
             let sma = moisture.sma(3usize);
-            let double = &sma * 2.0;
-            double
+
+            &sma * 2.0
         })
         .collect();
     for (reading, result) in soil_with_dropouts.iter().zip(&strict) {

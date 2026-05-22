@@ -1,3 +1,4 @@
+use tflo_core::custom_node::require;
 use tflo_core::prelude::*;
 use tflo_examples::*;
 
@@ -15,9 +16,13 @@ impl ScoreFilter {
 }
 
 impl CustomNode for ScoreFilter {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let v = inputs.first().copied().unwrap_or(f64::NAN);
-        if v > self.threshold { v } else { f64::NAN }
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let v = require(inputs, 0)?;
+        if v > self.threshold {
+            Ok(v)
+        } else {
+            Err(Absent::FilteredOut)
+        }
     }
 
     fn name(&self) -> &str {

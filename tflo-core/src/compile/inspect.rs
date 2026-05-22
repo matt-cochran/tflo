@@ -1,6 +1,6 @@
 use crate::comp::NodeId;
 use crate::compile::{
-    CompiledGraph, CompiledNode, CompositionNodeEntry, CompositionNodeKind, NodeState,
+    CompiledGraph, CompiledNode, CompositionNodeEntry, CompositionNodeKind, Computed, NodeState,
     PipelinedGraph, Value, ValueStore,
 };
 use crate::pipeline::PipelineContext;
@@ -75,12 +75,28 @@ impl ValueStore {
         self.get::<T>(id).cloned()
     }
 
+    /// Get the typed [`Computed`] a node produced, if it has been evaluated.
+    ///
+    /// This is the absent-aware accessor: `Ok` for a present value, `Err` for
+    /// a typed [`Absent`](super::Absent) reason, `None` if the node has not
+    /// been evaluated this step.
+    #[must_use]
+    pub fn get_computed(&self, id: &NodeId) -> Option<Computed> {
+        match self.values.get(id)? {
+            Value::Computed(c) => Some(*c),
+            Value::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
+        }
+    }
+
     /// Get a stored `f64` value via the fast path.
+    ///
+    /// Returns the value only when the node produced a present `Ok`; an absent
+    /// node yields `None`. For absent-aware access use [`get_computed`](Self::get_computed).
     #[must_use]
     pub fn get_f64(&self, id: &NodeId) -> Option<f64> {
         match self.values.get(id)? {
-            Value::F64(v) => Some(*v),
-            other => other.as_any().downcast_ref::<f64>().copied(),
+            Value::Computed(c) => c.ok(),
+            Value::Other(b) => b.downcast_ref::<f64>().copied(),
         }
     }
 

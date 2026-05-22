@@ -25,7 +25,7 @@ use std::collections::VecDeque;
 /// assert_eq!(window.count(), 3);
 /// assert_eq!(window.mean(), 30.0);  // (20 + 30 + 40) / 3
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CountWindow {
     max_count: usize,
     buffer: VecDeque<f64>,

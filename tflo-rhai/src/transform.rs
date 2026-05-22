@@ -2,7 +2,7 @@
 
 use crate::context::IntoRhaiScope;
 use crate::error::{RhaiError, RhaiResult};
-use rhai::{Dynamic, Engine, AST};
+use rhai::{AST, Dynamic, Engine};
 use std::sync::Arc;
 
 /// Extension trait for Rhai-based transformation on iterators.
@@ -70,10 +70,14 @@ where
         Self::with_engine(iter, engine, expr)
     }
 
+    /// # Panics
+    ///
+    /// Panics if `expr` is not a valid Rhai expression.
+    #[allow(clippy::panic)]
     fn with_engine(iter: I, engine: Arc<Engine>, expr: &str) -> Self {
         let ast = engine
             .compile(expr)
-            .unwrap_or_else(|e| unreachable!("Failed to compile Rhai expression '{expr}': {e}"));
+            .unwrap_or_else(|e| panic!("failed to compile Rhai expression '{expr}': {e}"));
         Self { iter, engine, ast }
     }
 }
@@ -212,11 +216,15 @@ where
     I: Iterator<Item = T>,
     T: IntoRhaiScope + Clone,
 {
+    /// # Panics
+    ///
+    /// Panics if `expr` is not a valid Rhai expression.
+    #[allow(clippy::panic)]
     fn new(iter: I, expr: &str) -> Self {
         let engine = Arc::new(Engine::new());
         let ast = engine
             .compile(expr)
-            .unwrap_or_else(|e| unreachable!("Failed to compile Rhai expression '{expr}': {e}"));
+            .unwrap_or_else(|e| panic!("failed to compile Rhai expression '{expr}': {e}"));
         Self { iter, engine, ast }
     }
 }

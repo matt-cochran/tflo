@@ -1,10 +1,13 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! API coverage tests for prev trackers.
 //!
 //! These tests ensure all public APIs are exercised and follow EARS format:
 //! When <Event>, <Component> shall <Action>, So that <Response>,
 //! And <Component> will be in a state where <State>.
 
-use tflo_core::primitives::{PrevByTracker, PrevTracker, TimestampedPrevByTracker, TimestampedPrevTracker};
+use tflo_core::primitives::{
+    PrevByTracker, PrevTracker, TimestampedPrevByTracker, TimestampedPrevTracker,
+};
 
 // ============================================================================
 // TIMESTAMPED PREV TRACKER TESTS

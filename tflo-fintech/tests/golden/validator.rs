@@ -48,7 +48,7 @@ pub fn validate(
         match (expected.get(i), actual.get(i)) {
             (Some(Some(expected_val)), Some(Some(actual_val))) => {
                 samples_compared += 1;
-                
+
                 // Handle NaN: NaN == NaN is false, but we want to treat them as matching
                 let both_nan = expected_val.is_nan() && actual_val.is_nan();
                 let diff = if both_nan {
@@ -56,7 +56,7 @@ pub fn validate(
                 } else {
                     (expected_val - actual_val).abs()
                 };
-                
+
                 sum_diff += diff;
                 max_diff = f64::max(max_diff, diff);
 
@@ -162,7 +162,7 @@ pub fn validate_multi_output(
         all_samples_matched += result.samples_matched;
         max_diff = f64::max(max_diff, result.max_diff);
         sum_diff += result.mean_diff * result.samples_compared as f64;
-        
+
         // Add mismatches with output index context
         for mismatch in result.mismatches {
             if mismatches.len() < 10 {
@@ -188,4 +188,3 @@ pub fn validate_multi_output(
         mismatches,
     }
 }
-

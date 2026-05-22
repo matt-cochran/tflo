@@ -21,6 +21,17 @@ pub enum TFloError {
         current: i64,
     },
 
+    /// The gap between two consecutive timestamps exceeded the configured
+    /// `max_gap_ms` (when validation is enabled).
+    TimestampGapExceeded {
+        /// The previous timestamp.
+        previous: i64,
+        /// The current timestamp.
+        current: i64,
+        /// The configured maximum allowed gap, in milliseconds.
+        max_gap: i64,
+    },
+
     /// Division by zero in a computation.
     DivisionByZero,
 
@@ -79,6 +90,18 @@ impl fmt::Display for TFloError {
                 write!(
                     f,
                     "out-of-order timestamp: previous={previous}, current={current}"
+                )
+            }
+            Self::TimestampGapExceeded {
+                previous,
+                current,
+                max_gap,
+            } => {
+                write!(
+                    f,
+                    "timestamp gap exceeded: previous={previous}, current={current}, \
+                     gap={} > max_gap={max_gap}",
+                    current.saturating_sub(*previous)
                 )
             }
             Self::DivisionByZero => write!(f, "division by zero in computation"),

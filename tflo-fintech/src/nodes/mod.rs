@@ -5,17 +5,15 @@
 //! `tflo` graph through [`Comp::custom_node`](tflo_core::comp::Comp::custom_node).
 //!
 //! Input order for the three-input nodes (ADX/ATR/+DI/-DI) is
-//! `[close, high, low]`.
+//! `[close, high, low]`. Each `eval` reads and `?`-propagates every input
+//! *before* touching its OHLC history, so an absent input never lands a
+//! placeholder in the buffers.
 
 mod talib_math;
 
 use talib_math::{kama_last, ta_adx_last, ta_minus_di_last, ta_plus_di_last, true_range};
-use tflo_core::custom_node::CustomNode;
-
-#[inline]
-fn input_at(inputs: &[f64], idx: usize) -> f64 {
-    inputs.get(idx).copied().unwrap_or(f64::NAN)
-}
+use tflo_core::compile::{Absent, Computed, finite_or_warming};
+use tflo_core::custom_node::{CustomNode, require};
 
 /// Average Directional Index (ADX) — Wilder-smoothed trend strength.
 ///
@@ -42,11 +40,14 @@ impl AdxNode {
 }
 
 impl CustomNode for AdxNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.close.push(input_at(inputs, 0));
-        self.high.push(input_at(inputs, 1));
-        self.low.push(input_at(inputs, 2));
-        ta_adx_last(&self.high, &self.low, &self.close, self.period)
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let close = require(inputs, 0)?;
+        let high = require(inputs, 1)?;
+        let low = require(inputs, 2)?;
+        self.close.push(close);
+        self.high.push(high);
+        self.low.push(low);
+        finite_or_warming(ta_adx_last(&self.high, &self.low, &self.close, self.period))
     }
 
     fn reset(&mut self) {
@@ -85,11 +86,19 @@ impl PlusDiNode {
 }
 
 impl CustomNode for PlusDiNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.close.push(input_at(inputs, 0));
-        self.high.push(input_at(inputs, 1));
-        self.low.push(input_at(inputs, 2));
-        ta_plus_di_last(&self.high, &self.low, &self.close, self.period)
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let close = require(inputs, 0)?;
+        let high = require(inputs, 1)?;
+        let low = require(inputs, 2)?;
+        self.close.push(close);
+        self.high.push(high);
+        self.low.push(low);
+        finite_or_warming(ta_plus_di_last(
+            &self.high,
+            &self.low,
+            &self.close,
+            self.period,
+        ))
     }
 
     fn reset(&mut self) {
@@ -128,11 +137,19 @@ impl MinusDiNode {
 }
 
 impl CustomNode for MinusDiNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.close.push(input_at(inputs, 0));
-        self.high.push(input_at(inputs, 1));
-        self.low.push(input_at(inputs, 2));
-        ta_minus_di_last(&self.high, &self.low, &self.close, self.period)
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let close = require(inputs, 0)?;
+        let high = require(inputs, 1)?;
+        let low = require(inputs, 2)?;
+        self.close.push(close);
+        self.high.push(high);
+        self.low.push(low);
+        finite_or_warming(ta_minus_di_last(
+            &self.high,
+            &self.low,
+            &self.close,
+            self.period,
+        ))
     }
 
     fn reset(&mut self) {
@@ -175,10 +192,10 @@ impl AtrNode {
 }
 
 impl CustomNode for AtrNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let close = input_at(inputs, 0);
-        let high = input_at(inputs, 1);
-        let low = input_at(inputs, 2);
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let close = require(inputs, 0)?;
+        let high = require(inputs, 1)?;
+        let low = require(inputs, 2)?;
 
         self.close.push(close);
         self.high.push(high);
@@ -187,7 +204,7 @@ impl CustomNode for AtrNode {
         let period = self.period;
 
         if n < period + 1 {
-            return f64::NAN;
+            return Err(Absent::WarmingUp);
         }
 
         // On the exact trigger index: seed with SMA of first `period` TR values.
@@ -198,13 +215,13 @@ impl CustomNode for AtrNode {
             }
             self.prev_atr = sum_tr / period as f64;
             self.seeded = true;
-            return self.prev_atr;
+            return Ok(self.prev_atr);
         }
 
         // Ongoing: Wilder smoothing — ATR = (prev_ATR * (period - 1) + TR) / period.
         let prev_tr = true_range(high, low, self.close[n - 2]);
         self.prev_atr = (self.prev_atr * (period as f64 - 1.0) + prev_tr) / period as f64;
-        self.prev_atr
+        Ok(self.prev_atr)
     }
 
     fn reset(&mut self) {
@@ -241,9 +258,10 @@ impl KamaNode {
 }
 
 impl CustomNode for KamaNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.values.push(input_at(inputs, 0));
-        kama_last(&self.values, self.period)
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let value = require(inputs, 0)?;
+        self.values.push(value);
+        finite_or_warming(kama_last(&self.values, self.period))
     }
 
     fn reset(&mut self) {

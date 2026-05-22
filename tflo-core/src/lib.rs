@@ -205,6 +205,9 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 #![deny(unsafe_code)]
+// Test code may freely `unwrap`/`expect`/`panic!` — the panic-freedom lints
+// only police production code paths.
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod adapter;
 pub mod builder;
@@ -246,15 +249,16 @@ pub mod prelude {
     };
     pub use crate::comp::Comp;
     pub use crate::compile::{
-        CompiledGraph, ExtractOutput, GraphPlan, GraphStateSummary, ValueStore,
+        Absent, CompiledGraph, Computed, ExtractOutput, GraphPlan, GraphStateSummary, ValueStore,
+        finite_or_warming,
     };
+    pub use crate::custom_node::{BoxedCustomNode, CustomNode, CustomNodeFactory};
     pub use crate::duration::IntoDuration;
     pub use crate::error::{ComputeError, ComputeResult, TFloError, TFloResult};
     pub use crate::event::{
         EdgeSignal, EventMode, PulseEventMode, PulseMetadata, PulseSignal, Signal,
         ThresholdCrossEventMode, ZoneEventMode, ZoneSignal,
     };
-    pub use crate::custom_node::{BoxedCustomNode, CustomNode, CustomNodeFactory};
     pub use crate::iter_ext::TFlowIteratorExt;
     pub use crate::keyed::{OutOfOrderPolicy, TFloKeyedIter};
     pub use crate::pipeline::{

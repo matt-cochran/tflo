@@ -1,11 +1,10 @@
 //! Integration tests for the tflo-wasm bridge — run with `wasm-pack test --node`.
 
-use wasm_bindgen_test::*;
 use tflo_wasm::{
-    compute_ema, compute_macd, WasmCrossDetector, WasmGlitchFilter,
-    WasmHysteresisCrossDetector, WasmPulseWidthDetector, WasmRuntDetector,
-    WasmWindowDetector,
+    WasmCrossDetector, WasmGlitchFilter, WasmHysteresisCrossDetector, WasmPulseWidthDetector,
+    WasmRuntDetector, WasmWindowDetector, compute_ema, compute_macd,
 };
+use wasm_bindgen_test::*;
 
 fn ramp_ticks(n: i64) -> String {
     let pts: Vec<String> = (0..n)

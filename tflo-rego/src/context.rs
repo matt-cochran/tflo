@@ -108,7 +108,7 @@ mod tests {
         let input = InputBuilder::new()
             .with_string("name", "test")
             .with_int("count", 42)
-            .with_float("ratio", 3.14)
+            .with_float("ratio", 1.5)
             .with_bool("active", true)
             .build();
 

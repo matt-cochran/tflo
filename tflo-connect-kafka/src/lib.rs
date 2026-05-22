@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! Kafka consumer adapter for tflo keyed execution.
 //!
 //! This crate provides a reference implementation of how to integrate `tflo`
@@ -306,9 +307,10 @@ where
 
 /// Helper function to create a checkpoint from state and cursor.
 pub fn create_checkpoint<C: Cursor>(state: StateSnapshot, cursor: &C) -> Checkpoint {
+    // A clock before the Unix epoch is not representable; fall back to 0.
     let timestamp_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis() as i64;
     let checkpoint_id = format!("checkpoint_{}", timestamp_ms);
     Checkpoint::new(checkpoint_id, state, cursor, timestamp_ms)

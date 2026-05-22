@@ -161,8 +161,13 @@ pub enum Node<R> {
         input: NodeId,
         /// State constructor.
         ctor: Arc<dyn Fn() -> Box<dyn std::any::Any + Send + Sync> + Send + Sync>,
-        /// Step closure.
-        step: Arc<dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64) -> f64 + Send + Sync>,
+        /// Step closure. Yields a [`Computed`](crate::compile::Computed) so a
+        /// state-type mismatch degrades to an absence rather than a panic.
+        step: Arc<
+            dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64) -> crate::compile::Computed
+                + Send
+                + Sync,
+        >,
         /// Optional human-readable name.
         name: Option<String>,
     },
@@ -174,8 +179,13 @@ pub enum Node<R> {
         b: NodeId,
         /// State constructor.
         ctor: Arc<dyn Fn() -> Box<dyn std::any::Any + Send + Sync> + Send + Sync>,
-        /// Step closure.
-        step: Arc<dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64, f64) -> f64 + Send + Sync>,
+        /// Step closure. Yields a [`Computed`](crate::compile::Computed) so a
+        /// state-type mismatch degrades to an absence rather than a panic.
+        step: Arc<
+            dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64, f64) -> crate::compile::Computed
+                + Send
+                + Sync,
+        >,
         /// Optional human-readable name.
         name: Option<String>,
     },

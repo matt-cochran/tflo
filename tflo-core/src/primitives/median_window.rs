@@ -28,7 +28,7 @@ use std::time::Duration;
 /// assert_eq!(window.median(), 3.0);  // Middle value of [1, 1, 3, 4, 5]
 /// assert_eq!(window.quantile(0.25), 1.0);  // 25th percentile
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MedianCountWindow {
     max_count: usize,
     /// Values in insertion order for FIFO eviction
@@ -172,7 +172,7 @@ impl MedianCountWindow {
 ///
 /// For frequently accessed medians, consider using the count-based window
 /// if your data arrives at regular intervals.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MedianTimeWindow {
     window_ms: i64,
     buffer: VecDeque<(i64, f64)>,

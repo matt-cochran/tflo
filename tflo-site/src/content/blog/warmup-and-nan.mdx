@@ -42,12 +42,13 @@ pub enum StepResult<C: PipelineContext, O> {
     Ready(PipelineItem<C, O>),
     WarmingUp {
         remaining: usize,
+        reason: Absent,
     },
     Error(ComputeError),
 }
 ```
 
-`WarmingUp { remaining }` — that's how many more records you need before this operator starts producing. Print it, log it, monitor it.
+`WarmingUp { remaining, .. }` — `remaining` is how many more records you need before this operator starts producing. Print it, log it, monitor it. The `reason` field carries the typed [`Absent`] cause: once `remaining` hits zero the graph is warmed up, and a still-empty output means something else (a filtered value, a divide-by-zero) — `reason` tells you which.
 
 You can also inspect the graph's warmup state without stepping:
 

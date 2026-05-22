@@ -45,12 +45,13 @@ use crate::primitives::{GlitchResult, PulseWidthResult, RuntResult, WindowEvent}
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::compile::StepResult;
+/// use tflo_core::compile::{Absent, StepResult};
 ///
-/// let result: StepResult<i64, f64> = StepResult::WarmingUp { remaining: 1 };
+/// let result: StepResult<i64, f64> =
+///     StepResult::WarmingUp { remaining: 1, reason: Absent::WarmingUp };
 /// match result {
 ///     StepResult::Ready(_item) => {}
-///     StepResult::WarmingUp { remaining } => assert_eq!(remaining, 1),
+///     StepResult::WarmingUp { remaining, .. } => assert_eq!(remaining, 1),
 ///     StepResult::Error(_e) => {}
 /// }
 /// ```
@@ -58,10 +59,17 @@ use crate::primitives::{GlitchResult, PulseWidthResult, RuntResult, WindowEvent}
 pub enum StepResult<C: PipelineContext, O> {
     /// Computation succeeded with a value.
     Ready(PipelineItem<C, O>),
-    /// Computation is still warming up (insufficient data).
+    /// Computation produced no value this step.
+    ///
+    /// Despite the name, this covers every reason a value is absent. When the
+    /// graph has genuinely not seen enough records, `remaining > 0`; once
+    /// `remaining == 0` the graph is warmed up and the `reason` field carries
+    /// the specific cause (a filtered value, a divide-by-zero, …).
     WarmingUp {
-        /// Number of records still needed before valid output.
+        /// Number of records still needed before the graph is warmed up.
         remaining: usize,
+        /// Why the value is absent.
+        reason: crate::compile::Absent,
     },
     /// Computation failed with an error.
     Error(ComputeError),

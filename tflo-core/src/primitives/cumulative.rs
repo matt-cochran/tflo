@@ -18,7 +18,7 @@
 /// assert_eq!(cumsum.push(20.0), 30.0);
 /// assert_eq!(cumsum.push(5.0), 35.0);
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct CumulativeSum {
     sum: f64,
 }
@@ -63,7 +63,7 @@ impl CumulativeSum {
 /// assert_eq!(cumprod.push(3.0), 6.0);
 /// assert_eq!(cumprod.push(4.0), 24.0);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CumulativeProduct {
     product: f64,
 }
@@ -116,7 +116,7 @@ impl CumulativeProduct {
 /// assert_eq!(cummax.push(15.0), 15.0);  // New max
 /// assert_eq!(cummax.push(12.0), 15.0);  // Still 15
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CumulativeMax {
     max: f64,
 }
@@ -172,7 +172,7 @@ impl CumulativeMax {
 /// assert_eq!(cummin.push(5.0), 5.0);    // New min
 /// assert_eq!(cummin.push(8.0), 5.0);    // Still 5
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CumulativeMin {
     min: f64,
 }
@@ -226,7 +226,7 @@ impl CumulativeMin {
 /// assert_eq!(cummean.push(20.0), 15.0);
 /// assert_eq!(cummean.push(30.0), 20.0);
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct CumulativeMean {
     count: u64,
     mean: f64,
@@ -255,11 +255,7 @@ impl CumulativeMean {
     /// Returns `f64::NAN` if no values have been added.
     #[must_use]
     pub fn value(&self) -> f64 {
-        if self.count == 0 {
-            f64::NAN
-        } else {
-            self.mean
-        }
+        if self.count == 0 { f64::NAN } else { self.mean }
     }
 
     /// Get the count of values.

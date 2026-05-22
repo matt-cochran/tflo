@@ -56,7 +56,7 @@ impl PolicyEngine {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let file_path = entry.path();
-            if file_path.extension().map_or(false, |e| e == "rego") {
+            if file_path.extension().is_some_and(|e| e == "rego") {
                 self.add_policy_from_file(&file_path)?;
                 count += 1;
             }
@@ -166,7 +166,7 @@ impl PolicyEngine {
         if result
             .get("result")
             .and_then(|r| r.as_array())
-            .map_or(false, |a| a.is_empty())
+            .is_some_and(|a| a.is_empty())
         {
             return Ok(false);
         }

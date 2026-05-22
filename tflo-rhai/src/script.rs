@@ -2,7 +2,7 @@
 
 use crate::context::IntoRhaiScope;
 use crate::error::{RhaiError, RhaiResult};
-use rhai::{Dynamic, Engine, AST};
+use rhai::{AST, Dynamic, Engine};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -71,7 +71,7 @@ impl ScriptEngine {
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "rhai") {
+            if path.extension().is_some_and(|e| e == "rhai") {
                 if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                     self.load_file(name, &path)?;
                     count += 1;

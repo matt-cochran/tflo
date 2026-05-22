@@ -64,7 +64,7 @@ fn run_tflo_single<F>(records: &[TFloRecord], build: F) -> Vec<f64>
 where
     F: FnOnce(&mut TFlowBuilder<TFloRecord>) -> Comp<TFloRecord, f64>,
 {
-    records.to_vec().into_iter().tflo(build).collect()
+    records.iter().cloned().tflo(build).collect()
 }
 
 /// Run a single-output graph with the standard builder closure pattern.
@@ -86,7 +86,7 @@ fn run_tflo_two<F>(records: &[TFloRecord], build: F) -> Vec<(f64, f64)>
 where
     F: FnOnce(&mut TFlowBuilder<TFloRecord>) -> (Comp<TFloRecord, f64>, Comp<TFloRecord, f64>),
 {
-    records.to_vec().into_iter().tflo(build).collect()
+    records.iter().cloned().tflo(build).collect()
 }
 
 /// Run a three-output `.tflo()` graph and return raw computed tuple values.
@@ -100,7 +100,7 @@ where
         Comp<TFloRecord, f64>,
     ),
 {
-    records.to_vec().into_iter().tflo(build).collect()
+    records.iter().cloned().tflo(build).collect()
 }
 
 // ── Warmup alignment ─────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 use tflo_core::prelude::*;
-use tflo_fintech::prelude::*;
 use tflo_examples::*;
+use tflo_fintech::prelude::*;
 
 /// A web analytics traffic metric: a timestamp and a page-view count.
 #[derive(Clone, Debug)]

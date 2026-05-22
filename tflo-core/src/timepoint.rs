@@ -1,7 +1,7 @@
-/// TimePoint trait for generic time types.
-///
-/// This module provides the [`TimePoint`] trait which abstracts over different
-/// time representations, allowing the library to work with various time types.
+//! `TimePoint` trait for generic time types.
+//!
+//! This module provides the [`TimePoint`] trait which abstracts over different
+//! time representations, allowing the library to work with various time types.
 
 /// Trait for types that represent a point in time.
 ///

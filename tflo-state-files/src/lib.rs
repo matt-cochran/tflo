@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! File-based state store backend for tflo checkpoints.
 //!
 //! This crate provides a `StateStore` implementation that persists
@@ -87,8 +88,8 @@ impl StateStore for FileStateStore {
 
     fn list_keys(&self) -> Result<Vec<Vec<u8>>, String> {
         let mut keys = Vec::new();
-        let entries = fs::read_dir(&self.base_dir)
-            .map_err(|e| format!("Failed to read directory: {e}"))?;
+        let entries =
+            fs::read_dir(&self.base_dir).map_err(|e| format!("Failed to read directory: {e}"))?;
 
         for entry in entries {
             let entry = entry.map_err(|e| format!("Failed to read directory entry: {e}"))?;
@@ -105,4 +106,3 @@ impl StateStore for FileStateStore {
         Ok(keys)
     }
 }
-

@@ -12,8 +12,8 @@
 //! // You can write: price.over(20.samples()).sma()
 //! ```
 
-use crate::comp::{Comp, Node};
 use super::Window;
+use crate::comp::{Comp, Node};
 use std::time::Duration;
 
 /// Extension trait for creating window specifications.

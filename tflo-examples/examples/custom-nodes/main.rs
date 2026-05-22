@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use tflo_core::custom_node::require;
 use tflo_core::prelude::*;
 use tflo_examples::*;
 
@@ -19,22 +20,22 @@ impl RateOfChange {
 }
 
 impl CustomNode for RateOfChange {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let current = inputs.first().copied().unwrap_or(f64::NAN);
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let current = require(inputs, 0)?;
         self.buffer.push_back(current);
 
         if self.buffer.len() > self.period + 1 {
             self.buffer.pop_front();
         }
         if self.buffer.len() < self.period + 1 {
-            return f64::NAN; // still warming up
+            return Err(Absent::WarmingUp); // still warming up
         }
 
         let n_periods_ago = self.buffer.front().copied().unwrap_or(current);
         if n_periods_ago == 0.0 {
-            return f64::NAN;
+            return Err(Absent::DivideByZero);
         }
-        (current - n_periods_ago) / n_periods_ago
+        Ok((current - n_periods_ago) / n_periods_ago)
     }
 
     fn reset(&mut self) {
@@ -59,9 +60,13 @@ impl SnrGate {
 }
 
 impl CustomNode for SnrGate {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let v = inputs.first().copied().unwrap_or(f64::NAN);
-        if v > self.threshold_db { v } else { f64::NAN }
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let v = require(inputs, 0)?;
+        if v > self.threshold_db {
+            Ok(v)
+        } else {
+            Err(Absent::FilteredOut)
+        }
     }
 
     fn name(&self) -> &str {

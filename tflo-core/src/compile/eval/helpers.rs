@@ -4,9 +4,19 @@
 //! parent module. Each helper handles a category of node operations:
 //! windowed aggregations, WMA/RSI, lookback trackers, cumulative ops,
 //! returns, cross detection, statistical windows, and trigger primitives.
+//!
+//! The `f64`-producing helpers return a [`Computed`]: they `?`-propagate an
+//! absent input (skipping any state update) and route a primitive's internal
+//! `NaN` "insufficient data" sentinel through [`finite_or_warming`]. The
+//! event-producing helpers ([`eval_cross`](CompiledGraph::eval_cross) and the
+//! trigger detectors) keep their historical behaviour — an absent input is
+//! fed to the detector as `NaN`.
 
 use crate::comp::NodeId;
-use crate::compile::{CompiledGraph, NodeState, RsiWilderState, Value, ValueStore};
+use crate::compile::{
+    Absent, CompiledGraph, Computed, NodeState, RsiWilderState, Value, ValueStore,
+    finite_or_warming,
+};
 use crate::event::ThresholdCrossEventMode;
 use crate::pipeline::PipelineContext;
 use crate::primitives::{
@@ -26,20 +36,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         ts: i64,
         time_fn: impl FnOnce(&mut TimeWindow) -> f64,
         count_fn: impl FnOnce(&mut CountWindow) -> f64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::TimeWindow(w) => {
                 w.push(ts, v);
-                time_fn(w)
+                finite_or_warming(time_fn(w))
             }
             NodeState::CountWindow(w) => {
                 w.push(v);
-                count_fn(w)
+                finite_or_warming(count_fn(w))
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     // ---- WMA / RSI helpers ----
@@ -49,20 +58,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::WmaTimeWindow(w) => {
                 w.push(ts, v);
-                w.wma()
+                finite_or_warming(w.wma())
             }
             NodeState::WmaCountWindow(w) => {
                 w.push(v);
-                w.wma()
+                finite_or_warming(w.wma())
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_rsi(
@@ -70,31 +78,30 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::RsiTimeWindow(w) => {
                 w.push(ts, v);
-                w.rsi()
+                finite_or_warming(w.rsi())
             }
             NodeState::RsiCountWindow(w) => {
                 w.push(v);
-                w.rsi()
+                finite_or_warming(w.rsi())
             }
             NodeState::RsiWilderState(s) => Self::compute_rsi_wilder(s, v),
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
-    fn compute_rsi_wilder(state: &mut RsiWilderState, value: f64) -> f64 {
+    fn compute_rsi_wilder(state: &mut RsiWilderState, value: f64) -> Computed {
         if state.period == 0 {
-            return f64::NAN;
+            return Err(Absent::InvalidConfig);
         }
 
         let Some(prev) = state.prev else {
             state.prev = Some(value);
-            return f64::NAN;
+            return Err(Absent::WarmingUp);
         };
 
         let change = value - prev;
@@ -107,7 +114,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             state.sum_gain += gain;
             state.sum_loss += loss;
             if state.count < state.period {
-                return f64::NAN;
+                return Err(Absent::WarmingUp);
             }
             state.avg_gain = state.sum_gain / state.period as f64;
             state.avg_loss = state.sum_loss / state.period as f64;
@@ -119,26 +126,21 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 (state.avg_loss * (state.period - 1) as f64 + loss) / state.period as f64;
         }
 
-        if state.avg_loss == 0.0 {
+        Ok(if state.avg_loss == 0.0 {
             if state.avg_gain == 0.0 { 50.0 } else { 100.0 }
         } else {
             100.0 - 100.0 / (1.0 + state.avg_gain / state.avg_loss)
-        }
+        })
     }
 
     // ---- Stateful tracker helpers ----
 
-    pub(super) fn eval_prev(
-        store: &ValueStore,
-        state: &mut NodeState,
-        input: &NodeId,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
-            NodeState::Prev(p) => p.update(v).unwrap_or(f64::NAN),
-            _ => f64::NAN,
-        };
-        Value::from(result)
+    pub(super) fn eval_prev(store: &ValueStore, state: &mut NodeState, input: &NodeId) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
+            NodeState::Prev(p) => p.update(v).ok_or(Absent::WarmingUp),
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_prev_by(
@@ -147,14 +149,13 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         input: &NodeId,
         key_fn: &Arc<dyn Fn(&R) -> u64 + Send + Sync>,
         record: &R,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
         let key = key_fn(record);
-        let result = match state {
-            NodeState::PrevBy(p) => p.update(key, v).unwrap_or(f64::NAN),
-            _ => f64::NAN,
-        };
-        Value::from(result)
+        match state {
+            NodeState::PrevBy(p) => p.update(key, v).ok_or(Absent::WarmingUp),
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_lag(
@@ -162,13 +163,12 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
-            NodeState::Lag(l) => l.push(ts, v).unwrap_or(f64::NAN),
-            _ => f64::NAN,
-        };
-        Value::from(result)
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
+            NodeState::Lag(l) => l.push(ts, v).ok_or(Absent::WarmingUp),
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_delta(
@@ -176,13 +176,12 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
-            NodeState::Lag(l) => l.push(ts, v).map_or(f64::NAN, |lag| v - lag),
-            _ => f64::NAN,
-        };
-        Value::from(result)
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
+            NodeState::Lag(l) => l.push(ts, v).map(|lag| v - lag).ok_or(Absent::WarmingUp),
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_rate_derivative(
@@ -190,9 +189,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::Rate {
                 prev_ts,
                 prev_value,
@@ -201,20 +200,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     (Some(pt), Some(pv)) => {
                         let dt = (ts - pt) as f64;
                         if dt > 0.0 {
-                            (v - pv) / dt * 1000.0
+                            Ok((v - pv) / dt * 1000.0)
                         } else {
-                            f64::NAN
+                            Err(Absent::ZeroTimeDelta)
                         }
                     }
-                    _ => f64::NAN,
+                    _ => Err(Absent::WarmingUp),
                 };
                 *prev_ts = Some(ts);
                 *prev_value = Some(v);
                 rate
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_velocity(
@@ -222,9 +220,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::Velocity {
                 prev_ts,
                 prev_value,
@@ -233,20 +231,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     (Some(pt), Some(pv)) => {
                         let dt = (ts - pt) as f64;
                         if dt > 0.0 {
-                            (v - pv) / dt * 1000.0
+                            Ok((v - pv) / dt * 1000.0)
                         } else {
-                            f64::NAN
+                            Err(Absent::ZeroTimeDelta)
                         }
                     }
-                    _ => f64::NAN,
+                    _ => Err(Absent::WarmingUp),
                 };
                 *prev_ts = Some(ts);
                 *prev_value = Some(v);
                 velocity
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_acceleration(
@@ -254,14 +251,16 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::Acceleration {
                 prev_ts,
                 prev_velocity,
                 velocity_state,
             } => {
+                // The inner velocity keeps its internal `NaN` sentinel — it is
+                // a private intermediate, never observed outside this helper.
                 let current_velocity = match velocity_state.as_mut() {
                     NodeState::Velocity {
                         prev_ts: vel_ts,
@@ -288,12 +287,12 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     (Some(pt), Some(pv)) if !current_velocity.is_nan() => {
                         let dt = (ts - pt) as f64;
                         if dt > 0.0 {
-                            (current_velocity - pv) / dt * 1000.0
+                            Ok((current_velocity - pv) / dt * 1000.0)
                         } else {
-                            f64::NAN
+                            Err(Absent::ZeroTimeDelta)
                         }
                     }
-                    _ => f64::NAN,
+                    _ => Err(Absent::WarmingUp),
                 };
                 *prev_ts = Some(ts);
                 if !current_velocity.is_nan() {
@@ -301,9 +300,8 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 }
                 accel
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     // ---- Cumulative helpers ----
@@ -312,16 +310,15 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         store: &ValueStore,
         state: &mut NodeState,
         input: &NodeId,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
-            NodeState::CumSum(c) => c.push(v),
-            NodeState::CumMax(c) => c.push(v),
-            NodeState::CumMin(c) => c.push(v),
-            NodeState::CumProd(c) => c.push(v),
-            _ => f64::NAN,
-        };
-        Value::from(result)
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
+            NodeState::CumSum(c) => Ok(c.push(v)),
+            NodeState::CumMax(c) => Ok(c.push(v)),
+            NodeState::CumMin(c) => Ok(c.push(v)),
+            NodeState::CumProd(c) => Ok(c.push(v)),
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     // ---- Returns helpers ----
@@ -330,40 +327,40 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         store: &ValueStore,
         state: &mut NodeState,
         input: &NodeId,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::PctChange { prev } => {
                 let pct = match *prev {
-                    Some(p) if p != 0.0 => (v - p) / p * 100.0,
-                    _ => f64::NAN,
+                    Some(p) if p != 0.0 => Ok((v - p) / p * 100.0),
+                    Some(_) => Err(Absent::DivideByZero),
+                    None => Err(Absent::WarmingUp),
                 };
                 *prev = Some(v);
                 pct
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_log_return(
         store: &ValueStore,
         state: &mut NodeState,
         input: &NodeId,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::LogReturn { prev } => {
                 let ret = match *prev {
-                    Some(p) if p > 0.0 && v > 0.0 => (v / p).ln(),
-                    _ => f64::NAN,
+                    Some(p) if p > 0.0 && v > 0.0 => Ok((v / p).ln()),
+                    Some(_) => Err(Absent::DomainError),
+                    None => Err(Absent::WarmingUp),
                 };
                 *prev = Some(v);
                 ret
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     // ---- Cross detection helper ----
@@ -375,8 +372,8 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         b: &NodeId,
         update_fn: fn(&mut CrossDetector, f64, f64) -> ThresholdCrossEventMode,
     ) -> Value {
-        let va = Self::get_f64(store, a);
-        let vb = Self::get_f64(store, b);
+        let va = Self::get_computed(store, a).unwrap_or(f64::NAN);
+        let vb = Self::get_computed(store, b).unwrap_or(f64::NAN);
         let edge = match state {
             NodeState::Cross(c) => update_fn(c, va, vb),
             _ => ThresholdCrossEventMode::None,
@@ -393,20 +390,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         ts: i64,
         time_fn: impl FnOnce(&mut MedianTimeWindow) -> f64,
         count_fn: impl FnOnce(&mut MedianCountWindow) -> f64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::MedianTimeWindow(w) => {
                 w.push(ts, v);
-                time_fn(w)
+                finite_or_warming(time_fn(w))
             }
             NodeState::MedianCountWindow(w) => {
                 w.push(v);
-                count_fn(w)
+                finite_or_warming(count_fn(w))
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_bivariate(
@@ -417,21 +413,20 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         ts: i64,
         time_fn: impl FnOnce(&mut CorrelationTimeWindow) -> f64,
         count_fn: impl FnOnce(&mut CorrelationCountWindow) -> f64,
-    ) -> Value {
-        let va = Self::get_f64(store, a);
-        let vb = Self::get_f64(store, b);
-        let result = match state {
+    ) -> Computed {
+        let va = Self::get_computed(store, a)?;
+        let vb = Self::get_computed(store, b)?;
+        match state {
             NodeState::CorrelationTimeWindow(w) => {
                 w.push(ts, va, vb);
-                time_fn(w)
+                finite_or_warming(time_fn(w))
             }
             NodeState::CorrelationCountWindow(w) => {
                 w.push(va, vb);
-                count_fn(w)
+                finite_or_warming(count_fn(w))
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     pub(super) fn eval_moments(
@@ -441,20 +436,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         ts: i64,
         time_fn: impl FnOnce(&mut MomentsTimeWindow) -> f64,
         count_fn: impl FnOnce(&mut MomentsCountWindow) -> f64,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
-        let result = match state {
+    ) -> Computed {
+        let v = Self::get_computed(store, input)?;
+        match state {
             NodeState::MomentsTimeWindow(w) => {
                 w.push(ts, v);
-                time_fn(w)
+                finite_or_warming(time_fn(w))
             }
             NodeState::MomentsCountWindow(w) => {
                 w.push(v);
-                count_fn(w)
+                finite_or_warming(count_fn(w))
             }
-            _ => f64::NAN,
-        };
-        Value::from(result)
+            _ => Err(Absent::WarmingUp),
+        }
     }
 
     // ---- Trigger helpers ----
@@ -465,7 +459,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         input: &NodeId,
         ts: i64,
     ) -> Value {
-        let v = Self::get_f64(store, input);
+        let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: GlitchResult = match state {
             NodeState::GlitchFilterState(f) => match f.update(v, ts) {
                 Some(true) => GlitchResult::ValidPulse,
@@ -477,12 +471,8 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         Value::from(result)
     }
 
-    pub(super) fn eval_runt(
-        store: &ValueStore,
-        state: &mut NodeState,
-        input: &NodeId,
-    ) -> Value {
-        let v = Self::get_f64(store, input);
+    pub(super) fn eval_runt(store: &ValueStore, state: &mut NodeState, input: &NodeId) -> Value {
+        let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: Option<RuntResult> = match state {
             NodeState::RuntDetectorState(d) => d.update(v),
             _ => None,
@@ -496,7 +486,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         input: &NodeId,
         ts: i64,
     ) -> Value {
-        let v = Self::get_f64(store, input);
+        let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: Option<PulseWidthResult> = match state {
             NodeState::PulseWidthState(d) => d.update(v, ts),
             _ => None,
@@ -509,12 +499,11 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
     ) -> Value {
-        let v = Self::get_f64(store, input);
+        let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: Option<WindowEvent> = match state {
             NodeState::WindowDetectorState(d) => d.update(v),
             _ => None,
         };
         Value::from(result)
     }
-
 }

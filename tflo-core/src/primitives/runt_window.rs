@@ -62,7 +62,7 @@ use super::results::WindowEvent;
 /// // Returns below low - VALID PULSE
 /// assert_eq!(detector.update(25.0), Some(RuntResult::ValidPulse { peak: 80.0 }));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RuntDetector {
     low_threshold: f64,
     high_threshold: f64,
@@ -71,7 +71,7 @@ pub struct RuntDetector {
     peak_value: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum RuntState {
     /// Signal is below low threshold
     BelowLow,
@@ -141,14 +141,14 @@ pub(crate) enum RuntState {
 /// // Exit window (low)
 /// assert_eq!(detector.update(4.0), Some(WindowEvent::ExitedLow));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WindowDetector {
     low_threshold: f64,
     high_threshold: f64,
     state: WindowState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum WindowState {
     Unknown,
     BelowWindow,
@@ -200,7 +200,7 @@ impl RuntDetector {
             self.reached_high = true;
         }
 
-        let result = match self.state {
+        match self.state {
             RuntState::BelowLow => {
                 if value >= self.high_threshold {
                     self.state = RuntState::AboveHigh;
@@ -252,9 +252,7 @@ impl RuntDetector {
                     None
                 }
             }
-        };
-
-        result
+        }
     }
 
     fn reset_pulse(&mut self) {

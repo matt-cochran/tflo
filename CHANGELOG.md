@@ -20,6 +20,39 @@ tflo is pre-1.0 and has not been published to crates.io; the API is unstable.
 - **Breaking:** finance indicators (`macd_n`, `adx_n`, `stochastic_n`, …) now
   require `use tflo_fintech::prelude::*`.
 
+### Hardened — pre-open-source quality pass
+
+- **Typed absence model.** A node's per-record output is now a `Computed`
+  (`Result<f64, Absent>`) — a finite value, or a typed reason it is absent
+  (`WarmingUp`, `DivideByZero`, `DomainError`, `FilteredOut`, …) — replacing
+  the opaque `f64::NAN` sentinel. **Breaking:** `CustomNode::eval` takes
+  `&[Computed]` and returns `Computed`, and `StepResult::WarmingUp` carries a
+  `reason`. `O = f64` callers are unaffected — absence still flattens to
+  `NaN`; use `O = Computed` to observe the reason.
+- **Panic-freedom.** Production `unwrap`/`expect`/`panic!`/`unreachable!`
+  sites were removed and locked out by `deny`-level clippy lints
+  (`unwrap_used`, `expect_used`, `panic`, `unreachable`, `todo`); test code is
+  exempt. Calibration constructors gained a total, clamping `new` plus a
+  fallible `try_new`. The `release` profile now enables `overflow-checks`.
+- **Working `snapshot()` / `restore()`.** Checkpointing now serializes full
+  per-node state (window buffers, accumulators, detector state machines) with
+  `postcard`, not just metadata. `snapshot()` returns a `Result` and rejects
+  any graph it cannot fully capture (a `scan`/`fold` node, or a `CustomNode`
+  that does not implement the new optional `save`/`load`).
+- **`OutOfOrderPolicy::Buffer` implemented.** Previously a no-op that
+  processed records in arrival order; it now buffers within the lateness
+  window, releases records on an advancing watermark, and flushes any
+  remainder at end-of-stream.
+- **`validated()` enforces every option.** All eight `ValidationOptions`
+  fields — `reject_nan`/`reject_inf`, `error_on_nan`/`error_on_inf`/
+  `error_on_negative`, `min_warmup`, `max_gap_ms`, and `assert_sorted` — are
+  now checked; previously only `assert_sorted` was. New error variant
+  `TFloError::TimestampGapExceeded`.
+- **CI & lints.** Added a `rustfmt --check` step and a `-D warnings` clippy
+  gate; declared an MSRV (`rust-version = "1.85"`). `clippy::pedantic` and
+  `clippy::nursery` are temporarily suppressed with a documented
+  re-enablement backlog (`docs/lint-backlog.md`).
+
 ### Added
 
 - `CustomNode` trait plus `Comp::custom_node` / `custom_node1`: external crates

@@ -76,13 +76,13 @@ pub(crate) use super::runt_window::{RuntState, WindowState};
 /// // Falls below threshold - hysteresis - triggers Falling
 /// assert_eq!(detector.update(94.0, 100.0), ThresholdCrossEventMode::Falling);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HysteresisCrossDetector {
     hysteresis: f64,
     state: HysteresisState,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum HysteresisState {
     Unknown,
     Above,

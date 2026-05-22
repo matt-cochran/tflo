@@ -26,10 +26,10 @@ where
     ///
     /// Each item is evaluated against all rules, and the iterator yields
     /// tuples of `(item, matched_rules)`.
-    fn cel_route<'a>(self, engine: &'a RuleEngine) -> CelRouter<'a, Self, T>;
+    fn cel_route(self, engine: &RuleEngine) -> CelRouter<'_, Self, T>;
 
     /// Route items, yielding only those with at least one match.
-    fn cel_route_matched<'a>(self, engine: &'a RuleEngine) -> CelRouterMatched<'a, Self, T>;
+    fn cel_route_matched(self, engine: &RuleEngine) -> CelRouterMatched<'_, Self, T>;
 }
 
 impl<I, T> CelRouterExt<T> for I
@@ -37,11 +37,11 @@ where
     I: Iterator<Item = T>,
     T: IntoCelContext,
 {
-    fn cel_route<'a>(self, engine: &'a RuleEngine) -> CelRouter<'a, Self, T> {
+    fn cel_route(self, engine: &RuleEngine) -> CelRouter<'_, Self, T> {
         CelRouter { iter: self, engine }
     }
 
-    fn cel_route_matched<'a>(self, engine: &'a RuleEngine) -> CelRouterMatched<'a, Self, T> {
+    fn cel_route_matched(self, engine: &RuleEngine) -> CelRouterMatched<'_, Self, T> {
         CelRouterMatched { iter: self, engine }
     }
 }

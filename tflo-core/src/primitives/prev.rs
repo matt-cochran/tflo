@@ -16,7 +16,7 @@
 /// assert_eq!(tracker.update(20.0), Some(10.0));
 /// assert_eq!(tracker.update(30.0), Some(20.0));
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct PrevTracker {
     prev: Option<f64>,
 }
@@ -66,7 +66,7 @@ impl PrevTracker {
 /// Tracks previous values with timestamps.
 ///
 /// Useful when you need to know both the previous value and when it occurred.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct TimestampedPrevTracker {
     prev: Option<(i64, f64)>,

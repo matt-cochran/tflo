@@ -70,7 +70,13 @@ fn main() {
 
     // ---- Snapshot ----
     println!("\n=== Taking snapshot ===");
-    let snapshot = graph.snapshot();
+    let snapshot = match graph.snapshot() {
+        Ok(s) => s,
+        Err(e) => {
+            println!("  snapshot failed: {e}");
+            return;
+        }
+    };
     println!(
         "  snapshot metadata: version={}, timestamp_ms={}",
         snapshot.metadata.version, snapshot.metadata.timestamp_ms

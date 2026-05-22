@@ -9,6 +9,7 @@
 //! readability.  When omitted a generic label is used.
 
 use super::{Comp, Node};
+use crate::compile::{Absent, Computed};
 use std::sync::Arc;
 
 // ── closure type aliases ───────────────────────────────────────────────────
@@ -141,10 +142,13 @@ impl<R: 'static> Comp<R, f64> {
         let state_factory: Arc<dyn Fn() -> Box<dyn std::any::Any + Send + Sync> + Send + Sync> =
             Arc::new(move || Box::new(init()));
         let step_fn: Arc<
-            dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64) -> f64 + Send + Sync,
-        > = Arc::new(move |state, x| {
-            let s: &mut S = state.downcast_mut().expect("ScanF64 state type mismatch");
-            step(s, x)
+            dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64) -> Computed + Send + Sync,
+        > = Arc::new(move |state, x| match state.downcast_mut::<S>() {
+            Some(s) => Ok(step(s, x)),
+            // The compiler always pairs a `ScanF64` op with a `ScanState` of
+            // the matching type; a mismatch can only mean an uninitialised
+            // state, so degrade to "warming up" rather than panicking.
+            None => Err(Absent::WarmingUp),
         });
         Self::add_node_to_state(
             &self.state,
@@ -173,10 +177,10 @@ impl<R: 'static> Comp<R, f64> {
         let state_factory: Arc<dyn Fn() -> Box<dyn std::any::Any + Send + Sync> + Send + Sync> =
             Arc::new(move || Box::new(init()));
         let step_fn: Arc<
-            dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64, f64) -> f64 + Send + Sync,
-        > = Arc::new(move |state, a, b| {
-            let s: &mut S = state.downcast_mut().expect("Scan2F64 state type mismatch");
-            step(s, a, b)
+            dyn Fn(&mut Box<dyn std::any::Any + Send + Sync>, f64, f64) -> Computed + Send + Sync,
+        > = Arc::new(move |state, a, b| match state.downcast_mut::<S>() {
+            Some(s) => Ok(step(s, a, b)),
+            None => Err(Absent::WarmingUp),
         });
         Self::add_node_to_state(
             &self.state,
@@ -204,18 +208,17 @@ impl<R: 'static> Comp<R, f64> {
         let id = self.id;
         {
             let mut state = self.state.borrow_mut();
-            if let Some((_, node)) = state.nodes.iter_mut().find(|(nid, _)| *nid == id) {
-                match node {
-                    Node::MapF64 { name: n, .. }
-                    | Node::Map2F64 { name: n, .. }
-                    | Node::FilterF64 { name: n, .. }
-                    | Node::FilterMapF64 { name: n, .. }
-                    | Node::ScanF64 { name: n, .. }
-                    | Node::Scan2F64 { name: n, .. } => {
-                        *n = Some(name.to_string());
-                    }
-                    _ => {}
-                }
+            if let Some((
+                _,
+                Node::MapF64 { name: n, .. }
+                | Node::Map2F64 { name: n, .. }
+                | Node::FilterF64 { name: n, .. }
+                | Node::FilterMapF64 { name: n, .. }
+                | Node::ScanF64 { name: n, .. }
+                | Node::Scan2F64 { name: n, .. },
+            )) = state.nodes.iter_mut().find(|(nid, _)| *nid == id)
+            {
+                *n = Some(name.to_string());
             }
         }
         self
@@ -226,8 +229,6 @@ impl<R: 'static> Comp<R, f64> {
 mod tests {
     use crate::iter_ext::TFlowIteratorExt;
     use crate::prelude::IntoDuration;
-
-    use super::*;
 
     #[derive(Clone, Debug)]
     struct TestRecord {

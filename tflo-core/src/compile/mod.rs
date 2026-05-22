@@ -25,6 +25,7 @@ mod extract;
 mod inspect;
 mod node;
 mod pipeline;
+mod snapshot;
 #[cfg(test)]
 mod tests;
 mod value;
@@ -41,16 +42,16 @@ use crate::primitives::{
     RsiCountWindow, RsiTimeWindow, RuntDetector, RuntResult, TimeEma, TimeWindow, WindowDetector,
     WindowEvent, WmaCountWindow, WmaTimeWindow,
 };
-pub use absent::{Absent, Computed};
+pub use absent::{Absent, Computed, finite_or_warming};
 pub use extract::ExtractOutput;
 pub use inspect::{GraphPlan, GraphStateSummary};
 pub use node::{CompiledNode, CompositionNodeEntry, offset_node_ids};
 pub use pipeline::{PipelinedGraph, StepResult};
-pub(crate) use value::Value;
 use std::any::Any;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
+pub(crate) use value::Value;
 
 // ============================================================================
 // VALUE STORE - Type-erased storage for computed values
@@ -82,9 +83,11 @@ macro_rules! impl_extract_output {
     };
 }
 
-// Primitive types
+// Primitive types other than `f64` (`f64` has a bespoke impl below). These are
+// only ever produced by `map`/`fold` composition nodes, so plain `get_cloned`
+// on the boxed value is correct.
 impl_extract_output!(
-    f64, f32, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize, String
+    f32, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize, String
 );
 
 // Domain types
@@ -96,6 +99,34 @@ impl_extract_output!(
     WindowEvent
 );
 
+/// `f64` extraction flattens the typed-absence model back to the historical
+/// NaN sentinel: a present `Ok` yields the value, any [`Absent`] reason yields
+/// `f64::NAN`. This keeps `O = f64` callers fully back-compatible. Callers who
+/// want the typed reason should use `O = Computed` instead.
+impl ExtractOutput for f64 {
+    fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
+        match store.values.get(ids.first()?)? {
+            Value::Computed(c) => Some(c.unwrap_or(f64::NAN)),
+            Value::Other(b) => b.downcast_ref::<f64>().copied(),
+        }
+    }
+
+    fn as_f64(&self) -> Option<f64> {
+        Some(*self)
+    }
+}
+
+/// `Computed` extraction is the opt-in path that preserves the typed
+/// [`Absent`] reason a node produced for an absent record.
+impl ExtractOutput for Computed {
+    fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
+        match store.values.get(ids.first()?)? {
+            Value::Computed(c) => Some(*c),
+            Value::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
+        }
+    }
+}
+
 /// Blanket impl for Option<T> - handles both filtered and direct values
 impl<T: ExtractOutput + Clone + 'static> ExtractOutput for Option<T> {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
@@ -104,8 +135,10 @@ impl<T: ExtractOutput + Clone + 'static> ExtractOutput for Option<T> {
         if let Some(opt) = store.get_cloned::<Option<T>>(id) {
             return Some(opt);
         }
-        // Fall back to T directly (for optional outputs, missing = None)
-        Some(store.get_cloned::<T>(id))
+        // Fall back to T's own extraction (for optional outputs, missing = None).
+        // Using `T::extract` rather than a raw `get_cloned` keeps the typed
+        // absence model intact — e.g. `T = f64` flattens `Absent` to NaN.
+        Some(T::extract(store, ids))
     }
 
     fn output_id_count() -> usize {
@@ -134,9 +167,7 @@ pub(crate) enum CompositionNodeKind {
     Fold {
         state: Arc<Mutex<Box<dyn Any + Send + Sync>>>,
         folder: Arc<
-            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value>
-                + Send
-                + Sync,
+            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value> + Send + Sync,
         >,
     },
 }
@@ -234,6 +265,7 @@ pub(crate) enum NodeState {
 // ============================================================================
 
 /// State tracker for RSI with Wilder smoothing.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RsiWilderState {
     pub period: usize,
     pub prev: Option<f64>,
@@ -341,13 +373,13 @@ pub(crate) enum NodeOp<R> {
     ScanF64(
         NodeId,
         Arc<dyn Fn() -> Box<dyn Any + Send + Sync> + Send + Sync>,
-        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64) -> f64 + Send + Sync>,
+        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64) -> Computed + Send + Sync>,
     ),
     Scan2F64(
         NodeId,
         NodeId,
         Arc<dyn Fn() -> Box<dyn Any + Send + Sync> + Send + Sync>,
-        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64, f64) -> f64 + Send + Sync>,
+        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64, f64) -> Computed + Send + Sync>,
     ),
     /// Custom plugin node: resolves `inputs` and delegates to a
     /// [`CustomNode`](crate::custom_node::CustomNode) held in `NodeState`.
@@ -537,9 +569,7 @@ where
         let state_clone = Arc::clone(&state);
 
         let folder: Arc<
-            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value>
-                + Send
-                + Sync,
+            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value> + Send + Sync,
         > = Arc::new(move |store, acc_mutex| {
             let input = O::extract(store, &input_ids)?;
             let mut guard = acc_mutex.lock().ok()?;

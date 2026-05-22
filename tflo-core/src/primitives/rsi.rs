@@ -29,7 +29,7 @@ use std::time::Duration;
 /// let value = rsi.rsi();
 /// assert!(value >= 0.0 && value <= 100.0);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RsiCountWindow {
     period: usize,
     gains: VecDeque<f64>,
@@ -171,7 +171,7 @@ impl RsiCountWindow {
 }
 
 /// Time-based Relative Strength Index calculator.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RsiTimeWindow {
     window_ms: i64,
     buffer: VecDeque<(i64, f64, f64)>, // (ts, gain, loss)
@@ -282,7 +282,7 @@ mod tests {
 
         let value = rsi.rsi();
         assert!(
-            value >= 0.0 && value <= 100.0,
+            (0.0..=100.0).contains(&value),
             "RSI {} out of bounds",
             value
         );

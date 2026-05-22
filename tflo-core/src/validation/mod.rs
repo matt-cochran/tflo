@@ -14,6 +14,8 @@ pub use helpers::{
     require_not_nan, require_positive,
 };
 
+use crate::error::TFloError;
+
 /// Options for validating temporal computations.
 ///
 /// # Examples
@@ -164,7 +166,7 @@ impl TimestampValidator {
 
     /// Check a timestamp and return whether it's valid (in order).
     pub fn check(&mut self, ts: i64) -> bool {
-        let valid = self.last_ts.map_or(true, |last| ts >= last);
+        let valid = self.last_ts.is_none_or(|last| ts >= last);
         if !valid {
             self.violations += 1;
         }
@@ -225,7 +227,7 @@ impl WarmupTracker {
     pub fn is_node_warmed_up(&self, node_id: usize, required: usize) -> bool {
         self.by_node
             .get(&node_id)
-            .map_or(false, |&count| count >= required)
+            .is_some_and(|&count| count >= required)
     }
 
     /// Get the number of records seen.
@@ -275,6 +277,47 @@ impl ValueValidator {
             }
         }
         true
+    }
+
+    /// Check a value against every value-validation option.
+    ///
+    /// This is the full enforcement path used by
+    /// [`validated()`](crate::iter_ext::TFlowIteratorExt::validated):
+    ///
+    /// - `Ok(true)` — the value passes.
+    /// - `Ok(false)` — a `reject_*` option matched; the value should be
+    ///   filtered out of the output.
+    /// - `Err(..)` — an `error_on_*` option matched; the stream should fail.
+    ///
+    /// When both an `error_on_*` and the matching `reject_*` option are set,
+    /// the error takes precedence (it is the stronger check).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::NaN`], [`TFloError::Infinite`], or
+    /// [`TFloError::NegativeValue`] when the corresponding `error_on_*` option
+    /// is enabled and the value matches.
+    pub fn check_strict(&mut self, value: f64) -> Result<bool, TFloError> {
+        if value.is_nan() {
+            self.nan_count += 1;
+            if self.options.error_on_nan {
+                return Err(TFloError::NaN);
+            }
+            return Ok(!self.options.reject_nan);
+        }
+        if value.is_infinite() {
+            self.inf_count += 1;
+            if self.options.error_on_inf {
+                return Err(TFloError::Infinite);
+            }
+            return Ok(!self.options.reject_inf);
+        }
+        if value < 0.0 && self.options.error_on_negative {
+            return Err(TFloError::NegativeValue {
+                reason: "validated() received a negative value (error_on_negative is enabled)",
+            });
+        }
+        Ok(true)
     }
 
     /// Get the count of NaN values seen.

@@ -95,7 +95,7 @@ fn main() {
                     record.ts, item.value, plan.records_seen, plan.warmup_remaining
                 );
             }
-            StepResult::WarmingUp { remaining } => {
+            StepResult::WarmingUp { remaining, .. } => {
                 println!("ts={} → WARMING_UP (remaining={})", record.ts, remaining);
             }
             StepResult::Error(e) => {

@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! WebAssembly bindings for tflo.
 //!
 //! This crate provides `#[wasm_bindgen]` exports that delegate to the
@@ -26,9 +27,8 @@
 use wasm_bindgen::prelude::*;
 
 use tflo_core::primitives::{
-    CrossDetector, GlitchFilter, HysteresisCrossDetector, PulseWidthDetector,
-    PulseWidthResult, RuntDetector, RuntResult, ThresholdCrossEventMode,
-    WindowDetector, WindowEvent,
+    CrossDetector, GlitchFilter, HysteresisCrossDetector, PulseWidthDetector, PulseWidthResult,
+    RuntDetector, RuntResult, ThresholdCrossEventMode, WindowDetector, WindowEvent,
 };
 
 /// Convert a threshold-cross event mode to a stable string for JS.
@@ -294,17 +294,9 @@ impl WasmPulseWidthDetector {
     // `*_ms` params are `f64`, not `i64`: wasm-bindgen maps a Rust `i64` to a
     // JS `BigInt`, but the JS callers pass plain numbers. Cast to `i64` here.
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        threshold: f64,
-        min_width_ms: f64,
-        max_width_ms: f64,
-    ) -> WasmPulseWidthDetector {
+    pub fn new(threshold: f64, min_width_ms: f64, max_width_ms: f64) -> WasmPulseWidthDetector {
         WasmPulseWidthDetector {
-            inner: PulseWidthDetector::new(
-                threshold,
-                min_width_ms as i64,
-                max_width_ms as i64,
-            ),
+            inner: PulseWidthDetector::new(threshold, min_width_ms as i64, max_width_ms as i64),
         }
     }
 

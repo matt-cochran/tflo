@@ -31,7 +31,7 @@ use std::time::Duration;
 /// let v2 = ema.push(3500, 200.0);  // 2.5 seconds later
 /// assert!(v2 > 100.0 && v2 < 200.0);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TimeEma {
     halflife_ms: f64,
     last_ts: Option<i64>,
@@ -124,7 +124,7 @@ impl TimeEma {
 ///
 /// Traditional EMA that weights each new value with a fixed factor,
 /// regardless of time between observations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CountEma {
     alpha: f64,
     period: usize,

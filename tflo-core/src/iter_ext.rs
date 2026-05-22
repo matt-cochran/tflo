@@ -139,7 +139,11 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
 
         let output_ids = comps.output_ids();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn.clone(), nodes, output_ids);
+        let mut graph = CompiledGraph::compile(timestamp_fn.clone(), nodes, output_ids);
+        // Honour the configured warmup: the graph suppresses output until it
+        // has seen `min_warmup` records.
+        graph.set_min_warmup(options.min_warmup);
+        let validator = crate::validation::ValueValidator::new(options.clone());
 
         TFloValidatedIter {
             iter: self,
@@ -147,6 +151,7 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             timestamp_fn,
             options,
             last_ts: None,
+            validator,
             _marker: std::marker::PhantomData,
         }
     }
@@ -166,9 +171,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
         let mut builder = TFlowBuilder::new();
         let comps = f(&mut builder);
 
-        let timestamp_fn = builder.timestamp_fn.clone().unwrap_or_else(|| {
-            Arc::new(|_| 0)
-        });
+        let timestamp_fn = builder
+            .timestamp_fn
+            .clone()
+            .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
         let nodes = builder.into_nodes();
@@ -232,10 +238,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
     {
         let mut builder = TFlowBuilder::new();
         let _comps = builder_fn(&mut builder);
-        
-        let timestamp_fn = builder.get_timestamp_fn().unwrap_or_else(|| {
-            Arc::new(|_| 0)
-        });
+
+        let timestamp_fn = builder
+            .get_timestamp_fn()
+            .unwrap_or_else(|| Arc::new(|_| 0));
 
         crate::keyed::TFloKeyedIter {
             iter: self,
@@ -244,6 +250,8 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             key_fn: Arc::new(key_fn),
             builder_fn: Box::new(builder_fn),
             policy,
+            ready_queue: std::collections::VecDeque::new(),
+            flushed: false,
             _marker: std::marker::PhantomData,
         }
     }
@@ -381,6 +389,7 @@ pub struct TFloValidatedIter<I, R, O> {
     timestamp_fn: Arc<dyn Fn(&R) -> i64 + Send + Sync>,
     options: crate::validation::ValidationOptions,
     last_ts: Option<i64>,
+    validator: crate::validation::ValueValidator,
     _marker: std::marker::PhantomData<R>,
 }
 
@@ -409,7 +418,7 @@ where
             let record = self.iter.next()?;
             let ts = (self.timestamp_fn)(&record);
 
-            // Check sorted order if enabled
+            // Check sorted order if enabled.
             if self.options.assert_sorted {
                 if let Some(last) = self.last_ts {
                     if ts < last {
@@ -420,12 +429,35 @@ where
                     }
                 }
             }
+            // Check the maximum inter-record gap if configured.
+            if let Some(max_gap) = self.options.max_gap_ms {
+                if let Some(last) = self.last_ts {
+                    if ts.saturating_sub(last) > max_gap {
+                        return Some(Err(TFloError::TimestampGapExceeded {
+                            previous: last,
+                            current: ts,
+                            max_gap,
+                        }));
+                    }
+                }
+            }
             self.last_ts = Some(ts);
 
             if let Some(item) = self.graph.step(&record) {
+                // Apply the NaN / infinity / negative value checks. They are
+                // only meaningful for scalar `f64` outputs (`as_f64` is `None`
+                // for everything else).
+                if let Some(value) = item.value.as_f64() {
+                    match self.validator.check_strict(value) {
+                        Ok(true) => return Some(Ok(item.value)),
+                        // A `reject_*` option matched — filter this value out.
+                        Ok(false) => continue,
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
                 return Some(Ok(item.value));
             }
-            // Continue if step returned None (warmup period)
+            // Continue if step returned None (warmup period).
         }
     }
 }

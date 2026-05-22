@@ -9,7 +9,7 @@ use crate::compile::{CompiledGraph, ExtractOutput, StepResult};
 use crate::error::{ComputeError, TFloError, TFloResult};
 use crate::pipeline::{KeyedTimestamped, PipelineItem};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -64,22 +64,6 @@ pub trait StateStore: Send + Sync {
     fn list_keys(&self) -> Result<Vec<Vec<u8>>, String>;
 }
 
-/// Structured data embedded in a `StateSnapshot`.
-///
-/// This is serialized/deserialized by [`CompiledGraph::snapshot()`] and
-/// [`CompiledGraph::restore()`] to persist and restore computation state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SnapshotData {
-    /// Number of records processed at snapshot time.
-    pub records_seen: usize,
-    /// Minimum warmup period.
-    pub min_warmup: usize,
-    /// Number of nodes in the graph (topology verification).
-    pub node_count: usize,
-    /// Number of output nodes (topology verification).
-    pub output_count: usize,
-}
-
 /// Policy for handling out-of-order records within a keyed partition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutOfOrderPolicy {
@@ -101,8 +85,15 @@ where
     O: ExtractOutput,
 {
     pub(crate) graph: CompiledGraph<R, O, KeyedTimestamped<K>>,
+    /// Timestamp of the most recently *released* (graph-processed) record.
     pub(crate) last_ts: Option<i64>,
     pub(crate) policy: OutOfOrderPolicy,
+    /// Records buffered by [`OutOfOrderPolicy::Buffer`], kept sorted ascending
+    /// by timestamp (stable — ties preserve arrival order). Empty for the
+    /// `Error` and `Drop` policies.
+    pub(crate) pending: Vec<(i64, R)>,
+    /// Highest timestamp seen so far — the basis for the release watermark.
+    pub(crate) max_ts_seen: Option<i64>,
 }
 
 impl<R, O, K> std::fmt::Debug for KeyedGraphState<R, O, K>
@@ -144,48 +135,109 @@ where
             graph,
             last_ts: None,
             policy,
+            pending: Vec::new(),
+            max_ts_seen: None,
         }
     }
 
-    /// Step the graph with one record, handling out-of-order policy.
-    pub fn step(
+    /// Run one record through the graph, producing at most one output.
+    fn run_one(
         &mut self,
         record: &R,
         ts: i64,
         key: K,
     ) -> Result<Option<PipelineItem<KeyedTimestamped<K>, O>>, ComputeError> {
-        // Check out-of-order policy
-        if let Some(last) = self.last_ts {
-            if ts < last {
-                match self.policy {
-                    OutOfOrderPolicy::Error => {
-                        return Err(ComputeError::InvalidInput {
-                            reason: "out-of-order timestamp",
-                        });
-                    }
-                    OutOfOrderPolicy::Drop => return Ok(None),
-                    OutOfOrderPolicy::Buffer { max_lateness_ms } => {
-                        if ts < last - max_lateness_ms {
-                            // Too late, drop it
-                            return Ok(None);
-                        }
-                        // Within lateness window, buffer it (for now, just process it)
-                        // TODO: Implement proper buffering
-                    }
-                }
-            }
-        }
-        self.last_ts = Some(ts);
-
-        // Create keyed context
         let ctx = KeyedTimestamped::new(ts, key);
-
-        // Step the graph with the pre-created keyed context
         match self.graph.step_with_context(record, ts, ctx) {
             StepResult::Ready(item) => Ok(Some(item)),
             StepResult::WarmingUp { .. } => Ok(None),
             StepResult::Error(e) => Err(e),
         }
+    }
+
+    /// Release every buffered record with timestamp `<= watermark`, in order.
+    fn drain_until(
+        &mut self,
+        watermark: i64,
+        key: &K,
+    ) -> Result<Vec<PipelineItem<KeyedTimestamped<K>, O>>, ComputeError> {
+        let mut released = Vec::new();
+        while self
+            .pending
+            .first()
+            .is_some_and(|(bts, _)| *bts <= watermark)
+        {
+            let (bts, record) = self.pending.remove(0);
+            self.last_ts = Some(bts);
+            if let Some(item) = self.run_one(&record, bts, key.clone())? {
+                released.push(item);
+            }
+        }
+        Ok(released)
+    }
+
+    /// Step the graph with one record, applying the out-of-order policy.
+    ///
+    /// Returns every record this step *releases* — usually zero or one, but a
+    /// [`Buffer`](OutOfOrderPolicy::Buffer) step can release several at once
+    /// when an advancing watermark unblocks earlier buffered records.
+    pub fn step(
+        &mut self,
+        record: R,
+        ts: i64,
+        key: K,
+    ) -> Result<Vec<PipelineItem<KeyedTimestamped<K>, O>>, ComputeError> {
+        match self.policy {
+            OutOfOrderPolicy::Error => {
+                if self.last_ts.is_some_and(|last| ts < last) {
+                    return Err(ComputeError::InvalidInput {
+                        reason: "out-of-order timestamp",
+                    });
+                }
+                self.last_ts = Some(ts);
+                Ok(self.run_one(&record, ts, key)?.into_iter().collect())
+            }
+            OutOfOrderPolicy::Drop => {
+                if self.last_ts.is_some_and(|last| ts < last) {
+                    return Ok(Vec::new());
+                }
+                self.last_ts = Some(ts);
+                Ok(self.run_one(&record, ts, key)?.into_iter().collect())
+            }
+            OutOfOrderPolicy::Buffer { max_lateness_ms } => {
+                // A record already behind the released frontier can never be
+                // emitted in order — drop it.
+                if self.last_ts.is_some_and(|last| ts < last) {
+                    return Ok(Vec::new());
+                }
+                // Insert sorted; `partition_point` places the record after any
+                // equal timestamps, preserving arrival order on ties.
+                let pos = self.pending.partition_point(|(bts, _)| *bts <= ts);
+                self.pending.insert(pos, (ts, record));
+                self.max_ts_seen = Some(self.max_ts_seen.map_or(ts, |m| m.max(ts)));
+                let watermark = self.max_ts_seen.unwrap_or(ts) - max_lateness_ms;
+                self.drain_until(watermark, &key)
+            }
+        }
+    }
+
+    /// Release every remaining buffered record, in timestamp order.
+    ///
+    /// Call this once at end-of-stream so [`Buffer`](OutOfOrderPolicy::Buffer)
+    /// records still inside the lateness window are not silently lost. It is a
+    /// no-op for the `Error` and `Drop` policies (their buffers stay empty).
+    pub fn flush(
+        &mut self,
+        key: K,
+    ) -> Result<Vec<PipelineItem<KeyedTimestamped<K>, O>>, ComputeError> {
+        let mut released = Vec::new();
+        for (bts, record) in std::mem::take(&mut self.pending) {
+            self.last_ts = Some(bts);
+            if let Some(item) = self.run_one(&record, bts, key.clone())? {
+                released.push(item);
+            }
+        }
+        Ok(released)
     }
 }
 
@@ -204,6 +256,11 @@ where
     pub(crate) key_fn: Arc<dyn Fn(&R) -> K + Send + Sync>,
     pub(crate) builder_fn: Box<dyn Fn(&mut TFlowBuilder<R>) -> C + Send + Sync>,
     pub(crate) policy: OutOfOrderPolicy,
+    /// Records released by the most recent step(s) but not yet yielded — a
+    /// single `Buffer` step can release several records at once.
+    pub(crate) ready_queue: VecDeque<TFloResult<PipelineItem<KeyedTimestamped<K>, O>>>,
+    /// Set once the input is exhausted and every key has been flushed.
+    pub(crate) flushed: bool,
     pub(crate) _marker: std::marker::PhantomData<(R, O)>,
 }
 
@@ -220,11 +277,33 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let record = self.iter.next()?;
+            // Serve anything released by an earlier step or by flushing.
+            if let Some(result) = self.ready_queue.pop_front() {
+                return Some(result);
+            }
+
+            let Some(record) = self.iter.next() else {
+                // Input exhausted — flush every key's buffered records once so
+                // `Buffer`-policy records inside the lateness window survive.
+                if self.flushed {
+                    return None;
+                }
+                self.flushed = true;
+                for (key, graph_state) in self.graphs.iter_mut() {
+                    match graph_state.flush(key.clone()) {
+                        Ok(items) => self.ready_queue.extend(items.into_iter().map(Ok)),
+                        Err(e) => {
+                            self.ready_queue.push_back(Err(TFloError::Compute(e)));
+                        }
+                    }
+                }
+                continue;
+            };
+
             let ts = (self.timestamp_fn)(&record);
             let key = (self.key_fn)(&record);
 
-            // Get or create graph for this key
+            // Get or create the graph for this key.
             let graph_state = self.graphs.entry(key.clone()).or_insert_with(|| {
                 let mut builder = TFlowBuilder::new();
                 let ts_fn = self.timestamp_fn.clone();
@@ -240,10 +319,9 @@ where
                 KeyedGraphState::new(graph, self.policy)
             });
 
-            match graph_state.step(&record, ts, key) {
-                Ok(Some(item)) => return Some(Ok(item)),
-                Ok(None) => continue, // Warmup or dropped
-                Err(e) => return Some(Err(TFloError::Compute(e))),
+            match graph_state.step(record, ts, key) {
+                Ok(items) => self.ready_queue.extend(items.into_iter().map(Ok)),
+                Err(e) => self.ready_queue.push_back(Err(TFloError::Compute(e))),
             }
         }
     }

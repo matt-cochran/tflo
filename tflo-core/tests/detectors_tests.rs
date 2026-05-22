@@ -1,14 +1,14 @@
-use tflo_core::primitives::HysteresisCrossDetector;
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use tflo_core::event::ThresholdCrossEventMode;
 use tflo_core::primitives::CrossDetector;
 use tflo_core::primitives::GlitchFilter;
-use tflo_core::primitives::RuntDetector;
-use tflo_core::primitives::RuntResult;
+use tflo_core::primitives::HysteresisCrossDetector;
 use tflo_core::primitives::PulseWidthDetector;
 use tflo_core::primitives::PulseWidthResult;
+use tflo_core::primitives::RuntDetector;
+use tflo_core::primitives::RuntResult;
 use tflo_core::primitives::WindowDetector;
 use tflo_core::primitives::WindowEvent;
-
 
 /// When HysteresisCrossDetector is created with a hysteresis value,
 /// the detector shall initialize in Unknown state,
@@ -35,7 +35,10 @@ fn test_hysteresis_cross_above() {
     assert_eq!(detector.update(103.0, 100.0), ThresholdCrossEventMode::None);
 
     // Value above threshold + hysteresis - Buy signal
-    assert_eq!(detector.update(106.0, 100.0), ThresholdCrossEventMode::Rising);
+    assert_eq!(
+        detector.update(106.0, 100.0),
+        ThresholdCrossEventMode::Rising
+    );
 }
 
 /// When value crosses threshold minus hysteresis from above,
@@ -53,7 +56,10 @@ fn test_hysteresis_cross_below() {
     assert_eq!(detector.update(97.0, 100.0), ThresholdCrossEventMode::None);
 
     // Value below threshold - hysteresis - Sell signal
-    assert_eq!(detector.update(94.0, 100.0), ThresholdCrossEventMode::Falling);
+    assert_eq!(
+        detector.update(94.0, 100.0),
+        ThresholdCrossEventMode::Falling
+    );
 }
 
 /// When reset is called on HysteresisCrossDetector,

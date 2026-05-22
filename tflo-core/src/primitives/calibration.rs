@@ -10,14 +10,32 @@ impl DcRemover {
     /// # Arguments
     ///
     /// * `window_samples` - Number of samples to use for DC estimation
+    ///
+    /// `window_samples` is clamped to a minimum of 1. Use
+    /// [`try_new`](Self::try_new) to receive an error for an invalid window.
     #[must_use]
     pub fn new(window_samples: usize) -> Self {
-        assert!(window_samples > 0, "window_samples must be > 0");
+        let window_samples = window_samples.max(1);
         Self {
             buffer: VecDeque::with_capacity(window_samples),
             max_samples: window_samples,
             sum: 0.0,
         }
+    }
+
+    /// Create a new DC remover, validating the window size.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// if `window_samples` is 0.
+    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+        if window_samples == 0 {
+            return Err(crate::error::TFloError::Configuration {
+                message: "DcRemover window_samples must be > 0".to_string(),
+            });
+        }
+        Ok(Self::new(window_samples))
     }
 
     /// Process a new sample and return the DC-removed value.
@@ -133,22 +151,42 @@ impl BaselineCorrector {
     /// * `window_samples` - Number of samples for baseline estimation
     /// * `percentile` - Percentile to use as baseline (0.0-1.0, typically 0.05-0.2)
     ///
-    /// # Panics
-    ///
-    /// Panics if percentile is not in [0.0, 1.0].
+    /// `window_samples` is clamped to a minimum of 1 and `percentile` to
+    /// `[0.0, 1.0]`. Use [`try_new`](Self::try_new) to receive an error for an
+    /// invalid argument instead.
     #[must_use]
     pub fn new(window_samples: usize, percentile: f64) -> Self {
-        assert!(
-            (0.0..=1.0).contains(&percentile),
-            "percentile must be in [0.0, 1.0]"
-        );
-        assert!(window_samples > 0, "window_samples must be > 0");
+        let window_samples = window_samples.max(1);
+        let percentile = percentile.clamp(0.0, 1.0);
         Self {
             buffer: VecDeque::with_capacity(window_samples),
             sorted: Vec::with_capacity(window_samples),
             max_samples: window_samples,
             percentile,
         }
+    }
+
+    /// Create a new baseline corrector, validating its arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// if `window_samples` is 0 or `percentile` is not in `[0.0, 1.0]`.
+    pub fn try_new(
+        window_samples: usize,
+        percentile: f64,
+    ) -> Result<Self, crate::error::TFloError> {
+        if window_samples == 0 {
+            return Err(crate::error::TFloError::Configuration {
+                message: "BaselineCorrector window_samples must be > 0".to_string(),
+            });
+        }
+        if !(0.0..=1.0).contains(&percentile) {
+            return Err(crate::error::TFloError::Configuration {
+                message: "BaselineCorrector percentile must be in [0.0, 1.0]".to_string(),
+            });
+        }
+        Ok(Self::new(window_samples, percentile))
     }
 
     /// Process a new sample and return the baseline-corrected value.
@@ -216,15 +254,33 @@ impl RangeNormalizer {
     /// # Arguments
     ///
     /// * `window_samples` - Number of samples for min/max estimation
+    ///
+    /// `window_samples` is clamped to a minimum of 1. Use
+    /// [`try_new`](Self::try_new) to receive an error for an invalid window.
     #[must_use]
     pub fn new(window_samples: usize) -> Self {
-        assert!(window_samples > 0, "window_samples must be > 0");
+        let window_samples = window_samples.max(1);
         Self {
             buffer: VecDeque::with_capacity(window_samples),
             max_samples: window_samples,
             current_min: f64::INFINITY,
             current_max: f64::NEG_INFINITY,
         }
+    }
+
+    /// Create a new range normalizer, validating the window size.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// if `window_samples` is 0.
+    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+        if window_samples == 0 {
+            return Err(crate::error::TFloError::Configuration {
+                message: "RangeNormalizer window_samples must be > 0".to_string(),
+            });
+        }
+        Ok(Self::new(window_samples))
     }
 
     /// Process a new sample and return the normalized value [0, 1].
@@ -289,18 +345,35 @@ impl ZScoreNormalizer {
     /// # Arguments
     ///
     /// * `window_samples` - Number of samples for mean/std estimation
+    ///
+    /// `window_samples` is clamped to a minimum of 2 (a standard deviation
+    /// needs at least two samples). Use [`try_new`](Self::try_new) to receive
+    /// an error for an invalid window instead.
     #[must_use]
     pub fn new(window_samples: usize) -> Self {
-        assert!(
-            window_samples > 1,
-            "window_samples must be > 1 for std calculation"
-        );
+        let window_samples = window_samples.max(2);
         Self {
             buffer: VecDeque::with_capacity(window_samples),
             max_samples: window_samples,
             sum: 0.0,
             sum_sq: 0.0,
         }
+    }
+
+    /// Create a new z-score normalizer, validating the window size.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// if `window_samples` is less than 2.
+    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+        if window_samples < 2 {
+            return Err(crate::error::TFloError::Configuration {
+                message: "ZScoreNormalizer window_samples must be > 1 for std calculation"
+                    .to_string(),
+            });
+        }
+        Ok(Self::new(window_samples))
     }
 
     /// Process a new sample and return the z-score.

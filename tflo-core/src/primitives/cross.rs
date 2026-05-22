@@ -159,7 +159,7 @@ pub use super::results::{GlitchResult, PulseWidthResult, RuntResult, WindowEvent
 /// // Crosses below!
 /// assert_eq!(detector.update(95.0, 100.0), ThresholdCrossEventMode::Falling);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CrossDetector {
     pub(crate) prev_value: Option<f64>,
     pub(crate) prev_threshold: Option<f64>,

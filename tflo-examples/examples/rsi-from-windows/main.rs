@@ -101,7 +101,7 @@ fn main() {
                     sample.ts, item.value, plan.records_seen
                 );
             }
-            tflo_core::compile::StepResult::WarmingUp { remaining } => {
+            tflo_core::compile::StepResult::WarmingUp { remaining, .. } => {
                 println!("ts={} WARMING_UP (need {remaining} more)", sample.ts);
             }
             tflo_core::compile::StepResult::Error(e) => {

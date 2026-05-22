@@ -1,7 +1,6 @@
 use crate::comp::NodeId;
 use crate::compile::ValueStore;
 
-
 /// Trait for extracting typed outputs from the value store.
 pub trait ExtractOutput: Sized + Send + Sync + 'static {
     /// Extract the output value from the store using the given node IDs.
@@ -10,6 +9,16 @@ pub trait ExtractOutput: Sized + Send + Sync + 'static {
     /// The number of node IDs required to extract this type.
     fn output_id_count() -> usize {
         1
+    }
+
+    /// Best-effort view of this output value as an `f64`.
+    ///
+    /// Returns `Some` only for the `f64` output type; the default is `None`.
+    /// [`validated()`](crate::iter_ext::TFlowIteratorExt::validated) uses this
+    /// to apply the NaN / infinity / negative value checks, which are only
+    /// meaningful for a scalar `f64` output.
+    fn as_f64(&self) -> Option<f64> {
+        None
     }
 }
 

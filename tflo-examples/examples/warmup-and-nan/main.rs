@@ -78,7 +78,9 @@ fn main() {
 
         match graph.step_with_status(record) {
             StepResult::Ready(item) => println!("  → Ready: {:.4}", item.value),
-            StepResult::WarmingUp { remaining } => println!("  → WarmingUp: need {remaining} more"),
+            StepResult::WarmingUp { remaining, .. } => {
+                println!("  → WarmingUp: need {remaining} more")
+            }
             StepResult::Error(e) => println!("  → Error: {e}"),
         }
     }

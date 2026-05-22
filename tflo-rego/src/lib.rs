@@ -1,3 +1,7 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// The `into_rego_input` conversion trait deliberately borrows rather than
+// consuming `self`.
+#![allow(clippy::wrong_self_convention)]
 //! # tflow-rego
 //!
 //! OPA/Rego policy engine integration for tflow.

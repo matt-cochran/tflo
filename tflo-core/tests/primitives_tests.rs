@@ -1,9 +1,9 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use std::time::Duration;
 use tflo_core::primitives::{
     BaselineCorrector, DcRemover, GainOffsetCalibrator, LagBuffer, LinearRegressor,
     RangeNormalizer, TimeDcRemover, WelfordWindow, ZScoreNormalizer,
 };
-
 
 /// When WelfordWindow receives values,
 /// the window shall maintain running statistics using Welford's algorithm,

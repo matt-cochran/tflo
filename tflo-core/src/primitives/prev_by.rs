@@ -24,7 +24,11 @@ use std::hash::Hash;
 /// assert_eq!(tracker.update("AAPL", 151.0), Some(150.0));  // Previous AAPL
 /// assert_eq!(tracker.update("GOOG", 2810.0), Some(2800.0)); // Previous GOOG
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "K: serde::Serialize + std::hash::Hash + Eq",
+    deserialize = "K: serde::Deserialize<'de> + std::hash::Hash + Eq"
+))]
 pub struct PrevByTracker<K> {
     prev: HashMap<K, f64>,
     max_keys: Option<usize>,
@@ -109,7 +113,11 @@ impl<K: Hash + Eq + Clone> PrevByTracker<K> {
 }
 
 /// Tracks previous timestamped values partitioned by key.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "K: serde::Serialize + std::hash::Hash + Eq",
+    deserialize = "K: serde::Deserialize<'de> + std::hash::Hash + Eq"
+))]
 #[allow(dead_code)]
 pub struct TimestampedPrevByTracker<K> {
     prev: HashMap<K, (i64, f64)>,

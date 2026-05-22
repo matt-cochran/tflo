@@ -242,11 +242,7 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
     }
 
     fn mfi_n(&self, volume: &Comp<R>, n: usize) -> Comp<R> {
-        self.scan2_f64(
-            volume,
-            move || MfiState::new(n),
-            move |state, typical_price, volume| mfi_step(state, typical_price, volume),
-        )
+        self.scan2_f64(volume, move || MfiState::new(n), mfi_step)
     }
 
     fn adx_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
@@ -626,7 +622,9 @@ fn macd_last(data: &[f64], fast: usize, slow: usize, signal: usize, output: usiz
     for v in &line_raw[signal..] {
         sig = alpha * *v + (1.0 - alpha) * sig;
     }
-    let line = *line_raw.last().unwrap();
+    let Some(&line) = line_raw.last() else {
+        return f64::NAN;
+    };
     match output {
         0 => line,
         1 => sig,

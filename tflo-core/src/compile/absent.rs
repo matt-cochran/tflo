@@ -67,3 +67,20 @@ impl std::fmt::Display for Absent {
 /// nodes skip their state update on an absent input rather than advancing with
 /// a substitute value.
 pub type Computed = Result<f64, Absent>;
+
+/// Map a primitive's raw `f64` result onto a typed [`Computed`].
+///
+/// The ~20 windowing and statistics primitives still use a non-finite `f64`
+/// (in practice `NaN`) as their internal "not enough data yet / empty window"
+/// sentinel — rewriting all of them is out of scope. This function is the
+/// single seam that converts that sentinel into a typed reason: a finite value
+/// passes through as `Ok`, anything else (`NaN`, `±inf`) becomes
+/// `Err(Absent::WarmingUp)`.
+#[inline]
+pub fn finite_or_warming(x: f64) -> Computed {
+    if x.is_finite() {
+        Ok(x)
+    } else {
+        Err(Absent::WarmingUp)
+    }
+}

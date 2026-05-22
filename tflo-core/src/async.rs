@@ -128,6 +128,8 @@ pub trait TFloStreamExt<R>: Stream<Item = R> + Sized {
             key_fn: Arc::new(key_fn),
             builder_fn: Box::new(builder_fn),
             policy,
+            ready_queue: std::collections::VecDeque::new(),
+            flushed: false,
             _marker: std::marker::PhantomData,
         }
     }
@@ -243,6 +245,13 @@ where
     key_fn: Arc<dyn Fn(&R) -> K + Send + Sync>,
     builder_fn: Box<dyn Fn(&mut TFlowBuilder<R>) -> C + Send + Sync>,
     policy: crate::keyed::OutOfOrderPolicy,
+    /// Records released but not yet yielded — a `Buffer` step can release
+    /// several at once.
+    ready_queue: std::collections::VecDeque<
+        crate::error::TFloResult<crate::pipeline::PipelineItem<KeyedTimestamped<K>, O>>,
+    >,
+    /// Set once the input stream is exhausted and every key has been flushed.
+    flushed: bool,
     _marker: std::marker::PhantomData<(R, O)>,
 }
 
@@ -263,15 +272,21 @@ where
         let mut this = self.project();
 
         loop {
+            // Serve anything released by an earlier step or by flushing.
+            if let Some(result) = this.ready_queue.pop_front() {
+                return Poll::Ready(Some(result));
+            }
+
             match this.stream.as_mut().poll_next(cx) {
                 Poll::Ready(Some(record)) => {
                     let ts = (this.timestamp_fn)(&record);
                     let key = (this.key_fn)(&record);
 
-                    // Get or create graph for this key
-                    if !this.graphs.contains_key(&key) {
+                    // Get or create the graph for this key. `entry` does the
+                    // get-or-insert in one lookup, so no fallible `get_mut`
+                    // follows the insert.
+                    let graph_state = this.graphs.entry(key.clone()).or_insert_with(|| {
                         let timestamp_fn_clone = this.timestamp_fn.clone();
-                        let policy_clone = *this.policy;
                         let mut builder = TFlowBuilder::new();
                         builder.timestamp(move |r| timestamp_fn_clone(r));
                         let comps = (this.builder_fn)(&mut builder);
@@ -282,20 +297,39 @@ where
                         let nodes = builder.into_nodes();
                         let graph: CompiledGraph<R, O, KeyedTimestamped<K>> =
                             CompiledGraph::compile(timestamp_fn, nodes, output_ids);
-                        this.graphs
-                            .insert(key.clone(), KeyedGraphState::new(graph, policy_clone));
-                    }
-                    let graph_state = this.graphs.get_mut(&key).unwrap();
+                        KeyedGraphState::new(graph, *this.policy)
+                    });
 
-                    match graph_state.step(&record, ts, key) {
-                        Ok(Some(item)) => return Poll::Ready(Some(Ok(item))),
-                        Ok(None) => continue, // Warmup or dropped
+                    match graph_state.step(record, ts, key) {
+                        Ok(items) => {
+                            this.ready_queue.extend(items.into_iter().map(Ok));
+                        }
                         Err(e) => {
-                            return Poll::Ready(Some(Err(crate::error::TFloError::Compute(e))));
+                            this.ready_queue
+                                .push_back(Err(crate::error::TFloError::Compute(e)));
                         }
                     }
                 }
-                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Ready(None) => {
+                    // Input exhausted — flush every key's buffered records once
+                    // so `Buffer`-policy records inside the lateness window are
+                    // not silently lost.
+                    if *this.flushed {
+                        return Poll::Ready(None);
+                    }
+                    *this.flushed = true;
+                    for (key, graph_state) in this.graphs.iter_mut() {
+                        match graph_state.flush(key.clone()) {
+                            Ok(items) => {
+                                this.ready_queue.extend(items.into_iter().map(Ok));
+                            }
+                            Err(e) => {
+                                this.ready_queue
+                                    .push_back(Err(crate::error::TFloError::Compute(e)));
+                            }
+                        }
+                    }
+                }
                 Poll::Pending => return Poll::Pending,
             }
         }

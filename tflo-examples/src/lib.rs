@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! Shared data structures and helpers for tflo-examples.
 //!
 //! Each blog article named `{name}.mdx` has a corresponding example
@@ -123,15 +124,16 @@ pub fn sample_rsi_prices() -> Vec<f64> {
 pub fn print_summary(name: &str, values: &[f64]) {
     let count = values.len();
     let last = values.last().copied().unwrap_or(f64::NAN);
-    println!(
-        "{name:>40}: count={count:>4}, last={last:>8.4}, values={values:?}"
-    );
+    println!("{name:>40}: count={count:>4}, last={last:>8.4}, values={values:?}");
 }
 
 /// Pretty-print a summary for tuple outputs.
 pub fn print_tuple3_summary(name: &str, values: &[(f64, f64, f64)]) {
     let count = values.len();
     if let Some(last) = values.last() {
-        println!("{name:>40}: count={count:>4}, last=({:.4}, {:.4}, {:.4})", last.0, last.1, last.2);
+        println!(
+            "{name:>40}: count={count:>4}, last=({:.4}, {:.4}, {:.4})",
+            last.0, last.1, last.2
+        );
     }
 }

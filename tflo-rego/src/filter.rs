@@ -141,7 +141,7 @@ where
                         return Some(Err(crate::error::RegoError::EvaluationError {
                             query: self.query.clone(),
                             message: format!("mutex poisoned: {e}"),
-                        }))
+                        }));
                     }
                 };
                 engine.eval_allow(&item, &self.query)

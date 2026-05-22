@@ -1,6 +1,8 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use std::time::Duration;
-use tflo_core::combinators::{fork, partition_lazy, rate_limit_keep_last, GroupByExt, PartitionExt};
-use tflo_core::event::ThresholdCrossEventMode;
+use tflo_core::combinators::{
+    GroupByExt, PartitionExt, fork, partition_lazy, rate_limit_keep_last,
+};
 
 /// When partition_lazy is applied,
 /// the combinator shall yield (item, is_match) pairs,
@@ -94,7 +96,7 @@ fn test_rate_limit_keep_last() {
         rate_limit_keep_last(items.into_iter(), |x| x.0, Duration::from_secs(1)).collect();
 
     // Should keep last in each interval: "c" from [1000-2000), "e" from [3000-4000)
-    assert!(limited.len() >= 1);
+    assert!(!limited.is_empty());
 }
 
 /// When group_by_key is used via extension trait,

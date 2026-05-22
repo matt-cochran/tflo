@@ -85,7 +85,7 @@ fn main() {
                     record.ts, record.load_mw, item.value, summary.records_seen
                 );
             }
-            tflo_core::compile::StepResult::WarmingUp { remaining } => {
+            tflo_core::compile::StepResult::WarmingUp { remaining, .. } => {
                 println!(
                     "  ts={:>6} load={:.1} MW → warming_up (need {remaining} more)",
                     record.ts, record.load_mw

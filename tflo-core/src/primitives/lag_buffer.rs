@@ -27,7 +27,7 @@ use std::time::Duration;
 /// let lagged = buffer.push(6000, 130.0);
 /// assert_eq!(lagged, Some(100.0));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LagBuffer {
     lag_ms: i64,
     buffer: VecDeque<(i64, f64)>,

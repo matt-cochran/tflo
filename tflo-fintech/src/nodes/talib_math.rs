@@ -266,7 +266,11 @@ pub(crate) fn kama_last(data: &[f64], period: usize) -> f64 {
         let sum_abs = (1..=period)
             .map(|j| (data[i - j + 1] - data[i - j]).abs())
             .sum::<f64>();
-        let er = if sum_abs == 0.0 { 0.0 } else { change / sum_abs };
+        let er = if sum_abs == 0.0 {
+            0.0
+        } else {
+            change / sum_abs
+        };
         let sc = (er * (fast_alpha - slow_alpha) + slow_alpha).powi(2);
         kama += sc * (data[i] - kama);
     }

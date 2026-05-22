@@ -64,7 +64,7 @@ fn main() -> Result<(), String> {
     print_summary("Spindle RPM SMA(3)", &rpm_sma);
 
     // ---- Take a snapshot ----
-    let snapshot = graph.snapshot();
+    let snapshot = graph.snapshot().map_err(|e| e.to_string())?;
     println!(
         "Snapshot: {} bytes, version={}",
         snapshot.data.len(),
@@ -99,10 +99,7 @@ fn main() -> Result<(), String> {
     graph2.restore(&loaded).map_err(|e| e.to_string())?;
 
     let summary2 = graph2.state_summary();
-    println!(
-        "Restored graph: records_seen={}",
-        summary2.records_seen
-    );
+    println!("Restored graph: records_seen={}", summary2.records_seen);
     assert_eq!(summary.records_seen, summary2.records_seen);
 
     // ---- Direct StateSnapshot construction (to show the struct API) ----

@@ -16,6 +16,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Matt Cochran"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/matt-cochran/tflo"
@@ -40,6 +41,7 @@ futures = { version = "0.3" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 serde_yaml = "0.9"
+postcard = { version = "1", features = ["use-std"] }
 
 # Utilities (used by >=2 crates)
 pin-project = "1.1"
@@ -55,8 +57,26 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
+# `pedantic` and `nursery` are temporarily suppressed: the workspace carries
+# ~1500 pre-existing advisory warnings (float casts, doc backticks, const-fn
+# suggestions, …) that are out of scope for the panic-freedom hardening pass.
+# They are scheduled to be re-enabled group-by-group — see `docs/lint-backlog.md`.
+pedantic = { level = "allow", priority = -1 }
+nursery = { level = "allow", priority = -1 }
+# `type_complexity` fires pervasively on the engine's boxed-closure node types
+# (`Arc<dyn Fn(...)>`). Factoring each into a type alias is tracked as backlog
+# work in `docs/lint-backlog.md`.
+type_complexity = "allow"
+
+# ── Panic-freedom (hardening pass) ─────────────────────────────────────
+# Production code must not panic. These `restriction` lints are denied
+# workspace-wide; test code is exempted with a per-crate
+# `#![cfg_attr(test, allow(...))]`.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unreachable = "deny"
+todo = "deny"
 
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
@@ -111,7 +131,7 @@ debug = "line-tables-only"      # backtraces without full debuginfo bloat
 incremental = false
 codegen-units = 16              # moderate parallelism for decent optimization
 lto = "thin"                    # cross-crate inlining, acceptable compile time
-overflow-checks = false
+overflow-checks = true          # arithmetic overflow must trap, not silently wrap
 strip = "none"                  # keep symbols for profiling; use "symbols" in CI
 
 [profile.ci]

@@ -25,7 +25,7 @@ use std::time::Duration;
 ///
 /// assert!((window.correlation() - 1.0).abs() < 0.0001);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CorrelationCountWindow {
     max_count: usize,
     buffer: VecDeque<(f64, f64)>,
@@ -219,7 +219,7 @@ impl CorrelationCountWindow {
 }
 
 /// Time-based sliding window for correlation and covariance.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CorrelationTimeWindow {
     window_ms: i64,
     buffer: VecDeque<(i64, f64, f64)>,

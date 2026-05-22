@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 //! Financial technical-analysis indicators for the `tflo` temporal event processing engine.
 //!
 //! `tflo-fintech` is the finance domain plugin for [`tflo-core`]. It layers

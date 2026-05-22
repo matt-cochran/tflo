@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-
 /// Computes rolling linear regression (slope and intercept).
 ///
 /// # What is Rolling Linear Regression?
@@ -122,12 +121,13 @@ impl LinearRegressor {
     /// # Arguments
     ///
     /// * `window_samples` - Number of (x, y) pairs for regression
+    ///
+    /// `window_samples` is clamped to a minimum of 2 (a regression needs at
+    /// least two points). Use [`try_new`](Self::try_new) to receive an error
+    /// for an invalid window instead.
     #[must_use]
     pub fn new(window_samples: usize) -> Self {
-        assert!(
-            window_samples > 1,
-            "window_samples must be > 1 for regression"
-        );
+        let window_samples = window_samples.max(2);
         Self {
             buffer: VecDeque::with_capacity(window_samples),
             max_samples: window_samples,
@@ -136,6 +136,21 @@ impl LinearRegressor {
             sum_xy: 0.0,
             sum_xx: 0.0,
         }
+    }
+
+    /// Create a new linear regressor, validating the window size.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// if `window_samples` is less than 2.
+    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+        if window_samples < 2 {
+            return Err(crate::error::TFloError::Configuration {
+                message: "LinearRegressor window_samples must be > 1 for regression".to_string(),
+            });
+        }
+        Ok(Self::new(window_samples))
     }
 
     /// Add a new (x, y) data point and update the regression.
@@ -268,18 +283,42 @@ impl GainOffsetCalibrator {
     /// * `raw1`, `ref1` - First calibration point
     /// * `raw2`, `ref2` - Second calibration point
     ///
-    /// # Panics
-    ///
-    /// Panics if raw1 == raw2 (can't determine gain).
+    /// When `raw1` and `raw2` are equal the gain is undetermined; the result
+    /// degrades to a constant calibration (`gain = 0`, `offset = ref1`). Use
+    /// [`try_from_two_points`](Self::try_from_two_points) to receive an error
+    /// for that case instead.
     #[must_use]
     pub fn from_two_points(raw1: f64, ref1: f64, raw2: f64, ref2: f64) -> Self {
-        assert!(
-            (raw2 - raw1).abs() > f64::EPSILON,
-            "raw1 and raw2 must be different"
-        );
+        if (raw2 - raw1).abs() <= f64::EPSILON {
+            // Coincident raw points — slope is undetermined.
+            return Self {
+                gain: 0.0,
+                offset: ref1,
+            };
+        }
         let gain = (ref2 - ref1) / (raw2 - raw1);
         let offset = ref1 - gain * raw1;
         Self { gain, offset }
+    }
+
+    /// Build a calibration from two points, validating that they are distinct.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// if `raw1` and `raw2` are equal (the gain cannot be determined).
+    pub fn try_from_two_points(
+        raw1: f64,
+        ref1: f64,
+        raw2: f64,
+        ref2: f64,
+    ) -> Result<Self, crate::error::TFloError> {
+        if (raw2 - raw1).abs() <= f64::EPSILON {
+            return Err(crate::error::TFloError::Configuration {
+                message: "GainOffsetCalibrator raw1 and raw2 must be different".to_string(),
+            });
+        }
+        Ok(Self::from_two_points(raw1, ref1, raw2, ref2))
     }
 
     /// Apply the calibration: output = input × gain + offset.

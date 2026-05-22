@@ -1,6 +1,6 @@
 use tflo_core::prelude::*;
-use tflo_fintech::prelude::*;
 use tflo_examples::*;
+use tflo_fintech::prelude::*;
 
 /// A greenhouse temperature reading: a timestamp and a Celsius measurement.
 #[derive(Clone, Debug)]

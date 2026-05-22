@@ -1,3 +1,7 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// `Arc<rhai::Engine>` shares the (`!Sync`) script engine across single-threaded
+// iterator adapters; the `into_*` conversion traits deliberately borrow.
+#![allow(clippy::arc_with_non_send_sync, clippy::wrong_self_convention)]
 //! # tflow-rhai
 //!
 //! Rhai scripting integration for tflow.

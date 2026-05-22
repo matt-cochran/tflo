@@ -1,16 +1,19 @@
 //! Typed value storage for the computation engine.
 
+use super::Computed;
 use std::any::Any;
 
 /// A computed node output held in the [`ValueStore`](super::ValueStore).
 ///
-/// `F64` is the hot path: the overwhelming majority of graph nodes produce an
-/// `f64`, and storing it inline avoids a heap allocation per node per record.
-/// `Other` boxes everything else — the domain event enums produced by signal
-/// detectors, and arbitrary types produced by `map`/`fold` composition nodes.
+/// `Computed` is the hot path: the overwhelming majority of graph nodes
+/// produce a [`Computed`] (a finite `f64` or a typed [`Absent`](super::Absent)
+/// reason), and storing it inline avoids a heap allocation per node per
+/// record. `Other` boxes everything else — the domain event enums produced by
+/// signal detectors, and arbitrary types produced by `map`/`fold` composition
+/// nodes.
 pub(crate) enum Value {
-    /// An inline `f64` — no heap allocation.
-    F64(f64),
+    /// An inline [`Computed`] — no heap allocation.
+    Computed(Computed),
     /// A boxed value of any other type.
     Other(Box<dyn Any + Send + Sync>),
 }
@@ -18,13 +21,13 @@ pub(crate) enum Value {
 impl Value {
     /// View the contained value as `&dyn Any` for downcasting.
     ///
-    /// Works uniformly for both variants: `F64` yields `&f64`, `Other` yields
-    /// the boxed value. This lets `ValueStore::get`/`get_cloned` downcast to
-    /// any concrete type without special-casing `f64`.
+    /// Works uniformly for both variants: `Computed` yields `&Computed`,
+    /// `Other` yields the boxed value. This lets `ValueStore::get`/`get_cloned`
+    /// downcast to any concrete type without special-casing the hot path.
     #[inline]
     pub(crate) fn as_any(&self) -> &(dyn Any + Send + Sync) {
         match self {
-            Value::F64(v) => v,
+            Value::Computed(c) => c,
             Value::Other(b) => b.as_ref(),
         }
     }
@@ -33,16 +36,25 @@ impl Value {
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::F64(v) => write!(f, "F64({v})"),
+            Value::Computed(c) => write!(f, "Computed({c:?})"),
             Value::Other(_) => write!(f, "Other(<dyn Any>)"),
         }
     }
 }
 
 impl From<f64> for Value {
+    /// A bare `f64` is always a *present* value — sources (`prop`, `const`)
+    /// produce one directly.
     #[inline]
     fn from(v: f64) -> Self {
-        Value::F64(v)
+        Value::Computed(Ok(v))
+    }
+}
+
+impl From<Computed> for Value {
+    #[inline]
+    fn from(c: Computed) -> Self {
+        Value::Computed(c)
     }
 }
 

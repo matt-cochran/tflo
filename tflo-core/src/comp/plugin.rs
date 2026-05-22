@@ -25,13 +25,12 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// ```
     /// use tflo_core::prelude::*;
-    /// use tflo_core::custom_node::CustomNode;
+    /// use tflo_core::custom_node::{require, CustomNode};
     ///
     /// struct Spread;
     /// impl CustomNode for Spread {
-    ///     fn eval(&mut self, inputs: &[f64]) -> f64 {
-    ///         inputs.first().copied().unwrap_or(f64::NAN)
-    ///             - inputs.get(1).copied().unwrap_or(f64::NAN)
+    ///     fn eval(&mut self, inputs: &[Computed]) -> Computed {
+    ///         Ok(require(inputs, 0)? - require(inputs, 1)?)
     ///     }
     /// }
     ///
@@ -89,15 +88,20 @@ impl<R: 'static> Comp<R, f64> {
 mod tests {
     use super::*;
     use crate::builder::TFlowBuilder;
-    use crate::compile::CompiledGraph;
+    use crate::compile::{CompiledGraph, Computed};
+    use crate::custom_node::require;
     use crate::iter_ext::TFlowIteratorExt;
     use crate::pipeline::Timestamped;
 
     /// Test node: emits the sum of all its inputs.
     struct SumNode;
     impl CustomNode for SumNode {
-        fn eval(&mut self, inputs: &[f64]) -> f64 {
-            inputs.iter().sum()
+        fn eval(&mut self, inputs: &[Computed]) -> Computed {
+            let mut sum = 0.0;
+            for input in inputs {
+                sum += (*input)?;
+            }
+            Ok(sum)
         }
         fn name(&self) -> &str {
             "sum"
@@ -110,9 +114,9 @@ mod tests {
         total: f64,
     }
     impl CustomNode for RunningSum {
-        fn eval(&mut self, inputs: &[f64]) -> f64 {
-            self.total += inputs.first().copied().unwrap_or(0.0);
-            self.total
+        fn eval(&mut self, inputs: &[Computed]) -> Computed {
+            self.total += require(inputs, 0)?;
+            Ok(self.total)
         }
     }
 
@@ -126,9 +130,21 @@ mod tests {
     #[test]
     fn custom_node_two_inputs_via_tflo() {
         let data = vec![
-            Rec { ts: 1, a: 1.0, b: 2.0 },
-            Rec { ts: 2, a: 3.0, b: 4.0 },
-            Rec { ts: 3, a: 10.0, b: 5.0 },
+            Rec {
+                ts: 1,
+                a: 1.0,
+                b: 2.0,
+            },
+            Rec {
+                ts: 2,
+                a: 3.0,
+                b: 4.0,
+            },
+            Rec {
+                ts: 3,
+                a: 10.0,
+                b: 5.0,
+            },
         ];
         let out: Vec<f64> = data
             .into_iter()
@@ -145,9 +161,21 @@ mod tests {
     #[test]
     fn custom_node1_single_input_is_stateful() {
         let data = vec![
-            Rec { ts: 1, a: 5.0, b: 0.0 },
-            Rec { ts: 2, a: 7.0, b: 0.0 },
-            Rec { ts: 3, a: 3.0, b: 0.0 },
+            Rec {
+                ts: 1,
+                a: 5.0,
+                b: 0.0,
+            },
+            Rec {
+                ts: 2,
+                a: 7.0,
+                b: 0.0,
+            },
+            Rec {
+                ts: 3,
+                a: 3.0,
+                b: 0.0,
+            },
         ];
         let out: Vec<f64> = data
             .into_iter()

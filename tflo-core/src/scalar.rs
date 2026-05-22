@@ -182,4 +182,3 @@ impl Scalar for f32 {
         self.min(other)
     }
 }
-

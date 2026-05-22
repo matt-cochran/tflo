@@ -54,4 +54,3 @@ impl ThresholdCrossEventMode {
         matches!(self, Self::None)
     }
 }
-

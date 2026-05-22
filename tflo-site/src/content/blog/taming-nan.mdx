@@ -11,7 +11,7 @@ IEEE 754 floating point propagates NaN through every operation. One bad input �
 
 The worst part: nothing tells you. The graph keeps running, producing NaN after NaN, and you don't notice until someone asks why no signals fired today.
 
-tflo's validation system gives you control over this, with the understanding that some features are fully implemented while others are planned.
+tflo's validation system gives you explicit control over this — decide what to catch, and catch it.
 
 ## Permissive by default
 
@@ -49,7 +49,7 @@ let options = ValidationOptions::strict();
 // max_gap_ms: None
 ```
 
-When you use strict mode with the `validated()` method on iterators, the current implementation checks `assert_sorted` — ensuring timestamps are monotonically non-decreasing:
+The `validated()` method on iterators enforces every option:
 
 ```rust
 use tflo_core::prelude::*;
@@ -64,9 +64,7 @@ let results: Vec<TFloResult<f64>> = events.into_iter()
     .collect();
 ```
 
-Note the return type: `TFloResult<f64>` (an alias for `Result<f64, TFloError>`) instead of `f64`. Each result is either `Ok(f64)` or `Err(TFloError)`. If `assert_sorted` is enabled and timestamps arrive out of order, the iterator returns `Err(TFloError::OutOfOrderTimestamp)`.
-
-**Important:** The option fields `reject_nan`, `error_on_nan`, `reject_inf`, `error_on_inf`, `error_on_negative`, and `min_warmup` are stored in `ValidationOptions` but currently only `assert_sorted` is checked during the validated iterator step. NaN/Inf handling via the validated iterator is planned for a future release. For now, you should sanitize your data upfront.
+Note the return type: `TFloResult<f64>` (an alias for `Result<f64, TFloError>`) instead of `f64`. Each result is either `Ok(f64)` or `Err(TFloError)`. Which checks fire depends on which options you enabled — out-of-order timestamps surface as `Err(TFloError::OutOfOrderTimestamp)`, a NaN with `error_on_nan` set surfaces as `Err(TFloError::NaN)`, and a `reject_*` option simply drops the offending value from the stream.
 
 ## Sanitizing input with standalone validators
 
@@ -99,48 +97,53 @@ You don't have to go all-or-nothing. `ValidationOptions` uses a builder pattern 
 
 ```rust
 let options = ValidationOptions::new()
-    .assert_sorted(true)          // Catch out-of-order timestamps
-    .reject_nan(true)             // (stored, planned for future)
-    .min_warmup(10);              // (stored, planned for future)
+    .assert_sorted(true)          // Error on out-of-order timestamps
+    .reject_nan(true)             // Filter NaN values out of the output
+    .min_warmup(10);              // Suppress output for the first 10 records
 
 let options = ValidationOptions::new()
-    .error_on_nan(true)           // (stored, planned for future)
-    .error_on_inf(true)           // (stored, planned for future)
-    .max_gap_ms(30_000);          // (stored, planned for future)
+    .error_on_nan(true)           // Error (rather than filter) on NaN
+    .error_on_inf(true)           // Error on infinity
+    .max_gap_ms(30_000);          // Error if consecutive timestamps are >30s apart
 ```
 
 The individual methods — `assert_sorted()`, `reject_nan()`, `error_on_nan()`, `reject_inf()`, `error_on_inf()`, `error_on_negative()`, `min_warmup()`, `max_gap_ms()` — are all `const fn`, so you can build the options at compile time with zero runtime cost.
 
-## What each flag stores
+## What each flag does
 
-- **`reject_nan`** — intended to silently drop records that produce NaN. Currently stored but not checked during iteration.
-- **`error_on_nan`** — intended to return an error on NaN steps. Currently stored but not checked during iteration.
-- **`reject_inf` / `error_on_inf`** — same logic for infinity. Stored but not yet enforced.
-- **`error_on_negative`** — intended to catch negative values in operations that don't support them. Stored but not yet enforced.
-- **`assert_sorted`** — fully implemented. Checks that timestamps are monotonically non-decreasing. Violations return `Err(TFloError::OutOfOrderTimestamp)`.
-- **`min_warmup`** — intended to require a minimum number of records before any output is considered valid. Stored but not yet enforced.
-- **`max_gap_ms`** — intended to fail on gaps exceeding this threshold. Stored but not yet enforced.
+- **`reject_nan`** — drops records whose output is NaN; they simply don't appear in the result stream.
+- **`error_on_nan`** — returns `Err(TFloError::NaN)` on a NaN output (stronger than `reject_nan`; the error wins if both are set).
+- **`reject_inf` / `error_on_inf`** — the same filter-or-error logic for infinity.
+- **`error_on_negative`** — returns `Err(TFloError::NegativeValue)` on a negative output.
+- **`assert_sorted`** — checks that timestamps are monotonically non-decreasing; violations return `Err(TFloError::OutOfOrderTimestamp)`.
+- **`min_warmup`** — suppresses output until the graph has seen this many records.
+- **`max_gap_ms`** — returns `Err(TFloError::TimestampGapExceeded)` when two consecutive timestamps are further apart than this threshold.
+
+Every one of these is enforced by `validated()`.
 
 ## The error types
 
-On the validated iterator, errors are wrapped in `TFloError`. The currently active variant is:
+On the validated iterator, errors are wrapped in `TFloError`. The variants `validated()` raises:
 
 ```rust
 pub enum TFloError {
-    OutOfOrderTimestamp,
-    // Additional error variants are defined but only
-    // OutOfOrderTimestamp is actively raised by validated()
+    OutOfOrderTimestamp { previous, current },
+    TimestampGapExceeded { previous, current, max_gap },
+    NaN,
+    Infinite,
+    NegativeValue { reason },
+    // ...
 }
 ```
 
-Additional `ComputeError` variants (such as `NaN`, `Infinite`, `DivisionByZero`, `InvalidInput`) are defined in the codebase and can be used in custom nodes, but are not automatically raised by the validated iterator today.
+Which variant you get tells you which option tripped: `assert_sorted` → `OutOfOrderTimestamp`, `max_gap_ms` → `TimestampGapExceeded`, `error_on_nan` → `NaN`, `error_on_inf` → `Infinite`, `error_on_negative` → `NegativeValue`.
 
 ## When to use each mode
 
 - **Development and testing**: `ValidationOptions::new()` — permissive, fast, no noise.
-- **CI and pre-production**: `ValidationOptions::strict()` with upfront sanitization — filter NaN/Inf with `require_not_nan`/`require_finite` before the graph, and let `assert_sorted` catch ordering issues.
-- **Production with monitoring**: `ValidationOptions::new().assert_sorted(true)` plus standalone validators — catch ordering issues automatically, sanitize values explicitly.
-- **Legacy data sources**: filter with `require_not_nan` and `require_finite` before the pipeline, and optionally enable `assert_sorted`.
+- **CI and pre-production**: `ValidationOptions::strict()` — `validated()` enforces every check and surfaces each failure as a typed `TFloError`.
+- **Production with monitoring**: pick exactly the checks you want with the builder — e.g. `assert_sorted(true)` plus `reject_nan(true)` to drop bad values while erroring on ordering issues.
+- **Legacy data sources**: `reject_nan(true).reject_inf(true)` filters bad values out of the stream; the standalone `require_*` helpers are still available if you prefer to sanitize before the pipeline.
 
 The point isn't to always use strict mode. The point is to choose. Silence is the enemy of debuggable pipelines — decide what you want to catch, and catch it explicitly.
 

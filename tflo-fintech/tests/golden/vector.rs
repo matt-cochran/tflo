@@ -16,7 +16,7 @@ pub struct GoldenVector {
     /// Input time series data
     pub input: Vec<f64>,
     /// Expected output (null values indicate warmup period)
-    /// 
+    ///
     /// For single-output indicators: JSON array of numbers/null
     /// For multi-output indicators: JSON array of arrays (e.g., MACD has 3 outputs)
     pub expected_output: serde_json::Value,
@@ -62,7 +62,7 @@ impl GoldenVector {
                 return Ok(());
             }
             // Check if it's a multi-output empty array
-            if arr.len() > 0 && arr[0].is_array() {
+            if !arr.is_empty() && arr[0].is_array() {
                 if let Some(first_output) = arr[0].as_array() {
                     if first_output.is_empty() {
                         return Ok(());
@@ -70,7 +70,7 @@ impl GoldenVector {
                 }
             }
         }
-        
+
         let output_len = self.expected_output_len()?;
         if self.input.len() != output_len {
             return Err(super::GoldenError::Validation(format!(
@@ -134,7 +134,7 @@ impl GoldenVector {
             }
             let num_outputs = arr.len();
             let mut results: Vec<Vec<Option<f64>>> = vec![Vec::new(); num_outputs];
-            
+
             for output_idx in 0..num_outputs {
                 if let Some(output_arr) = arr[output_idx].as_array() {
                     for val in output_arr {
@@ -150,7 +150,8 @@ impl GoldenVector {
                     }
                 } else {
                     return Err(super::GoldenError::Validation(
-                        "expected_output must be an array of arrays for multi-output indicators".to_string(),
+                        "expected_output must be an array of arrays for multi-output indicators"
+                            .to_string(),
                     ));
                 }
             }
@@ -171,4 +172,3 @@ impl GoldenVector {
         }
     }
 }
-

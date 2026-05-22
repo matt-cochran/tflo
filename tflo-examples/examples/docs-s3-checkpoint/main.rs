@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! S3-based checkpoint / restore — real API usage with an in-process mock client.
 //!
 //! `S3StateStore<C: S3Client>` is generic over any S3-compatible client.
@@ -72,7 +73,7 @@ impl S3Client for MemS3Client {
 #[tokio::main]
 async fn main() -> Result<(), String> {
     // A few sample transactions from the payment stream.
-    let txns = vec![
+    let txns = [
         Txn::new(1_000_000, 42.50),
         Txn::new(1_000_001, 980.00),
         Txn::new(1_000_002, 12.99),
@@ -105,7 +106,9 @@ async fn main() -> Result<(), String> {
     // rather than silently dropping the snapshot.
     match store.save(b"fraud-detector", &snapshot) {
         Ok(()) => println!("save: OK"),
-        Err(e) => println!("save: {e}  (enable tflo-state-s3 'async' feature for full S3 round-trip)"),
+        Err(e) => {
+            println!("save: {e}  (enable tflo-state-s3 'async' feature for full S3 round-trip)")
+        }
     }
 
     // Load it back.

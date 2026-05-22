@@ -2,7 +2,7 @@
 
 use crate::context::IntoRhaiScope;
 use crate::error::{RhaiError, RhaiResult};
-use rhai::{Engine, AST};
+use rhai::{AST, Engine};
 use std::sync::Arc;
 
 /// Extension trait for Rhai-based filtering on iterators.
@@ -72,10 +72,15 @@ where
         Self::with_engine(iter, engine, expr)
     }
 
+    /// # Panics
+    ///
+    /// Panics if `expr` is not a valid Rhai expression. The fallible
+    /// [`RhaiFilterResult`] path returns the compile error instead.
+    #[allow(clippy::panic)]
     fn with_engine(iter: I, engine: Arc<Engine>, expr: &str) -> Self {
         let ast = engine
             .compile(expr)
-            .unwrap_or_else(|e| unreachable!("Failed to compile Rhai expression '{expr}': {e}"));
+            .unwrap_or_else(|e| panic!("failed to compile Rhai expression '{expr}': {e}"));
         Self { iter, engine, ast }
     }
 }
@@ -171,7 +176,7 @@ where
                     return Some(Err(RhaiError::EvaluationError {
                         script: self.expression.clone(),
                         message: e.to_string(),
-                    }))
+                    }));
                 }
             }
         }

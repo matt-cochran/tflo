@@ -56,7 +56,7 @@ use super::results::PulseWidthResult;
 /// // Pulse ends at t=20ms - 10ms duration, VALID
 /// assert_eq!(filter.update(90.0, 20), Some(true)); // true = valid pulse
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct GlitchFilter {
     threshold: f64,
     min_duration_ms: i64,
@@ -64,7 +64,7 @@ pub struct GlitchFilter {
     pulse_start_ts: Option<i64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum GlitchState {
     Low,
     High,
@@ -122,7 +122,7 @@ pub(crate) enum GlitchState {
 /// let result = detector.update(90.0, 50);
 /// assert!(matches!(result, Some(PulseWidthResult::TooLong { .. })));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PulseWidthDetector {
     threshold: f64,
     min_width_ms: i64,
@@ -131,7 +131,7 @@ pub struct PulseWidthDetector {
     pulse_start_ts: Option<i64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum PulseWidthState {
     Low,
     High,

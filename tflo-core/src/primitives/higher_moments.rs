@@ -26,7 +26,7 @@ use std::time::Duration;
 /// let skew = window.skewness();
 /// assert!(skew < 0.0);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MomentsCountWindow {
     max_count: usize,
     buffer: VecDeque<f64>,
@@ -188,7 +188,7 @@ impl MomentsCountWindow {
 }
 
 /// Time-based sliding window for higher-order moments.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MomentsTimeWindow {
     window_ms: i64,
     buffer: VecDeque<(i64, f64)>,

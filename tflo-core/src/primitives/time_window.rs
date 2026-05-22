@@ -32,7 +32,7 @@ use std::time::Duration;
 /// window.push(7000, 40.0);  // ts=1000 is now outside the 5s window
 /// assert_eq!(window.count(), 3);  // Only 2000, 3000, 7000 remain
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TimeWindow {
     window_ms: i64,
     buffer: VecDeque<(i64, f64)>,

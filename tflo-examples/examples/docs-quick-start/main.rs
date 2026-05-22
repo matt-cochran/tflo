@@ -107,7 +107,9 @@ fn main() {
     print_summary("Manual graph SMA(3)", &outputs);
 
     // ---- Snapshot and restore ----
-    let snapshot = graph.snapshot();
+    let Ok(snapshot) = graph.snapshot() else {
+        return;
+    };
     let mut builder2 = TFlowBuilder::new();
     builder2.timestamp(|x: &Reading| x.ts);
     let value2 = builder2.prop(|x| x.value);

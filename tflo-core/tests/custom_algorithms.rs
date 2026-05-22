@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! Integration tests that prove all documented custom-algorithm approaches work.
 //!
 //! These tests mirror the examples in `README.md` and `tflo-core/src/lib.rs` docs.
