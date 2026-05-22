@@ -7,6 +7,7 @@
 use super::vector::GoldenVector;
 use tflo_core::prelude::*;
 use tflo_fintech::prelude::*;
+use tflo_ops::prelude::*;
 
 // ── Input record ─────────────────────────────────────────────────────
 

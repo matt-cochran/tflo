@@ -6,6 +6,7 @@
 
 use tflo_core::comp::Comp;
 use tflo_core::window::Window;
+use tflo_ops::prelude::*;
 
 /// Finance-named aliases for `tflo-core`'s domain-neutral operations.
 ///

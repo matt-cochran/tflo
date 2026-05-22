@@ -8,6 +8,7 @@ use crate::nodes::{AdxNode, AtrNode, KamaNode, MinusDiNode, PlusDiNode};
 use std::collections::VecDeque;
 use tflo_core::comp::Comp;
 use tflo_core::window::Window;
+use tflo_ops::prelude::*;
 
 /// Financial technical-analysis indicators layered on the `tflo` graph.
 ///
