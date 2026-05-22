@@ -5,7 +5,7 @@
 //! `.temporal()` or `.temporal_with()`.
 
 use crate::comp::{Comp, Node, NodeId};
-use crate::event::ThresholdCrossEventMode;
+use crate::compile::ExtractOutput;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -205,16 +205,15 @@ pub trait Compile<R>: Sized {
     fn output_ids(&self) -> Vec<NodeId>;
 }
 
-impl<R> Compile<R> for Comp<R, f64> {
-    type Output = f64;
-
-    fn output_ids(&self) -> Vec<NodeId> {
-        vec![self.id]
-    }
-}
-
-impl<R> Compile<R> for Comp<R, ThresholdCrossEventMode> {
-    type Output = ThresholdCrossEventMode;
+// Blanket impl over every output type that can be extracted from the value
+// store. This subsumes the previous concrete impls for `Comp<R, f64>` and
+// `Comp<R, ThresholdCrossEventMode>` — both still work, and any further
+// `ExtractOutput` type now compiles via the builder. Out-of-crate operator
+// catalogs (e.g. `tflo-ops` event-detector ops) rely on this to expose
+// typed-output operators through `.tflo(...)`; an orphan-rule add of these
+// impls from outside `tflo-core` is not possible.
+impl<R, O: ExtractOutput> Compile<R> for Comp<R, O> {
+    type Output = O;
 
     fn output_ids(&self) -> Vec<NodeId> {
         vec![self.id]

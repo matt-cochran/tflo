@@ -13,6 +13,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod checkpoint;
+pub mod events;
 pub mod ops;
 pub mod prelude;
 pub mod shapes;

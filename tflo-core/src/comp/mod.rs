@@ -450,6 +450,28 @@ impl<R, T> Comp<R, T> {
             _marker: PhantomData,
         }
     }
+
+    /// Add a node and tag the returned [`Comp`] with a caller-chosen output
+    /// marker `O`.
+    ///
+    /// Identical to [`add_node_to_state`](Self::add_node_to_state) except the
+    /// output type is generic rather than hardcoded to `f64`. The marker is
+    /// pure [`PhantomData`] — it has no effect on the node stored in the
+    /// builder. It lets a typed-output plugin builder yield `Comp<R, O>` for a
+    /// non-`f64` `O` (e.g. an event enum).
+    pub(crate) fn add_node_to_state_typed<O>(
+        state: &Rc<RefCell<BuilderState<R>>>,
+        node: Node<R>,
+    ) -> Comp<R, O> {
+        let mut builder_state = state.borrow_mut();
+        let id = builder_state.next_id();
+        builder_state.nodes.push((id, node));
+        Comp {
+            id,
+            state: Rc::clone(state),
+            _marker: PhantomData,
+        }
+    }
 }
 
 // ============================================================================

@@ -6,8 +6,12 @@
 //! and bivariate reductions (median, quantile, correlation, …) that
 //! `WindowOps` reuses. [`trackers`] holds the stateful single-state trackers
 //! (prev, lag, delta, cumulative aggregates, returns, rate derivatives) and
-//! the [`StatefulOps`](trackers::StatefulOps) extension trait.
+//! the [`StatefulOps`](trackers::StatefulOps) extension trait. [`detectors`]
+//! holds the event-detector operators (cross, glitch, runt, pulse-width,
+//! window) and the [`CrossOps`](detectors::CrossOps) /
+//! [`DetectorOps`](detectors::DetectorOps) extension traits.
 
+pub mod detectors;
 pub mod stats;
 pub mod trackers;
 pub mod windows;

@@ -101,12 +101,19 @@ impl<R: 'static> Comp<R, f64> {
     /// Behaviour is otherwise identical to [`custom_node`](Self::custom_node):
     /// `first` is the mandatory first input, `rest` is any further inputs, and
     /// the factory produces a fresh operator instance per compiled graph.
+    ///
+    /// The output-type marker `O` is a pure [`PhantomData`](std::marker::PhantomData)
+    /// type parameter with no runtime effect — the node always stores a
+    /// `BoxedOperator`. It lets a builder of a *typed-output* operator return
+    /// `Comp<R, O>` for a non-`f64` `O` (e.g. an event enum). Existing `f64`
+    /// callers are unaffected: `O` infers to `f64` from their `-> Comp<R, f64>`
+    /// return context.
     #[must_use]
-    pub fn custom_node_dyn<F>(
+    pub fn custom_node_dyn<F, O>(
         first: &Comp<R, f64>,
         rest: &[&Comp<R, f64>],
         factory: F,
-    ) -> Comp<R, f64>
+    ) -> Comp<R, O>
     where
         F: Fn() -> BoxedOperator + Send + Sync + 'static,
     {
@@ -118,7 +125,7 @@ impl<R: 'static> Comp<R, f64> {
         // The factory already yields a `BoxedOperator`, so — unlike
         // `custom_node` — no inner `Box::new` is needed here.
         let factory: OperatorFactory = Arc::new(factory);
-        Self::add_node_to_state(
+        Self::add_node_to_state_typed(
             state,
             Node::Plugin {
                 inputs: input_ids,
@@ -132,9 +139,9 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// Convenience wrapper around [`custom_node_dyn`](Self::custom_node_dyn) for
     /// operators that consume only `self`. See that method for why the
-    /// `BoxedOperator` factory form exists.
+    /// `BoxedOperator` factory form exists and what the `O` marker does.
     #[must_use]
-    pub fn custom_node1_dyn<F>(&self, factory: F) -> Comp<R, f64>
+    pub fn custom_node1_dyn<F, O>(&self, factory: F) -> Comp<R, O>
     where
         F: Fn() -> BoxedOperator + Send + Sync + 'static,
     {
