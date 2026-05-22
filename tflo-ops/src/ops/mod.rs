@@ -9,8 +9,14 @@
 //! the [`StatefulOps`](trackers::StatefulOps) extension trait. [`detectors`]
 //! holds the event-detector operators (cross, glitch, runt, pulse-width,
 //! window) and the [`CrossOps`](detectors::CrossOps) /
-//! [`DetectorOps`](detectors::DetectorOps) extension traits.
+//! [`DetectorOps`](detectors::DetectorOps) extension traits. [`math`] holds
+//! the stateless math operators (abs, sqrt, ln, exp, pow, clamp, …) on the
+//! [`MathOps`](math::MathOps) trait. [`composites`] holds graph-builder
+//! composites (zscore, deviation_band, peak_decline, momentum, …) on the
+//! [`Composites`](composites::Composites) trait — these compose other
+//! `tflo-ops` operators rather than introducing new runtime nodes.
 
+pub mod composites;
 pub mod detectors;
 pub mod math;
 pub mod stats;

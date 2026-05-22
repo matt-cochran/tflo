@@ -1,5 +1,20 @@
 //! Convenience re-exports for `tflo-ops`.
 //!
-//! Importing this prelude brings all operator extension traits into scope so
-//! that call sites can write `price.sma(20)` without individually importing
-//! each trait. Later tasks populate this module as operator modules are added.
+//! `use tflo_ops::prelude::*;` brings into scope:
+//!
+//! - **Extension traits** — every operator surface on `Comp<R, f64>`:
+//!   [`WindowOps`], [`StatefulOps`], [`CrossOps`], [`DetectorOps`],
+//!   [`MathOps`], [`Composites`].
+//!
+//! - **Event types** — the typed output values produced by the detector
+//!   operators: [`ThresholdCrossEventMode`], [`GlitchResult`], [`RuntResult`],
+//!   [`PulseWidthResult`], [`WindowEvent`].
+
+pub use crate::events::{
+    GlitchResult, PulseWidthResult, RuntResult, ThresholdCrossEventMode, WindowEvent,
+};
+pub use crate::ops::composites::Composites;
+pub use crate::ops::detectors::{CrossOps, DetectorOps};
+pub use crate::ops::math::MathOps;
+pub use crate::ops::trackers::StatefulOps;
+pub use crate::ops::windows::WindowOps;
