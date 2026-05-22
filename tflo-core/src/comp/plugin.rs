@@ -85,6 +85,61 @@ impl<R: 'static> Comp<R, f64> {
     {
         Self::custom_node(self, &[], factory)
     }
+
+    /// Attach a multi-input [`Operator`](crate::operator::Operator) whose factory
+    /// already yields a [`BoxedOperator`].
+    ///
+    /// This is the type-erased sibling of [`custom_node`](Self::custom_node). It
+    /// exists for builders that pick the concrete operator type at *runtime* —
+    /// e.g. dispatching on a [`Window`](crate::window::Window) discriminant to
+    /// produce either a time-windowed or a count-windowed operator. Those are
+    /// two distinct concrete types, so a `match` cannot return them through the
+    /// monomorphic `N: Operator` bound of [`custom_node`](Self::custom_node);
+    /// the factory must box each arm itself and return a uniform
+    /// `BoxedOperator`.
+    ///
+    /// Behaviour is otherwise identical to [`custom_node`](Self::custom_node):
+    /// `first` is the mandatory first input, `rest` is any further inputs, and
+    /// the factory produces a fresh operator instance per compiled graph.
+    #[must_use]
+    pub fn custom_node_dyn<F>(
+        first: &Comp<R, f64>,
+        rest: &[&Comp<R, f64>],
+        factory: F,
+    ) -> Comp<R, f64>
+    where
+        F: Fn() -> BoxedOperator + Send + Sync + 'static,
+    {
+        // `first` guarantees at least one input — no empty-slice panic path.
+        let state = &first.state;
+        let input_ids: Vec<NodeId> = std::iter::once(first.id)
+            .chain(rest.iter().map(|c| c.id))
+            .collect();
+        // The factory already yields a `BoxedOperator`, so — unlike
+        // `custom_node` — no inner `Box::new` is needed here.
+        let factory: OperatorFactory = Arc::new(factory);
+        Self::add_node_to_state(
+            state,
+            Node::Plugin {
+                inputs: input_ids,
+                factory,
+            },
+        )
+    }
+
+    /// Attach a single-input type-erased [`Operator`](crate::operator::Operator)
+    /// whose factory already yields a [`BoxedOperator`].
+    ///
+    /// Convenience wrapper around [`custom_node_dyn`](Self::custom_node_dyn) for
+    /// operators that consume only `self`. See that method for why the
+    /// `BoxedOperator` factory form exists.
+    #[must_use]
+    pub fn custom_node1_dyn<F>(&self, factory: F) -> Comp<R, f64>
+    where
+        F: Fn() -> BoxedOperator + Send + Sync + 'static,
+    {
+        Self::custom_node_dyn(self, &[], factory)
+    }
 }
 
 #[cfg(test)]
