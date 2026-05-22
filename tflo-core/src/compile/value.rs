@@ -33,6 +33,16 @@ impl NodeOutput {
         }
     }
 
+    /// View the output as a [`Computed`], or `None` if it is an `Other` typed value.
+    #[inline]
+    #[must_use]
+    pub fn as_computed(&self) -> Option<Computed> {
+        match self {
+            NodeOutput::Computed(c) => Some(*c),
+            NodeOutput::Other(_) => None,
+        }
+    }
+
     /// Wrap a computed `f64`-or-absent result.
     #[inline]
     #[must_use]
