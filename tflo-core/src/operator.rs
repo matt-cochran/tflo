@@ -83,6 +83,21 @@ impl std::fmt::Display for OperatorLoadError {
 
 impl std::error::Error for OperatorLoadError {}
 
+/// Common interface over the windowing primitives (`TimeWindow`, `CountWindow`, …).
+///
+/// Lets the generic `Windowed` operator shape (in `tflo-ops`) treat
+/// time-based and count-based windows uniformly.
+pub trait WindowPrimitive {
+    /// Admit a value; `ts` is ignored by count-based windows.
+    fn push(&mut self, ts: i64, value: f64);
+    /// Number of values currently retained.
+    fn len(&self) -> usize;
+    /// True when the window holds no values.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// Boxed live operator instance held by a compiled graph.
 pub type BoxedOperator = Box<dyn Operator>;
 
