@@ -249,8 +249,8 @@ pub mod prelude {
     };
     pub use crate::comp::Comp;
     pub use crate::compile::{
-        Absent, CompiledGraph, Computed, ExtractOutput, GraphPlan, GraphStateSummary, ValueStore,
-        finite_or_warming,
+        Absent, CompiledGraph, Computed, ExtractOutput, GraphPlan, GraphStateSummary, NodeOutput,
+        ValueStore, finite_or_warming,
     };
     pub use crate::custom_node::{BoxedCustomNode, CustomNode, CustomNodeFactory};
     pub use crate::duration::IntoDuration;

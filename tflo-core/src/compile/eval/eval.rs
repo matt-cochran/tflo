@@ -11,7 +11,7 @@
 
 use crate::comp::NodeId;
 use crate::compile::{
-    Absent, CompiledGraph, CompiledNode, Computed, NodeOp, NodeState, Value, ValueStore,
+    Absent, CompiledGraph, CompiledNode, Computed, NodeOp, NodeOutput, NodeState, ValueStore,
     finite_or_warming,
 };
 use crate::event::ThresholdCrossEventMode;
@@ -46,14 +46,14 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         record: &R,
         ts: i64,
         store: &ValueStore,
-    ) -> Value {
+    ) -> NodeOutput {
         match &node.op {
             // ---- Sources ----
-            NodeOp::Prop(f) => Value::from(f(record)),
-            NodeOp::Const(v) => Value::from(*v),
+            NodeOp::Prop(f) => NodeOutput::from(f(record)),
+            NodeOp::Const(v) => NodeOutput::from(*v),
 
             // ---- Windowed aggregations ----
-            NodeOp::Sma(input) => Value::from(Self::eval_windowed(
+            NodeOp::Sma(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -61,7 +61,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.mean(),
                 |w| w.mean(),
             )),
-            NodeOp::Std(input) => Value::from(Self::eval_windowed(
+            NodeOp::Std(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -69,7 +69,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.std(),
                 |w| w.std(),
             )),
-            NodeOp::Variance(input) => Value::from(Self::eval_windowed(
+            NodeOp::Variance(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -77,7 +77,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.variance(),
                 |w| w.variance(),
             )),
-            NodeOp::Max(input) => Value::from(Self::eval_windowed(
+            NodeOp::Max(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -85,7 +85,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.max(),
                 |w| w.max(),
             )),
-            NodeOp::Min(input) => Value::from(Self::eval_windowed(
+            NodeOp::Min(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -93,7 +93,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.min(),
                 |w| w.min(),
             )),
-            NodeOp::Sum(input) => Value::from(Self::eval_windowed(
+            NodeOp::Sum(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -101,7 +101,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.sum(),
                 |w| w.sum(),
             )),
-            NodeOp::Count(input) => Value::from(Self::eval_windowed(
+            NodeOp::Count(input) => NodeOutput::from(Self::eval_windowed(
                 store,
                 &mut node.state,
                 input,
@@ -111,7 +111,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             )),
 
             // ---- EMA ----
-            NodeOp::Ema(input) => Value::from(match Self::get_computed(store, input) {
+            NodeOp::Ema(input) => NodeOutput::from(match Self::get_computed(store, input) {
                 Err(e) => Err(e),
                 Ok(v) => match &mut node.state {
                     NodeState::TimeEma(e) => finite_or_warming(e.push(ts, v)),
@@ -121,116 +121,134 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             }),
 
             // ---- WMA / RSI ----
-            NodeOp::Wma(input) => Value::from(Self::eval_wma(store, &mut node.state, input, ts)),
-            NodeOp::Rsi(input) => Value::from(Self::eval_rsi(store, &mut node.state, input, ts)),
+            NodeOp::Wma(input) => {
+                NodeOutput::from(Self::eval_wma(store, &mut node.state, input, ts))
+            }
+            NodeOp::Rsi(input) => {
+                NodeOutput::from(Self::eval_rsi(store, &mut node.state, input, ts))
+            }
 
             // ---- Stateful trackers ----
-            NodeOp::Prev(input) => Value::from(Self::eval_prev(store, &mut node.state, input)),
-            NodeOp::PrevBy(input, key_fn) => Value::from(Self::eval_prev_by(
+            NodeOp::Prev(input) => NodeOutput::from(Self::eval_prev(store, &mut node.state, input)),
+            NodeOp::PrevBy(input, key_fn) => NodeOutput::from(Self::eval_prev_by(
                 store,
                 &mut node.state,
                 input,
                 key_fn,
                 record,
             )),
-            NodeOp::Lag(input) => Value::from(Self::eval_lag(store, &mut node.state, input, ts)),
-            NodeOp::Delta(input) => {
-                Value::from(Self::eval_delta(store, &mut node.state, input, ts))
+            NodeOp::Lag(input) => {
+                NodeOutput::from(Self::eval_lag(store, &mut node.state, input, ts))
             }
-            NodeOp::Rate(input) => Value::from(Self::eval_rate_derivative(
+            NodeOp::Delta(input) => {
+                NodeOutput::from(Self::eval_delta(store, &mut node.state, input, ts))
+            }
+            NodeOp::Rate(input) => NodeOutput::from(Self::eval_rate_derivative(
                 store,
                 &mut node.state,
                 input,
                 ts,
             )),
             NodeOp::Velocity(input) => {
-                Value::from(Self::eval_velocity(store, &mut node.state, input, ts))
+                NodeOutput::from(Self::eval_velocity(store, &mut node.state, input, ts))
             }
             NodeOp::Acceleration(input) => {
-                Value::from(Self::eval_acceleration(store, &mut node.state, input, ts))
+                NodeOutput::from(Self::eval_acceleration(store, &mut node.state, input, ts))
             }
 
             // ---- Cumulative ----
             NodeOp::CumSum(input) => {
-                Value::from(Self::eval_cumulative(store, &mut node.state, input))
+                NodeOutput::from(Self::eval_cumulative(store, &mut node.state, input))
             }
             NodeOp::CumMax(input) => {
-                Value::from(Self::eval_cumulative(store, &mut node.state, input))
+                NodeOutput::from(Self::eval_cumulative(store, &mut node.state, input))
             }
             NodeOp::CumMin(input) => {
-                Value::from(Self::eval_cumulative(store, &mut node.state, input))
+                NodeOutput::from(Self::eval_cumulative(store, &mut node.state, input))
             }
             NodeOp::CumProd(input) => {
-                Value::from(Self::eval_cumulative(store, &mut node.state, input))
+                NodeOutput::from(Self::eval_cumulative(store, &mut node.state, input))
             }
 
             // ---- Returns ----
             NodeOp::PctChange(input) => {
-                Value::from(Self::eval_pct_change(store, &mut node.state, input))
+                NodeOutput::from(Self::eval_pct_change(store, &mut node.state, input))
             }
             NodeOp::LogReturn(input) => {
-                Value::from(Self::eval_log_return(store, &mut node.state, input))
+                NodeOutput::from(Self::eval_log_return(store, &mut node.state, input))
             }
 
             // ---- Stateless math (unary) ----
-            NodeOp::Abs(input) => Value::from(Self::get_computed(store, input).map(f64::abs)),
-            NodeOp::Sqrt(input) => Value::from(Self::get_computed(store, input).and_then(|x| {
-                if x < 0.0 {
-                    Err(Absent::DomainError)
-                } else {
-                    Ok(x.sqrt())
-                }
-            })),
-            NodeOp::Ln(input) => Value::from(Self::get_computed(store, input).and_then(|x| {
+            NodeOp::Abs(input) => NodeOutput::from(Self::get_computed(store, input).map(f64::abs)),
+            NodeOp::Sqrt(input) => {
+                NodeOutput::from(Self::get_computed(store, input).and_then(|x| {
+                    if x < 0.0 {
+                        Err(Absent::DomainError)
+                    } else {
+                        Ok(x.sqrt())
+                    }
+                }))
+            }
+            NodeOp::Ln(input) => NodeOutput::from(Self::get_computed(store, input).and_then(|x| {
                 if x <= 0.0 {
                     Err(Absent::DomainError)
                 } else {
                     Ok(x.ln())
                 }
             })),
-            NodeOp::Neg(input) => Value::from(Self::get_computed(store, input).map(|x| -x)),
-            NodeOp::Exp(input) => Value::from(Self::get_computed(store, input).map(f64::exp)),
-            NodeOp::Log10(input) => Value::from(Self::get_computed(store, input).and_then(|x| {
-                if x <= 0.0 {
-                    Err(Absent::DomainError)
-                } else {
-                    Ok(x.log10())
-                }
-            })),
-            NodeOp::Log2(input) => Value::from(Self::get_computed(store, input).and_then(|x| {
-                if x <= 0.0 {
-                    Err(Absent::DomainError)
-                } else {
-                    Ok(x.log2())
-                }
-            })),
-            NodeOp::Floor(input) => Value::from(Self::get_computed(store, input).map(f64::floor)),
-            NodeOp::Ceil(input) => Value::from(Self::get_computed(store, input).map(f64::ceil)),
-            NodeOp::Round(input) => Value::from(Self::get_computed(store, input).map(f64::round)),
+            NodeOp::Neg(input) => NodeOutput::from(Self::get_computed(store, input).map(|x| -x)),
+            NodeOp::Exp(input) => NodeOutput::from(Self::get_computed(store, input).map(f64::exp)),
+            NodeOp::Log10(input) => {
+                NodeOutput::from(Self::get_computed(store, input).and_then(|x| {
+                    if x <= 0.0 {
+                        Err(Absent::DomainError)
+                    } else {
+                        Ok(x.log10())
+                    }
+                }))
+            }
+            NodeOp::Log2(input) => {
+                NodeOutput::from(Self::get_computed(store, input).and_then(|x| {
+                    if x <= 0.0 {
+                        Err(Absent::DomainError)
+                    } else {
+                        Ok(x.log2())
+                    }
+                }))
+            }
+            NodeOp::Floor(input) => {
+                NodeOutput::from(Self::get_computed(store, input).map(f64::floor))
+            }
+            NodeOp::Ceil(input) => {
+                NodeOutput::from(Self::get_computed(store, input).map(f64::ceil))
+            }
+            NodeOp::Round(input) => {
+                NodeOutput::from(Self::get_computed(store, input).map(f64::round))
+            }
             NodeOp::Pow(input, n) => {
-                Value::from(Self::get_computed(store, input).map(|x| x.powf(*n)))
+                NodeOutput::from(Self::get_computed(store, input).map(|x| x.powf(*n)))
             }
             NodeOp::Clamp(input, min, max) => {
-                Value::from(Self::get_computed(store, input).map(|x| x.clamp(*min, *max)))
+                NodeOutput::from(Self::get_computed(store, input).map(|x| x.clamp(*min, *max)))
             }
 
             // ---- Stateless math (binary) ----
-            NodeOp::Add(a, b) => Value::from(binary(
+            NodeOp::Add(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(x + y),
             )),
-            NodeOp::Sub(a, b) => Value::from(binary(
+            NodeOp::Sub(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(x - y),
             )),
-            NodeOp::Mul(a, b) => Value::from(binary(
+            NodeOp::Mul(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(x * y),
             )),
-            NodeOp::Div(a, b) => Value::from(binary(
+            NodeOp::Div(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| {
@@ -242,13 +260,13 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 },
             )),
             NodeOp::MulConst(input, c) => {
-                Value::from(Self::get_computed(store, input).map(|x| x * *c))
+                NodeOutput::from(Self::get_computed(store, input).map(|x| x * *c))
             }
             NodeOp::AddConst(input, c) => {
-                Value::from(Self::get_computed(store, input).map(|x| x + *c))
+                NodeOutput::from(Self::get_computed(store, input).map(|x| x + *c))
             }
             NodeOp::DivConst(input, c) => {
-                Value::from(Self::get_computed(store, input).and_then(|x| {
+                NodeOutput::from(Self::get_computed(store, input).and_then(|x| {
                     if *c == 0.0 {
                         Err(Absent::DivideByZero)
                     } else {
@@ -258,27 +276,27 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             }
 
             // ---- Comparisons ----
-            NodeOp::Gt(a, b) => Value::from(binary(
+            NodeOp::Gt(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(if x > y { 1.0 } else { 0.0 }),
             )),
-            NodeOp::Gte(a, b) => Value::from(binary(
+            NodeOp::Gte(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(if x >= y { 1.0 } else { 0.0 }),
             )),
-            NodeOp::Lt(a, b) => Value::from(binary(
+            NodeOp::Lt(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(if x < y { 1.0 } else { 0.0 }),
             )),
-            NodeOp::Lte(a, b) => Value::from(binary(
+            NodeOp::Lte(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(if x <= y { 1.0 } else { 0.0 }),
             )),
-            NodeOp::Eq(a, b) => Value::from(binary(
+            NodeOp::Eq(a, b) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| {
@@ -307,11 +325,11 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     NodeState::CrossHysteresis(h) => h.update(va, vb),
                     _ => ThresholdCrossEventMode::None,
                 };
-                Value::from(edge)
+                NodeOutput::other(edge)
             }
 
             // ---- Statistical ----
-            NodeOp::Median(input) => Value::from(Self::eval_median(
+            NodeOp::Median(input) => NodeOutput::from(Self::eval_median(
                 store,
                 &mut node.state,
                 input,
@@ -319,7 +337,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.median(),
                 |w| w.median(),
             )),
-            NodeOp::Quantile(input, q) => Value::from(Self::eval_median(
+            NodeOp::Quantile(input, q) => NodeOutput::from(Self::eval_median(
                 store,
                 &mut node.state,
                 input,
@@ -327,7 +345,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.quantile(*q),
                 |w| w.quantile(*q),
             )),
-            NodeOp::Rank(input) => Value::from(Self::eval_median(
+            NodeOp::Rank(input) => NodeOutput::from(Self::eval_median(
                 store,
                 &mut node.state,
                 input,
@@ -335,7 +353,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.current_rank(),
                 |w| w.current_rank(),
             )),
-            NodeOp::Correlation(a, b) => Value::from(Self::eval_bivariate(
+            NodeOp::Correlation(a, b) => NodeOutput::from(Self::eval_bivariate(
                 store,
                 &mut node.state,
                 a,
@@ -344,7 +362,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.correlation(),
                 |w| w.correlation(),
             )),
-            NodeOp::Covariance(a, b) => Value::from(Self::eval_bivariate(
+            NodeOp::Covariance(a, b) => NodeOutput::from(Self::eval_bivariate(
                 store,
                 &mut node.state,
                 a,
@@ -353,7 +371,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.covariance(),
                 |w| w.covariance(),
             )),
-            NodeOp::Skewness(input) => Value::from(Self::eval_moments(
+            NodeOp::Skewness(input) => NodeOutput::from(Self::eval_moments(
                 store,
                 &mut node.state,
                 input,
@@ -361,7 +379,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 |w| w.skewness(),
                 |w| w.skewness(),
             )),
-            NodeOp::Kurtosis(input) => Value::from(Self::eval_moments(
+            NodeOp::Kurtosis(input) => NodeOutput::from(Self::eval_moments(
                 store,
                 &mut node.state,
                 input,
@@ -377,14 +395,16 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             NodeOp::WindowDetect(input) => Self::eval_window_detect(store, &mut node.state, input),
 
             // ---- Custom functional operators ----
-            NodeOp::MapF64(input, f) => Value::from(Self::get_computed(store, input).map(|x| f(x))),
-            NodeOp::Map2F64(a, b, f) => Value::from(binary(
+            NodeOp::MapF64(input, f) => {
+                NodeOutput::from(Self::get_computed(store, input).map(|x| f(x)))
+            }
+            NodeOp::Map2F64(a, b, f) => NodeOutput::from(binary(
                 Self::get_computed(store, a),
                 Self::get_computed(store, b),
                 |x, y| Ok(f(x, y)),
             )),
             NodeOp::FilterF64(input, f) => {
-                Value::from(Self::get_computed(store, input).and_then(|x| {
+                NodeOutput::from(Self::get_computed(store, input).and_then(|x| {
                     if f(x) {
                         Ok(x)
                     } else {
@@ -392,13 +412,13 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     }
                 }))
             }
-            NodeOp::FilterMapF64(input, f) => Value::from(
+            NodeOp::FilterMapF64(input, f) => NodeOutput::from(
                 Self::get_computed(store, input).and_then(|x| f(x).ok_or(Absent::FilteredOut)),
             ),
             NodeOp::ScanF64(input, state_factory, step) => {
                 // A scan does not advance its state on an absent input — it
                 // propagates the reason and leaves the accumulator untouched.
-                Value::from(match Self::get_computed(store, input) {
+                NodeOutput::from(match Self::get_computed(store, input) {
                     Err(e) => Err(e),
                     Ok(v) => match &mut node.state {
                         NodeState::ScanState(state) => step(state, v),
@@ -411,7 +431,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     },
                 })
             }
-            NodeOp::Scan2F64(a, b, state_factory, step) => Value::from(
+            NodeOp::Scan2F64(a, b, state_factory, step) => NodeOutput::from(
                 match (Self::get_computed(store, a), Self::get_computed(store, b)) {
                     (Err(e), _) | (Ok(_), Err(e)) => Err(e),
                     (Ok(va), Ok(vb)) => match &mut node.state {
@@ -432,7 +452,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     .iter()
                     .map(|id| Self::get_computed(store, id))
                     .collect();
-                Value::from(match &mut node.state {
+                NodeOutput::from(match &mut node.state {
                     NodeState::Custom(n) => n.eval(&values),
                     _ => Err(Absent::WarmingUp),
                 })

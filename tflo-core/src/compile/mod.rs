@@ -15,7 +15,7 @@
 //!
 //! # Architecture
 //!
-//! Computed node outputs are held in a [`ValueStore`] as a typed [`Value`]
+//! Computed node outputs are held in a [`ValueStore`] as a typed [`NodeOutput`]
 //! (`f64` inline, everything else boxed). The external API stays fully
 //! type-safe through generics and the [`ExtractOutput`] trait.
 
@@ -51,7 +51,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
-pub(crate) use value::Value;
+pub use value::NodeOutput;
 
 // ============================================================================
 // VALUE STORE - Type-erased storage for computed values
@@ -59,10 +59,10 @@ pub(crate) use value::Value;
 
 /// Storage for computed node outputs, keyed by [`NodeId`].
 ///
-/// Values are held as a typed [`Value`] — `f64` inline, everything else boxed.
+/// Values are held as a typed [`NodeOutput`] — `f64` inline, everything else boxed.
 #[derive(Default)]
 pub struct ValueStore {
-    pub(crate) values: HashMap<NodeId, Value>,
+    pub(crate) values: HashMap<NodeId, NodeOutput>,
 }
 
 // ============================================================================
@@ -106,8 +106,8 @@ impl_extract_output!(
 impl ExtractOutput for f64 {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         match store.values.get(ids.first()?)? {
-            Value::Computed(c) => Some(c.unwrap_or(f64::NAN)),
-            Value::Other(b) => b.downcast_ref::<f64>().copied(),
+            NodeOutput::Computed(c) => Some(c.unwrap_or(f64::NAN)),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied(),
         }
     }
 
@@ -121,8 +121,8 @@ impl ExtractOutput for f64 {
 impl ExtractOutput for Computed {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         match store.values.get(ids.first()?)? {
-            Value::Computed(c) => Some(*c),
-            Value::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
+            NodeOutput::Computed(c) => Some(*c),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
         }
     }
 }
@@ -162,12 +162,14 @@ pub struct CompiledGraph<R, O, C: PipelineContext = Timestamped> {
 /// A post-compilation composition node (`map` / `fold`).
 pub(crate) enum CompositionNodeKind {
     Map {
-        mapper: Arc<dyn Fn(&ValueStore) -> Option<Value> + Send + Sync>,
+        mapper: Arc<dyn Fn(&ValueStore) -> Option<NodeOutput> + Send + Sync>,
     },
     Fold {
         state: Arc<Mutex<Box<dyn Any + Send + Sync>>>,
         folder: Arc<
-            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value> + Send + Sync,
+            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<NodeOutput>
+                + Send
+                + Sync,
         >,
     },
 }
@@ -479,11 +481,11 @@ where
         let new_id = NodeId(self.max_node_id() + 1);
         let input_ids = self.output_ids.clone();
 
-        let mapper: Arc<dyn Fn(&ValueStore) -> Option<Value> + Send + Sync> =
+        let mapper: Arc<dyn Fn(&ValueStore) -> Option<NodeOutput> + Send + Sync> =
             Arc::new(move |store| {
                 let input = O::extract(store, &input_ids)?;
                 let output = f(input);
-                Some(Value::Other(Box::new(output)))
+                Some(NodeOutput::Other(Box::new(output)))
             });
 
         self.composition_nodes.push(CompositionNodeEntry {
@@ -569,14 +571,16 @@ where
         let state_clone = Arc::clone(&state);
 
         let folder: Arc<
-            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value> + Send + Sync,
+            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<NodeOutput>
+                + Send
+                + Sync,
         > = Arc::new(move |store, acc_mutex| {
             let input = O::extract(store, &input_ids)?;
             let mut guard = acc_mutex.lock().ok()?;
             let current = guard.downcast_ref::<Acc>()?.clone();
             let next = f(current, input);
             *guard = Box::new(next.clone());
-            Some(Value::Other(Box::new(next)))
+            Some(NodeOutput::Other(Box::new(next)))
         });
 
         self.composition_nodes.push(CompositionNodeEntry {

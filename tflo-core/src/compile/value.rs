@@ -11,71 +11,67 @@ use std::any::Any;
 /// record. `Other` boxes everything else — the domain event enums produced by
 /// signal detectors, and arbitrary types produced by `map`/`fold` composition
 /// nodes.
-pub(crate) enum Value {
+pub enum NodeOutput {
     /// An inline [`Computed`] — no heap allocation.
     Computed(Computed),
     /// A boxed value of any other type.
     Other(Box<dyn Any + Send + Sync>),
 }
 
-impl Value {
+impl NodeOutput {
     /// View the contained value as `&dyn Any` for downcasting.
     ///
     /// Works uniformly for both variants: `Computed` yields `&Computed`,
     /// `Other` yields the boxed value. This lets `ValueStore::get`/`get_cloned`
     /// downcast to any concrete type without special-casing the hot path.
     #[inline]
-    pub(crate) fn as_any(&self) -> &(dyn Any + Send + Sync) {
+    #[must_use]
+    pub fn as_any(&self) -> &(dyn Any + Send + Sync) {
         match self {
-            Value::Computed(c) => c,
-            Value::Other(b) => b.as_ref(),
+            NodeOutput::Computed(c) => c,
+            NodeOutput::Other(b) => b.as_ref(),
         }
+    }
+
+    /// Wrap a computed `f64`-or-absent result.
+    #[inline]
+    #[must_use]
+    pub fn computed(c: Computed) -> Self {
+        NodeOutput::Computed(c)
+    }
+
+    /// Wrap any other typed value (an event enum, a `map`/`fold` output).
+    ///
+    /// This is the orphan-rule-safe way for a downstream crate's operator to
+    /// emit a non-`f64` output — it cannot `impl From<…> for NodeOutput`.
+    #[inline]
+    #[must_use]
+    pub fn other<T: std::any::Any + Send + Sync>(value: T) -> Self {
+        NodeOutput::Other(Box::new(value))
     }
 }
 
-impl std::fmt::Debug for Value {
+impl std::fmt::Debug for NodeOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Computed(c) => write!(f, "Computed({c:?})"),
-            Value::Other(_) => write!(f, "Other(<dyn Any>)"),
+            NodeOutput::Computed(c) => write!(f, "Computed({c:?})"),
+            NodeOutput::Other(_) => write!(f, "Other(<dyn Any>)"),
         }
     }
 }
 
-impl From<f64> for Value {
+impl From<f64> for NodeOutput {
     /// A bare `f64` is always a *present* value — sources (`prop`, `const`)
     /// produce one directly.
     #[inline]
     fn from(v: f64) -> Self {
-        Value::Computed(Ok(v))
+        NodeOutput::Computed(Ok(v))
     }
 }
 
-impl From<Computed> for Value {
+impl From<Computed> for NodeOutput {
     #[inline]
     fn from(c: Computed) -> Self {
-        Value::Computed(c)
+        NodeOutput::Computed(c)
     }
 }
-
-/// Implements `From<T> for Value` by boxing — for the non-`f64` node outputs.
-macro_rules! impl_other_from {
-    ($($t:ty),+ $(,)?) => {
-        $(
-            impl From<$t> for Value {
-                #[inline]
-                fn from(v: $t) -> Self {
-                    Value::Other(Box::new(v))
-                }
-            }
-        )+
-    };
-}
-
-impl_other_from!(
-    crate::event::ThresholdCrossEventMode,
-    crate::primitives::GlitchResult,
-    Option<crate::primitives::RuntResult>,
-    Option<crate::primitives::PulseWidthResult>,
-    Option<crate::primitives::WindowEvent>,
-);

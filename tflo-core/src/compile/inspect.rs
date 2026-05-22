@@ -1,7 +1,7 @@
 use crate::comp::NodeId;
 use crate::compile::{
-    CompiledGraph, CompiledNode, CompositionNodeEntry, CompositionNodeKind, Computed, NodeState,
-    PipelinedGraph, Value, ValueStore,
+    CompiledGraph, CompiledNode, CompositionNodeEntry, CompositionNodeKind, Computed, NodeOutput,
+    NodeState, PipelinedGraph, ValueStore,
 };
 use crate::pipeline::PipelineContext;
 
@@ -58,8 +58,8 @@ impl ValueStore {
         Self::default()
     }
 
-    /// Store a computed [`Value`] for a node.
-    pub(crate) fn store_value(&mut self, id: NodeId, value: Value) {
+    /// Store a computed [`NodeOutput`] for a node.
+    pub(crate) fn store_value(&mut self, id: NodeId, value: NodeOutput) {
         let _ = self.values.insert(id, value);
     }
 
@@ -83,8 +83,8 @@ impl ValueStore {
     #[must_use]
     pub fn get_computed(&self, id: &NodeId) -> Option<Computed> {
         match self.values.get(id)? {
-            Value::Computed(c) => Some(*c),
-            Value::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
+            NodeOutput::Computed(c) => Some(*c),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
         }
     }
 
@@ -95,8 +95,8 @@ impl ValueStore {
     #[must_use]
     pub fn get_f64(&self, id: &NodeId) -> Option<f64> {
         match self.values.get(id)? {
-            Value::Computed(c) => c.ok(),
-            Value::Other(b) => b.downcast_ref::<f64>().copied(),
+            NodeOutput::Computed(c) => c.ok(),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied(),
         }
     }
 

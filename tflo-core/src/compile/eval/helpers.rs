@@ -14,7 +14,7 @@
 
 use crate::comp::NodeId;
 use crate::compile::{
-    Absent, CompiledGraph, Computed, NodeState, RsiWilderState, Value, ValueStore,
+    Absent, CompiledGraph, Computed, NodeOutput, NodeState, RsiWilderState, ValueStore,
     finite_or_warming,
 };
 use crate::event::ThresholdCrossEventMode;
@@ -371,14 +371,14 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         a: &NodeId,
         b: &NodeId,
         update_fn: fn(&mut CrossDetector, f64, f64) -> ThresholdCrossEventMode,
-    ) -> Value {
+    ) -> NodeOutput {
         let va = Self::get_computed(store, a).unwrap_or(f64::NAN);
         let vb = Self::get_computed(store, b).unwrap_or(f64::NAN);
         let edge = match state {
             NodeState::Cross(c) => update_fn(c, va, vb),
             _ => ThresholdCrossEventMode::None,
         };
-        Value::from(edge)
+        NodeOutput::other(edge)
     }
 
     // ---- Statistical helpers ----
@@ -458,7 +458,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
+    ) -> NodeOutput {
         let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: GlitchResult = match state {
             NodeState::GlitchFilterState(f) => match f.update(v, ts) {
@@ -468,16 +468,20 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             },
             _ => GlitchResult::NoTransition,
         };
-        Value::from(result)
+        NodeOutput::other(result)
     }
 
-    pub(super) fn eval_runt(store: &ValueStore, state: &mut NodeState, input: &NodeId) -> Value {
+    pub(super) fn eval_runt(
+        store: &ValueStore,
+        state: &mut NodeState,
+        input: &NodeId,
+    ) -> NodeOutput {
         let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: Option<RuntResult> = match state {
             NodeState::RuntDetectorState(d) => d.update(v),
             _ => None,
         };
-        Value::from(result)
+        NodeOutput::other(result)
     }
 
     pub(super) fn eval_pulse_width(
@@ -485,25 +489,25 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         state: &mut NodeState,
         input: &NodeId,
         ts: i64,
-    ) -> Value {
+    ) -> NodeOutput {
         let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: Option<PulseWidthResult> = match state {
             NodeState::PulseWidthState(d) => d.update(v, ts),
             _ => None,
         };
-        Value::from(result)
+        NodeOutput::other(result)
     }
 
     pub(super) fn eval_window_detect(
         store: &ValueStore,
         state: &mut NodeState,
         input: &NodeId,
-    ) -> Value {
+    ) -> NodeOutput {
         let v = Self::get_computed(store, input).unwrap_or(f64::NAN);
         let result: Option<WindowEvent> = match state {
             NodeState::WindowDetectorState(d) => d.update(v),
             _ => None,
         };
-        Value::from(result)
+        NodeOutput::other(result)
     }
 }
