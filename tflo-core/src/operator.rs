@@ -101,6 +101,20 @@ pub trait WindowPrimitive {
     }
 }
 
+/// Common interface over the two-input windowing primitives (correlation
+/// windows). Lets the generic `BivariateWindowed` operator shape treat
+/// time- and count-based correlation windows uniformly.
+pub trait BivariateWindow {
+    /// Admit a value pair; `ts` is ignored by count-based windows.
+    fn push(&mut self, ts: i64, a: f64, b: f64);
+    /// Number of value pairs currently retained.
+    fn len(&self) -> usize;
+    /// True when the window holds no pairs yet.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// Boxed live operator instance held by a compiled graph.
 pub type BoxedOperator = Box<dyn Operator>;
 

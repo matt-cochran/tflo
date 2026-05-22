@@ -6,6 +6,8 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
+use crate::operator::BivariateWindow;
+
 /// Count-based sliding window for correlation and covariance.
 ///
 /// Uses an incremental algorithm based on Welford's method for
@@ -218,6 +220,16 @@ impl CorrelationCountWindow {
     }
 }
 
+impl BivariateWindow for CorrelationCountWindow {
+    fn push(&mut self, _ts: i64, a: f64, b: f64) {
+        self.push(a, b);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+}
+
 /// Time-based sliding window for correlation and covariance.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CorrelationTimeWindow {
@@ -322,6 +334,16 @@ impl CorrelationTimeWindow {
         self.sum_xx = 0.0;
         self.sum_yy = 0.0;
         self.sum_xy = 0.0;
+    }
+}
+
+impl BivariateWindow for CorrelationTimeWindow {
+    fn push(&mut self, ts: i64, a: f64, b: f64) {
+        self.push(ts, a, b);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
     }
 }
 

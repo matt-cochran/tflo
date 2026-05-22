@@ -220,7 +220,7 @@ pub mod event;
 pub mod iter_ext;
 pub mod keyed;
 pub mod operator;
-pub use operator::WindowPrimitive;
+pub use operator::{BivariateWindow, WindowPrimitive};
 pub mod pipeline;
 pub mod primitives;
 pub mod scalar;
