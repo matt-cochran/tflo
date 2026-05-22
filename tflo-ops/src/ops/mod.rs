@@ -12,6 +12,7 @@
 //! [`DetectorOps`](detectors::DetectorOps) extension traits.
 
 pub mod detectors;
+pub mod math;
 pub mod stats;
 pub mod trackers;
 pub mod windows;
