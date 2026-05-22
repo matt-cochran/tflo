@@ -26,7 +26,7 @@ Real-world event streams are messy. Sensor noise, network jitter, RF interferenc
 The simplest of the bunch. It remembers the previous value and previous threshold, and fires when the relationship changes.
 
 ```rust
-use tflo_core::primitives::CrossDetector;
+use tflo_ops::primitives::CrossDetector;
 
 let mut det = CrossDetector::new();
 
@@ -49,7 +49,7 @@ The problem with a plain crossover: if price sits right on the threshold, you ge
 Hysteresis fixes this. You pass a margin, and the detector needs to cross *above* `threshold + hysteresis` to go Rising, or *below* `threshold - hysteresis` to go Falling. Inside the band, it returns `None`.
 
 ```rust
-use tflo_core::primitives::HysteresisCrossDetector;
+use tflo_ops::primitives::HysteresisCrossDetector;
 
 let mut det = HysteresisCrossDetector::new(2.0);
 
@@ -77,7 +77,7 @@ A spike in a sensor reading that lasts 5 milliseconds. A flash crash that revers
 The `GlitchFilter` takes a `threshold` and a `min_duration_ms`. It tracks the rising edge. When the signal falls back, it checks how long the pulse lasted. Short pulse? Rejected.
 
 ```rust
-use tflo_core::primitives::GlitchFilter;
+use tflo_ops::primitives::GlitchFilter;
 
 let mut filter = GlitchFilter::new(100.0, 50); // threshold, min_duration_ms
 
@@ -105,7 +105,7 @@ The return type is `Option<bool>`: `None` means no transition (no pulse complete
 A runt pulse crosses your low threshold but never reaches the high threshold. Think of a voltage signal that starts to rise, stalls halfway, and falls back. It looks like a pulse starting, but it never becomes a real pulse.
 
 ```rust
-use tflo_core::primitives::RuntDetector;
+use tflo_ops::primitives::RuntDetector;
 
 let mut det = RuntDetector::new(50.0, 100.0); // low, high
 
@@ -131,7 +131,7 @@ States are `BelowLow`, `InTransition`, `AboveHigh`. The detector returns `Some(R
 Some pulses are valid only if they last within a specific window. Debounced buttons. Communication protocols. Heartbeats. This detector measures pulse width and classifies it.
 
 ```rust
-use tflo_core::primitives::PulseWidthDetector;
+use tflo_ops::primitives::PulseWidthDetector;
 
 let mut det = PulseWidthDetector::new(100.0, 50, 200); // threshold, min, max
 
@@ -162,7 +162,7 @@ Three results: `TooShort`, `Valid`, `TooLong`. Each carries the `width_ms` so yo
 Sometimes you don't care about crossing a single threshold. You care about entering or exiting a range. The `WindowDetector` tracks whether a signal is inside `[low, high]` and fires events on transitions.
 
 ```rust
-use tflo_core::primitives::WindowDetector;
+use tflo_ops::primitives::WindowDetector;
 
 let mut det = WindowDetector::new(50.0, 100.0); // low, high
 
@@ -191,7 +191,7 @@ States track `Unknown`, `BelowWindow`, `InsideWindow`, `AboveWindow`. Events are
 These detectors work standalone or embedded in custom nodes. Compose them by chaining the result of one into the input of another.
 
 ```rust
-use tflo_core::primitives::{GlitchFilter, PulseWidthDetector};
+use tflo_ops::primitives::{GlitchFilter, PulseWidthDetector};
 
 let mut filter = GlitchFilter::new(100.0, 50);
 let mut width = PulseWidthDetector::new(100.0, 50, 500);
@@ -206,7 +206,7 @@ for sample in samples {
 }
 ```
 
-All five detectors are `Send + Sync`, so they work inside a `CustomNode` implementation too. Import them from `tflo_core::primitives` and wire them into your custom node logic. The graph API also exposes cross detection through `Comp<R, f64>` methods — `cross()`, `cross_above()`, `cross_under()`, and `cross_hysteresis()` — and the compiled graph has `to_threshold_cross()`, `to_f64_valid()`, and `only_valid()` helpers for each detector type.
+All five detectors are `Send + Sync`, so they work inside an `Operator` implementation too. Import them from `tflo_ops::primitives` and wire them into your operator logic. The graph API also exposes cross detection through `Comp<R, f64>` methods — `cross()`, `cross_above()`, `cross_under()`, and `cross_hysteresis()` — and the compiled graph has `to_threshold_cross()`, `to_f64_valid()`, and `only_valid()` helpers for each detector type.
 
 Five detectors. One common pattern. Pick the one that matches your noise profile.
 

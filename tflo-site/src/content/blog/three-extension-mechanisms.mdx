@@ -185,23 +185,26 @@ All three extension mechanisms solve the same fundamental problem: *changing beh
 
 Sometimes that cost isn't worth paying.
 
-If your logic is well-understood, rarely changes, and performance-sensitive, you're better off writing a custom node in Rust and compiling it directly into the graph. tflo exposes the [`CustomNode`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/custom_node.rs) trait exactly for this — it's in `tflo_core::prelude`. A `CustomNode` receives one `Computed` per wired input and returns one `Computed`; return `Err(Absent::WarmingUp)` to mean "still warming up", or `Err(Absent::FilteredOut)` to drop a value:
+If your logic is well-understood, rarely changes, and performance-sensitive, you're better off writing a custom node in Rust and compiling it directly into the graph. tflo exposes the [`Operator`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/operator.rs) trait exactly for this — it's in `tflo_core::prelude`. An `Operator` receives one `Computed` per wired input and a record timestamp `ts`, and returns a `NodeOutput`; return `NodeOutput::computed(Err(Absent::WarmingUp))` to mean "still warming up", or `NodeOutput::computed(Err(Absent::FilteredOut))` to drop a value:
 
 ```rust
 use tflo_core::prelude::*;
-use tflo_core::custom_node::require;
+use tflo_core::operator::require;
 
 struct SnrFilter {
     threshold: f64,
 }
 
-impl CustomNode for SnrFilter {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let value = require(inputs, 0)?;
+impl Operator for SnrFilter {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let value = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         if value > self.threshold {
-            Ok(value)
+            NodeOutput::computed(Ok(value))
         } else {
-            Err(Absent::FilteredOut)
+            NodeOutput::computed(Err(Absent::FilteredOut))
         }
     }
 

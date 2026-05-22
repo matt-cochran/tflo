@@ -16,6 +16,7 @@ Any checkpointable compiled graph can dump its full state to a `StateSnapshot`:
 ```rust
 use tflo_core::keyed::{SnapshotMetadata, StateSnapshot};
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let mut graph = CompiledGraph::<MyTick, f64>::compile(ts_fn, nodes, output_ids);
 // ... process data ...
@@ -26,7 +27,7 @@ let snapshot: StateSnapshot = graph.snapshot()?;
 `snapshot()` returns a `Result`. It serializes every node's state — window
 buffers, EMA accumulators, detector state machines — with `postcard`, and
 returns an error rather than a partial checkpoint if the graph holds state it
-cannot capture: a `scan`/`fold` node, or a `CustomNode` that does not implement
+cannot capture: a `scan`/`fold` node, or an `Operator` that does not implement
 the optional `save`/`load` hooks.
 
 A `StateSnapshot` has two fields: `data: Vec<u8>` with the serialized state, and `metadata: SnapshotMetadata` containing a `key: Option<Vec<u8>>`, `timestamp_ms: i64`, and `version: u32`. The version field lets you handle format migrations between deployments.

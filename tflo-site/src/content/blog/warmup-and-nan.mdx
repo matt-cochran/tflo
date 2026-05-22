@@ -110,6 +110,7 @@ Apply validation at the stream level (sortedness check) or as a pre-filter:
 ```rust
 use tflo_core::prelude::*;
 use tflo_core::validation::ValidationOptions;
+use tflo_ops::prelude::*;
 
 // Validate at the stream level
 let results: Vec<TFloResult<f64>> = data

@@ -54,6 +54,7 @@ The `validated()` method on iterators enforces every option:
 ```rust
 use tflo_core::prelude::*;
 use tflo_core::validation::ValidationOptions;
+use tflo_ops::prelude::*;
 
 let results: Vec<TFloResult<f64>> = events.into_iter()
     .validated(ValidationOptions::strict(), |t| {
@@ -73,6 +74,7 @@ Use the standalone validation functions from `tflo_core::validation` as a separa
 ```rust
 use tflo_core::validation::{require_finite, require_not_nan};
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let results: Vec<TFloResult<f64>> = events.into_iter()
     .filter_map(|event| {

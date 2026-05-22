@@ -7,6 +7,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::keyed::StateStore;
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 use tflo_state_files::FileStateStore;
 
 fn main() -> Result<(), String> {
@@ -73,6 +74,7 @@ if let Some(loaded) = store.load(b"prod-graph")? {
 const asyncStreamCode = `// Requires tflo-core features = ["async"] (included in "full").
 use tokio_stream::StreamExt as _;
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 #[tokio::main]
 async fn main() {
@@ -227,7 +229,7 @@ let allowed: Vec<Detection> = detections
       window buffers, running sums, EMA accumulators, detector state machines — with
       <code>postcard</code>, alongside <code>records_seen</code> and <code>min_warmup</code>.
       <code>snapshot()</code> returns a <code>Result</code>: it rejects any graph it cannot
-      fully capture (a <code>scan</code>/<code>fold</code> node, or a <code>CustomNode</code>
+      fully capture (a <code>scan</code>/<code>fold</code> node, or an <code>Operator</code>
       without <code>save</code>/<code>load</code>) rather than writing a partial checkpoint.
       After <code>restore()</code>, indicator state resumes exactly where it left off — no
       re-warming, no cold start.

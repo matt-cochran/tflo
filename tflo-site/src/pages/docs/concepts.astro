@@ -6,7 +6,10 @@ const timestampSnippet = `t.timestamp(|tick| tick.ts)`;
 
 const propSnippet = `let price = t.prop(|tick| tick.price)`;
 
-const keyedExecutionSnippet = `events.into_iter()
+const keyedExecutionSnippet = `use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+events.into_iter()
     .tflo_keyed(
         |e| e.source.clone(),              // partition by event source
         OutOfOrderPolicy::Error,            // out-of-order handling policy
@@ -23,6 +26,9 @@ const iteratorSnippet = `let results = my_data.into_iter()
     .collect::<Vec<_>>();`;
 
 const streamSnippet = `// Requires tflo-core with "async" feature: cargo add tflo-core --features async
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
 let results: Vec<f64> = my_stream
     .tflo(|t| {
         t.timestamp(|x| x.ts);

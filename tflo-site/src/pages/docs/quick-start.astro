@@ -4,13 +4,15 @@ import CodeBlock from '../../components/CodeBlock.astro';
 
 const cargoSingle = `[dependencies]
 # tflo is pre-1.0 and not yet on crates.io — depend on it via git.
-tflo-core = { git = "https://github.com/matt-cochran/tflo" }`;
+tflo-core = { git = "https://github.com/matt-cochran/tflo" }
+tflo-ops  = { git = "https://github.com/matt-cochran/tflo" }`;
 
 const cargoAsync = `[dependencies]
 tflo-core = { git = "https://github.com/matt-cochran/tflo", features = ["async"] }`;
 
 const firstSma = `//! Full runnable example: tflo-examples/examples/docs-quick-start
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // A noisy domain event — e.g. a sensor reading or detection confidence.
 #[derive(Clone)]
@@ -59,6 +61,7 @@ const enrichment = `let enriched: Vec<(Reading, f64)> = readings.into_iter()
 
 const keyedExecution = `//! Full runnable example: tflo-examples/examples/docs-quick-start
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // Events from many emitters — per-sensor, per-host, per-instrument.
 #[derive(Clone)]

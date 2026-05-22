@@ -19,6 +19,7 @@ Middle = SMA(20). Upper = middle + 2 × StdDev(20). Lower = middle − 2 × StdD
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let middle = signal.sma(20usize);
 let std = signal.std(20usize);
@@ -54,6 +55,7 @@ If you're working in a finance-flavored codebase and want the traditional name, 
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 use tflo_fintech::prelude::*;
 
 let (middle, upper, lower) = price.bollinger_bands(20usize, 2.0);

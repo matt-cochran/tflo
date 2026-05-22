@@ -30,7 +30,7 @@ const windowApiCode = fs.readFileSync(`${BASE}/api-window.txt`, 'utf-8');
       Detectors split into two families: <strong>chainable <code>Comp</code> methods</strong> (<code>.cross()</code>, <code>.cross_above()</code>,
       <code>.cross_under()</code>, <code>.cross_hysteresis()</code>) that work inside <code>.tflo()</code> closures, and
       <strong>standalone structs</strong> (<code>CrossDetector</code>, <code>GlitchFilter</code>, <code>PulseWidthDetector</code>, etc.)
-      from <code>tflo-core::primitives</code> that you call imperatively. They ship in <code>tflo-core</code> — no domain plugin required.
+      from <code>tflo_ops::primitives</code> that you call imperatively. They ship in <code>tflo-ops</code> — import with <code>use tflo_ops::prelude::*;</code>.
     </p>
 
     <!-- Usage Examples -->

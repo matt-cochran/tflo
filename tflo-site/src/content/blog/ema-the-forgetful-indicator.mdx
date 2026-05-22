@@ -48,7 +48,7 @@ pub struct CountEma {
 You create one with a period. Alpha is derived as `2 / (period + 1)`:
 
 ```rust
-use tflo_core::primitives::CountEma;
+use tflo_ops::primitives::CountEma;
 
 // Period 20 → α ≈ 0.095
 let mut ema = CountEma::new(20);
@@ -74,6 +74,7 @@ In the graph, count-based EMA is `ema`:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // Count-based EMA over 20 ticks
 let ema = price.ema(20usize);
@@ -102,7 +103,7 @@ Create one with a halflife:
 
 ```rust
 use std::time::Duration;
-use tflo_core::primitives::TimeEma;
+use tflo_ops::primitives::TimeEma;
 
 let mut ema = TimeEma::new(Duration::from_secs(5));
 ```
@@ -131,6 +132,7 @@ In the graph:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // Time-based EMA with 5-minute halflife
 let ema = price.ema(5_u64.mins());

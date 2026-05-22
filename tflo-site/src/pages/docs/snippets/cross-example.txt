@@ -1,6 +1,7 @@
 //! Full runnable example: tflo-examples/examples/docs-signals
-//! See tflo-core/src/comp/cross.rs for .cross(), .cross_above(), .cross_under()
+//! See tflo-ops/src/ops/detectors.rs for .cross(), .cross_above(), .cross_under()
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 #[derive(Clone)]
 struct Tick {

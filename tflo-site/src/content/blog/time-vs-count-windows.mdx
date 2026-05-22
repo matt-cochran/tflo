@@ -54,6 +54,7 @@ All windowed operators accept `impl Into<Window>`, so you can pass either a `Dur
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // Time-based (Duration argument)
 let sma_5min = value.sma(300_u64.secs());

@@ -15,6 +15,7 @@ For development, testing, and batch processing, use the iterator API. It's the s
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let results: Vec<f64> = ticks.into_iter()
     .tflo(|t| {
@@ -52,6 +53,7 @@ With the feature enabled, `TFloStreamExt` is available from `tflo_core::prelude:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 use tokio_stream::StreamExt;
 
 let mut stream = tick_stream
