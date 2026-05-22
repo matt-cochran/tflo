@@ -493,12 +493,12 @@ impl<R> CompilationCtx<R> {
                     state: NodeState::Scan2State(initial_state),
                 }
             }
-            // Custom plugin node: `factory()` builds a fresh instance so each
+            // Plugin node: `factory()` builds a fresh instance so each
             // compiled graph (including per-key graphs) gets independent state.
-            Node::Custom { inputs, factory } => CompiledNode {
+            Node::Plugin { inputs, factory } => CompiledNode {
                 id,
-                op: NodeOp::Custom { inputs },
-                state: NodeState::Custom(factory()),
+                op: NodeOp::Plugin { inputs },
+                state: NodeState::Plugin(factory()),
             },
         }
     }

@@ -2,13 +2,13 @@
 //! Integration tests for `CompiledGraph::snapshot` / `restore`.
 //!
 //! Covers: checkpointable graphs round-trip exactly; non-checkpointable
-//! graphs (`scan`, `fold`, a custom node without `save`) are rejected; a
-//! custom node that overrides `save`/`load` round-trips; and a topology
+//! graphs (`scan`, `fold`, a plugin node without `save`) are rejected; a
+//! plugin operator that overrides `save`/`load` round-trips; and a topology
 //! mismatch on restore is rejected.
 
 use std::sync::Arc;
 use tflo_core::builder::Compile;
-use tflo_core::custom_node::{CustomNode, CustomNodeLoadError, require};
+use tflo_core::operator::{Operator, OperatorLoadError, require};
 use tflo_core::prelude::*;
 
 #[derive(Clone, Debug)]
@@ -132,16 +132,21 @@ fn snapshot_rejects_fold_graph() {
     );
 }
 
-/// A custom node with the default (non-checkpointable) `save`/`load`.
+/// A plugin operator with the default (non-checkpointable) `save`/`load`.
 #[derive(Default)]
 struct PlainSum {
     total: f64,
 }
 
-impl CustomNode for PlainSum {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        self.total += require(inputs, 0)?;
-        Ok(self.total)
+impl Operator for PlainSum {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        NodeOutput::computed(match require(inputs, 0) {
+            Err(e) => Err(e),
+            Ok(v) => {
+                self.total += v;
+                Ok(self.total)
+            }
+        })
     }
     fn name(&self) -> &str {
         "plain_sum"
@@ -161,20 +166,25 @@ fn snapshot_rejects_default_custom_node() {
 
     assert!(
         graph.snapshot().is_err(),
-        "a custom node that does not override save() is not checkpointable"
+        "a plugin operator that does not override save() is not checkpointable"
     );
 }
 
-/// A custom node that overrides `save`/`load` — it serializes its accumulator.
+/// A plugin operator that overrides `save`/`load` — it serializes its accumulator.
 #[derive(Default)]
 struct CheckpointableSum {
     total: f64,
 }
 
-impl CustomNode for CheckpointableSum {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        self.total += require(inputs, 0)?;
-        Ok(self.total)
+impl Operator for CheckpointableSum {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        NodeOutput::computed(match require(inputs, 0) {
+            Err(e) => Err(e),
+            Ok(v) => {
+                self.total += v;
+                Ok(self.total)
+            }
+        })
     }
     fn name(&self) -> &str {
         "checkpointable_sum"
@@ -182,10 +192,10 @@ impl CustomNode for CheckpointableSum {
     fn save(&self) -> Option<Vec<u8>> {
         Some(self.total.to_le_bytes().to_vec())
     }
-    fn load(&mut self, bytes: &[u8]) -> Result<(), CustomNodeLoadError> {
+    fn load(&mut self, bytes: &[u8]) -> Result<(), OperatorLoadError> {
         let arr: [u8; 8] = bytes
             .try_into()
-            .map_err(|_| CustomNodeLoadError::new("expected 8 bytes"))?;
+            .map_err(|_| OperatorLoadError::new("expected 8 bytes"))?;
         self.total = f64::from_le_bytes(arr);
         Ok(())
     }
@@ -211,7 +221,7 @@ fn snapshot_restore_roundtrip_custom_node() {
     let _ = run(&mut graph, &data[..5]);
     let snap = graph
         .snapshot()
-        .expect("a custom node overriding save() is checkpointable");
+        .expect("a plugin operator overriding save() is checkpointable");
 
     let mut restored = checkpointable_custom_graph();
     restored.restore(&snap).expect("restore succeeds");

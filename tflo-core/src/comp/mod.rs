@@ -14,8 +14,8 @@ mod stateful;
 mod windowed;
 
 use crate::builder::BuilderState;
-use crate::custom_node::CustomNodeFactory;
 use crate::event::ThresholdCrossEventMode;
+use crate::operator::OperatorFactory;
 use crate::window::Window;
 // Note: CrossBuilderExt is intentionally not imported here to avoid conflict with existing cross() method
 // Users can import it explicitly if they want the fluent builder API
@@ -272,16 +272,14 @@ pub enum Node<R> {
     /// Division by constant.
     DivConst(NodeId, f64),
 
-    // === Custom (plugin) nodes ===
+    // === Plugin nodes ===
     /// A user-defined runtime node contributed by an external crate via the
-    /// [`CustomNode`](crate::custom_node::CustomNode) trait. The node's
-    /// display name comes from
-    /// [`CustomNode::name`](crate::custom_node::CustomNode::name).
-    Custom {
+    /// [`Operator`](crate::operator::Operator) trait.
+    Plugin {
         /// Input node IDs, in declaration order.
         inputs: Vec<NodeId>,
-        /// Factory producing a fresh node instance per compiled graph.
-        factory: CustomNodeFactory,
+        /// Factory producing a fresh operator instance per compiled graph.
+        factory: OperatorFactory,
     },
 }
 
@@ -381,7 +379,7 @@ impl<R> std::fmt::Debug for Node<R> {
                 Some(n) => write!(f, "Scan2F64({a:?}, {b:?}, name=\"{n}\")"),
                 None => write!(f, "Scan2F64({a:?}, {b:?})"),
             },
-            Self::Custom { inputs, .. } => write!(f, "Custom({inputs:?})"),
+            Self::Plugin { inputs, .. } => write!(f, "Plugin({inputs:?})"),
         }
     }
 }

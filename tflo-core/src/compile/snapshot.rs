@@ -8,9 +8,9 @@
 //! unlike `serde_json` which maps them to `null`.
 //!
 //! Not every graph is checkpointable: `scan`/`scan2` nodes hold opaque closure
-//! state, `fold` composition nodes hold opaque accumulator state, and a
-//! [`CustomNode`](crate::custom_node::CustomNode) is checkpointable only when
-//! it overrides [`save`](crate::custom_node::CustomNode::save).
+//! state, `fold` composition nodes hold opaque accumulator state, and an
+//! [`Operator`](crate::operator::Operator) plugin node is checkpointable only
+//! when it overrides [`save`](crate::operator::Operator::save).
 //! [`NodeState::to_snapshot`] returns `None` for any node it cannot capture,
 //! and `snapshot()` turns that into an error rather than writing a partial
 //! checkpoint.
@@ -147,9 +147,9 @@ pub(crate) enum NodeStateSnapshot {
         /// Previous value.
         prev: Option<f64>,
     },
-    /// Opaque bytes from a checkpointable custom node's
-    /// [`save`](crate::custom_node::CustomNode::save).
-    Custom(Vec<u8>),
+    /// Opaque bytes from a checkpointable plugin operator's
+    /// [`save`](crate::operator::Operator::save).
+    Plugin(Vec<u8>),
 }
 
 /// Serializable checkpoint of an entire compiled graph.
@@ -242,8 +242,8 @@ impl NodeState {
             NodeState::CumProd(c) => NodeStateSnapshot::CumProd(c.clone()),
             NodeState::PctChange { prev } => NodeStateSnapshot::PctChange { prev: *prev },
             NodeState::LogReturn { prev } => NodeStateSnapshot::LogReturn { prev: *prev },
-            // A custom node is checkpointable only if it overrides `save()`.
-            NodeState::Custom(n) => return n.save().map(NodeStateSnapshot::Custom),
+            // A plugin operator is checkpointable only if it overrides `save()`.
+            NodeState::Plugin(op) => return op.save().map(NodeStateSnapshot::Plugin),
             // `scan`/`scan2` hold opaque closure state — not checkpointable.
             NodeState::ScanState(_) | NodeState::Scan2State(_) => return None,
         })
@@ -361,8 +361,8 @@ impl NodeStateSnapshot {
             (NodeStateSnapshot::LogReturn { prev }, NodeState::LogReturn { prev: slot }) => {
                 *slot = prev;
             }
-            (NodeStateSnapshot::Custom(bytes), NodeState::Custom(n)) => {
-                n.load(&bytes)
+            (NodeStateSnapshot::Plugin(bytes), NodeState::Plugin(op)) => {
+                op.load(&bytes)
                     .map_err(|_| SnapshotError::Decode { index })?;
             }
             // Snapshot variant did not line up with the live node.

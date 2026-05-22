@@ -31,8 +31,8 @@ mod tests;
 mod value;
 
 use crate::comp::NodeId;
-use crate::custom_node::BoxedCustomNode;
 use crate::event::ThresholdCrossEventMode;
+use crate::operator::BoxedOperator;
 use crate::pipeline::{PipelineContext, Timestamped};
 use crate::primitives::{
     CorrelationCountWindow, CorrelationTimeWindow, CountEma, CountWindow, CrossDetector,
@@ -258,8 +258,8 @@ pub(crate) enum NodeState {
     PctChange { prev: Option<f64> },
     /// Log return tracker.
     LogReturn { prev: Option<f64> },
-    /// State for a custom plugin node.
-    Custom(BoxedCustomNode),
+    /// State for a plugin node.
+    Plugin(BoxedOperator),
 }
 
 // ============================================================================
@@ -383,9 +383,9 @@ pub(crate) enum NodeOp<R> {
         Arc<dyn Fn() -> Box<dyn Any + Send + Sync> + Send + Sync>,
         Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64, f64) -> Computed + Send + Sync>,
     ),
-    /// Custom plugin node: resolves `inputs` and delegates to a
-    /// [`CustomNode`](crate::custom_node::CustomNode) held in `NodeState`.
-    Custom {
+    /// Plugin node: resolves `inputs` and delegates to an [`Operator`](crate::operator::Operator)
+    /// held in `NodeState`.
+    Plugin {
         /// Input node IDs, in declaration order.
         inputs: Vec<NodeId>,
     },

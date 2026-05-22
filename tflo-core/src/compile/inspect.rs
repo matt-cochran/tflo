@@ -178,7 +178,7 @@ impl std::fmt::Debug for NodeState {
             Self::LogReturn { .. } => write!(f, "LogReturn"),
             Self::ScanState(_) => write!(f, "ScanState"),
             Self::Scan2State(_) => write!(f, "Scan2State"),
-            Self::Custom(n) => write!(f, "Custom({})", n.name()),
+            Self::Plugin(op) => write!(f, "Plugin({})", op.name()),
         }
     }
 }

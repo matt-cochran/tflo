@@ -446,16 +446,16 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 },
             ),
 
-            // ---- Custom plugin nodes ----
-            NodeOp::Custom { inputs } => {
+            // ---- Plugin nodes ----
+            NodeOp::Plugin { inputs } => {
                 let values: Vec<Computed> = inputs
                     .iter()
                     .map(|id| Self::get_computed(store, id))
                     .collect();
-                NodeOutput::from(match &mut node.state {
-                    NodeState::Custom(n) => n.eval(&values),
-                    _ => Err(Absent::WarmingUp),
-                })
+                match &mut node.state {
+                    NodeState::Plugin(op) => op.eval(&values, ts),
+                    _ => NodeOutput::computed(Err(Absent::WarmingUp)),
+                }
             }
         }
     }

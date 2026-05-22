@@ -1,4 +1,4 @@
-//! Public builder API for attaching [`CustomNode`] plugins to a graph.
+//! Public builder API for attaching [`Operator`](crate::operator::Operator) plugins to a graph.
 //!
 //! [`Comp::custom_node`] and [`Comp::custom_node1`] are the only public entry
 //! points for inserting an external crate's runtime node into a `tflo` graph.
@@ -6,29 +6,31 @@
 //! `add_node_to_state` helper without exposing the internal [`Node`] enum.
 
 use super::{Comp, Node, NodeId};
-use crate::custom_node::{BoxedCustomNode, CustomNode, CustomNodeFactory};
+use crate::operator::{BoxedOperator, Operator, OperatorFactory};
 use std::sync::Arc;
 
 impl<R: 'static> Comp<R, f64> {
-    /// Attach a multi-input [`CustomNode`] to the graph.
+    /// Attach a multi-input [`Operator`](crate::operator::Operator) to the graph.
     ///
-    /// A custom node needs at least one input — that requirement is in the
+    /// A plugin node needs at least one input — that requirement is in the
     /// signature: `first` is the mandatory first input and `rest` is any
     /// further inputs. They are passed — `first`, then `rest` in order — to the
-    /// node's [`eval`](CustomNode::eval) on every record. `factory` produces a
-    /// fresh node instance for each compiled graph, so keyed execution gets
-    /// independent per-key state.
+    /// operator's [`eval`](crate::operator::Operator::eval) on every record.
+    /// `factory` produces a fresh operator instance for each compiled graph, so
+    /// keyed execution gets independent per-key state.
     ///
     /// # Example
     ///
     /// ```
     /// use tflo_core::prelude::*;
-    /// use tflo_core::custom_node::{require, CustomNode};
+    /// use tflo_core::operator::{require, Operator};
     ///
     /// struct Spread;
-    /// impl CustomNode for Spread {
-    ///     fn eval(&mut self, inputs: &[Computed]) -> Computed {
-    ///         Ok(require(inputs, 0)? - require(inputs, 1)?)
+    /// impl Operator for Spread {
+    ///     fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+    ///         let bid = match require(inputs, 0) { Ok(v) => v, Err(e) => return NodeOutput::computed(Err(e)) };
+    ///         let ask = match require(inputs, 1) { Ok(v) => v, Err(e) => return NodeOutput::computed(Err(e)) };
+    ///         NodeOutput::computed(Ok(ask - bid))
     ///     }
     /// }
     ///
@@ -39,7 +41,7 @@ impl<R: 'static> Comp<R, f64> {
     ///         t.timestamp(|x| x.ts);
     ///         let bid = t.prop(|x| x.bid);
     ///         let ask = t.prop(|x| x.ask);
-    ///         Comp::custom_node(&ask, &[&bid], || Spread)
+    ///         Comp::custom_node(&bid, &[&ask], || Spread)
     ///     })
     ///     .collect();
     /// ```
@@ -51,35 +53,35 @@ impl<R: 'static> Comp<R, f64> {
     ) -> Comp<R, f64>
     where
         F: Fn() -> N + Send + Sync + 'static,
-        N: CustomNode,
+        N: Operator,
     {
         // `first` guarantees at least one input — no empty-slice panic path.
         let state = &first.state;
         let input_ids: Vec<NodeId> = std::iter::once(first.id)
             .chain(rest.iter().map(|c| c.id))
             .collect();
-        let factory: CustomNodeFactory = Arc::new(move || {
-            let node: BoxedCustomNode = Box::new(factory());
+        let factory: OperatorFactory = Arc::new(move || {
+            let node: BoxedOperator = Box::new(factory());
             node
         });
         Self::add_node_to_state(
             state,
-            Node::Custom {
+            Node::Plugin {
                 inputs: input_ids,
                 factory,
             },
         )
     }
 
-    /// Attach a single-input [`CustomNode`] to the graph.
+    /// Attach a single-input [`Operator`](crate::operator::Operator) to the graph.
     ///
-    /// Convenience wrapper around [`custom_node`](Self::custom_node) for nodes
+    /// Convenience wrapper around [`custom_node`](Self::custom_node) for operators
     /// that consume only `self`.
     #[must_use]
     pub fn custom_node1<F, N>(&self, factory: F) -> Comp<R, f64>
     where
         F: Fn() -> N + Send + Sync + 'static,
-        N: CustomNode,
+        N: Operator,
     {
         Self::custom_node(self, &[], factory)
     }
@@ -89,20 +91,23 @@ impl<R: 'static> Comp<R, f64> {
 mod tests {
     use super::*;
     use crate::builder::TFlowBuilder;
-    use crate::compile::{CompiledGraph, Computed};
-    use crate::custom_node::require;
+    use crate::compile::{CompiledGraph, Computed, NodeOutput};
     use crate::iter_ext::TFlowIteratorExt;
+    use crate::operator::require;
     use crate::pipeline::Timestamped;
 
     /// Test node: emits the sum of all its inputs.
     struct SumNode;
-    impl CustomNode for SumNode {
-        fn eval(&mut self, inputs: &[Computed]) -> Computed {
+    impl Operator for SumNode {
+        fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
             let mut sum = 0.0;
-            for input in inputs {
-                sum += (*input)?;
+            for i in 0..inputs.len() {
+                sum += match require(inputs, i) {
+                    Ok(v) => v,
+                    Err(e) => return NodeOutput::computed(Err(e)),
+                };
             }
-            Ok(sum)
+            NodeOutput::computed(Ok(sum))
         }
         fn name(&self) -> &str {
             "sum"
@@ -114,10 +119,15 @@ mod tests {
     struct RunningSum {
         total: f64,
     }
-    impl CustomNode for RunningSum {
-        fn eval(&mut self, inputs: &[Computed]) -> Computed {
-            self.total += require(inputs, 0)?;
-            Ok(self.total)
+    impl Operator for RunningSum {
+        fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+            NodeOutput::computed(match require(inputs, 0) {
+                Err(e) => Err(e),
+                Ok(v) => {
+                    self.total += v;
+                    Ok(self.total)
+                }
+            })
         }
     }
 
@@ -228,7 +238,7 @@ mod tests {
         };
         let item = combined.step(&rec).expect("graph ready");
         // g1 sums a+b = 3.0; g2 sums c+d = 30.0. If zip failed to offset g2's
-        // custom-node input ids, g2 would re-read a+b and yield (3.0, 3.0).
+        // plugin node input ids, g2 would re-read a+b and yield (3.0, 3.0).
         assert_eq!(item.value, (3.0, 30.0));
     }
 }

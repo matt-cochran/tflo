@@ -310,9 +310,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     ///
     /// Returns [`ComputeError::InvalidInput`](crate::error::ComputeError::InvalidInput)
     /// if the graph contains state that cannot be captured: a `scan`/`scan2`
-    /// node, a `fold` composition node, or a
-    /// [`CustomNode`](crate::custom_node::CustomNode) that does not override
-    /// [`save`](crate::custom_node::CustomNode::save). The snapshot is
+    /// node, a `fold` composition node, or an
+    /// [`Operator`](crate::operator::Operator) plugin node that does not
+    /// override [`save`](crate::operator::Operator::save). The snapshot is
     /// all-or-nothing — it never writes a partial checkpoint.
     ///
     /// # Usage

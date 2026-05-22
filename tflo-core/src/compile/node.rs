@@ -104,7 +104,7 @@ impl<R> CompiledNode<R> {
                 *a = NodeId(a.0 + offset);
                 *b = NodeId(b.0 + offset);
             }
-            NodeOp::Custom { inputs } => {
+            NodeOp::Plugin { inputs } => {
                 for id in inputs.iter_mut() {
                     *id = NodeId(id.0 + offset);
                 }
