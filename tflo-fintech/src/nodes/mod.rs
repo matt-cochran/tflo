@@ -1,19 +1,19 @@
-//! Runtime [`CustomNode`] implementations for OHLC-bound indicators.
+//! Runtime [`Operator`] implementations for OHLC-bound indicators.
 //!
 //! ADX, ATR, +DI, -DI, and KAMA need TA-Lib-exact lookback and Wilder seeding,
 //! so they are real stateful nodes rather than composites. Each plugs into a
 //! `tflo` graph through [`Comp::custom_node`](tflo_core::comp::Comp::custom_node).
 //!
 //! Input order for the three-input nodes (ADX/ATR/+DI/-DI) is
-//! `[close, high, low]`. Each `eval` reads and `?`-propagates every input
+//! `[close, high, low]`. Each `eval` reads and propagates every input
 //! *before* touching its OHLC history, so an absent input never lands a
 //! placeholder in the buffers.
 
 mod talib_math;
 
 use talib_math::{kama_last, ta_adx_last, ta_minus_di_last, ta_plus_di_last, true_range};
-use tflo_core::compile::{Absent, Computed, finite_or_warming};
-use tflo_core::custom_node::{CustomNode, require};
+use tflo_core::compile::{Absent, Computed, NodeOutput, finite_or_warming};
+use tflo_core::operator::{Operator, require};
 
 /// Average Directional Index (ADX) — Wilder-smoothed trend strength.
 ///
@@ -39,15 +39,29 @@ impl AdxNode {
     }
 }
 
-impl CustomNode for AdxNode {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let close = require(inputs, 0)?;
-        let high = require(inputs, 1)?;
-        let low = require(inputs, 2)?;
+impl Operator for AdxNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.close.push(close);
         self.high.push(high);
         self.low.push(low);
-        finite_or_warming(ta_adx_last(&self.high, &self.low, &self.close, self.period))
+        NodeOutput::computed(finite_or_warming(ta_adx_last(
+            &self.high,
+            &self.low,
+            &self.close,
+            self.period,
+        )))
     }
 
     fn reset(&mut self) {
@@ -85,20 +99,29 @@ impl PlusDiNode {
     }
 }
 
-impl CustomNode for PlusDiNode {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let close = require(inputs, 0)?;
-        let high = require(inputs, 1)?;
-        let low = require(inputs, 2)?;
+impl Operator for PlusDiNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.close.push(close);
         self.high.push(high);
         self.low.push(low);
-        finite_or_warming(ta_plus_di_last(
+        NodeOutput::computed(finite_or_warming(ta_plus_di_last(
             &self.high,
             &self.low,
             &self.close,
             self.period,
-        ))
+        )))
     }
 
     fn reset(&mut self) {
@@ -136,20 +159,29 @@ impl MinusDiNode {
     }
 }
 
-impl CustomNode for MinusDiNode {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let close = require(inputs, 0)?;
-        let high = require(inputs, 1)?;
-        let low = require(inputs, 2)?;
+impl Operator for MinusDiNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.close.push(close);
         self.high.push(high);
         self.low.push(low);
-        finite_or_warming(ta_minus_di_last(
+        NodeOutput::computed(finite_or_warming(ta_minus_di_last(
             &self.high,
             &self.low,
             &self.close,
             self.period,
-        ))
+        )))
     }
 
     fn reset(&mut self) {
@@ -191,11 +223,20 @@ impl AtrNode {
     }
 }
 
-impl CustomNode for AtrNode {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let close = require(inputs, 0)?;
-        let high = require(inputs, 1)?;
-        let low = require(inputs, 2)?;
+impl Operator for AtrNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
 
         self.close.push(close);
         self.high.push(high);
@@ -204,7 +245,7 @@ impl CustomNode for AtrNode {
         let period = self.period;
 
         if n < period + 1 {
-            return Err(Absent::WarmingUp);
+            return NodeOutput::computed(Err(Absent::WarmingUp));
         }
 
         // On the exact trigger index: seed with SMA of first `period` TR values.
@@ -215,13 +256,13 @@ impl CustomNode for AtrNode {
             }
             self.prev_atr = sum_tr / period as f64;
             self.seeded = true;
-            return Ok(self.prev_atr);
+            return NodeOutput::computed(Ok(self.prev_atr));
         }
 
         // Ongoing: Wilder smoothing — ATR = (prev_ATR * (period - 1) + TR) / period.
         let prev_tr = true_range(high, low, self.close[n - 2]);
         self.prev_atr = (self.prev_atr * (period as f64 - 1.0) + prev_tr) / period as f64;
-        Ok(self.prev_atr)
+        NodeOutput::computed(Ok(self.prev_atr))
     }
 
     fn reset(&mut self) {
@@ -257,11 +298,14 @@ impl KamaNode {
     }
 }
 
-impl CustomNode for KamaNode {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let value = require(inputs, 0)?;
+impl Operator for KamaNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let value = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.values.push(value);
-        finite_or_warming(kama_last(&self.values, self.period))
+        NodeOutput::computed(finite_or_warming(kama_last(&self.values, self.period)))
     }
 
     fn reset(&mut self) {

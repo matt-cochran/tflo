@@ -214,16 +214,12 @@ pub mod builder;
 pub mod combinators;
 pub mod comp;
 pub mod compile;
-pub mod operator;
-/// Backward-compatible re-export of the operator module under the old name.
-pub mod custom_node {
-    pub use crate::operator::*;
-}
 pub mod duration;
 pub mod error;
 pub mod event;
 pub mod iter_ext;
 pub mod keyed;
+pub mod operator;
 pub mod pipeline;
 pub mod primitives;
 pub mod scalar;
@@ -256,7 +252,6 @@ pub mod prelude {
         Absent, CompiledGraph, Computed, ExtractOutput, GraphPlan, GraphStateSummary, NodeOutput,
         ValueStore, finite_or_warming,
     };
-    pub use crate::custom_node::{BoxedCustomNode, CustomNode, CustomNodeFactory};
     pub use crate::duration::IntoDuration;
     pub use crate::error::{ComputeError, ComputeResult, TFloError, TFloResult};
     pub use crate::event::{

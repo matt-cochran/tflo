@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use tflo_core::custom_node::require;
+use tflo_core::operator::require;
 use tflo_core::prelude::*;
 use tflo_examples::*;
 
@@ -19,23 +19,26 @@ impl RateOfChange {
     }
 }
 
-impl CustomNode for RateOfChange {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let current = require(inputs, 0)?;
+impl Operator for RateOfChange {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let current = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.buffer.push_back(current);
 
         if self.buffer.len() > self.period + 1 {
             self.buffer.pop_front();
         }
         if self.buffer.len() < self.period + 1 {
-            return Err(Absent::WarmingUp); // still warming up
+            return NodeOutput::computed(Err(Absent::WarmingUp)); // still warming up
         }
 
         let n_periods_ago = self.buffer.front().copied().unwrap_or(current);
         if n_periods_ago == 0.0 {
-            return Err(Absent::DivideByZero);
+            return NodeOutput::computed(Err(Absent::DivideByZero));
         }
-        Ok((current - n_periods_ago) / n_periods_ago)
+        NodeOutput::computed(Ok((current - n_periods_ago) / n_periods_ago))
     }
 
     fn reset(&mut self) {
@@ -59,13 +62,16 @@ impl SnrGate {
     }
 }
 
-impl CustomNode for SnrGate {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let v = require(inputs, 0)?;
+impl Operator for SnrGate {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let v = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         if v > self.threshold_db {
-            Ok(v)
+            NodeOutput::computed(Ok(v))
         } else {
-            Err(Absent::FilteredOut)
+            NodeOutput::computed(Err(Absent::FilteredOut))
         }
     }
 
@@ -115,7 +121,7 @@ fn main() {
             t.prop(|x| x.snr_db).custom_node1(|| RateOfChange::new(5))
         })
         .collect();
-    print_summary("ROC(5) via custom CustomNode", &roc);
+    print_summary("ROC(5) via custom Operator", &roc);
 
     // SNR gate as a custom plugin node.
     let gated: Vec<f64> = detections
@@ -126,7 +132,7 @@ fn main() {
             t.prop(|x| x.snr_db).custom_node1(|| SnrGate::new(12.0))
         })
         .collect();
-    print_summary("SNR gate (threshold 12.0 dB) via custom CustomNode", &gated);
+    print_summary("SNR gate (threshold 12.0 dB) via custom Operator", &gated);
 
     // Built-in functional primitives still cover simpler cases.
     println!("\n--- Functional primitives ---");
@@ -156,6 +162,6 @@ fn main() {
     print_summary("Custom EMA(0.1) via scan_f64", &custom_ema);
 
     println!();
-    println!("`CustomNode` plugs a stateful Rust node directly into the graph;");
+    println!("`Operator` plugs a stateful Rust node directly into the graph;");
     println!("`map_f64` / `scan_f64` cover simpler stateless and closure cases.");
 }

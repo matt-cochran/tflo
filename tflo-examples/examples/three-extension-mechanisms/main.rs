@@ -1,8 +1,8 @@
-use tflo_core::custom_node::require;
+use tflo_core::operator::require;
 use tflo_core::prelude::*;
 use tflo_examples::*;
 
-// ---- Rust native: a custom plugin node via the `CustomNode` trait ----
+// ---- Rust native: a custom plugin node via the `Operator` trait ----
 /// Passes the input through only when it clears a threshold; emits NaN otherwise.
 #[derive(Debug)]
 struct ScoreFilter {
@@ -15,13 +15,16 @@ impl ScoreFilter {
     }
 }
 
-impl CustomNode for ScoreFilter {
-    fn eval(&mut self, inputs: &[Computed]) -> Computed {
-        let v = require(inputs, 0)?;
+impl Operator for ScoreFilter {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let v = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         if v > self.threshold {
-            Ok(v)
+            NodeOutput::computed(Ok(v))
         } else {
-            Err(Absent::FilteredOut)
+            NodeOutput::computed(Err(Absent::FilteredOut))
         }
     }
 
@@ -68,7 +71,7 @@ fn main() {
     println!("  CEL   - Common Expression Language (boolean expressions)");
     println!("  Rego  - OPA policy language (multi-condition policy)");
     println!("  Rhai  - Embedded scripting (transformations)");
-    println!("  Rust native - custom graph node via the CustomNode trait");
+    println!("  Rust native - custom graph node via the Operator trait");
     println!();
 
     // ---- CEL (conceptual) ----
@@ -100,7 +103,7 @@ fn main() {
     println!();
 
     // ---- Rust native: custom graph nodes ----
-    println!("--- Rust native: the CustomNode trait ---");
+    println!("--- Rust native: the Operator trait ---");
     println!("For stable, performance-sensitive logic:");
     println!("  - Full Rust semantics (type safety, pattern matching)");
     println!("  - A real stateful node compiled into the graph");
@@ -117,7 +120,7 @@ fn main() {
             score.custom_node1(|| ScoreFilter::new(80.0))
         })
         .collect();
-    print_summary("Rust native: custom node (CustomNode)", &high_severity);
+    print_summary("Rust native: custom node (Operator)", &high_severity);
 
     // Closures still cover simpler stateless cases.
     let clamped: Vec<f64> = alerts
@@ -138,5 +141,5 @@ fn main() {
     println!("| Boolean check (field > threshold) | CEL         |");
     println!("| Policy with context/rules         | Rego        |");
     println!("| Transform, enrichment             | Rhai        |");
-    println!("| Stable, perf-sensitive logic      | CustomNode  |");
+    println!("| Stable, perf-sensitive logic      | Operator    |");
 }
