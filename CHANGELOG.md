@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — 2026-05-22] — tflo-ops split
+
+tflo is pre-1.0 and has not been published to crates.io; the API is unstable.
+
+### Added — `tflo-ops` crate (operator catalog)
+
+- **New `tflo-ops` crate** extracts the full operator catalog from `tflo-core`.
+  `tflo-ops` now owns all windowed aggregations (`sma`, `ema`, `std`, `var`,
+  `wma`, `median`, `quantile`, `skewness`, `kurtosis`, `correlation`,
+  `covariance`), statistical operators, stateful trackers (`prev`, `lag`,
+  `cumulative_*`, `pct_change`, `log_return`, `zscore`, `rate_of_change`,
+  `momentum`, `peak_decline`), event detectors (`cross`, `cross_above`,
+  `cross_below`, `glitch`, `runt`, `pulse_width`, `window_detector`, zone
+  ops), math and composite operators. `tflo-core` is now engine-only: record
+  sources, closure transforms, the `Operator` plugin trait, keyed execution,
+  and checkpointing.
+
+- **Unified `Operator` plugin trait** supersedes `CustomNode`. New signature:
+  `fn eval(&mut self, inputs: &[Computed], ts: i64) -> NodeOutput`. Type
+  renames: `BoxedCustomNode → BoxedOperator`, `CustomNodeFactory →
+  OperatorFactory`, `CustomNodeLoadError → OperatorLoadError`. All catalog
+  operators in `tflo-ops` are implemented via this trait.
+
+- **`NodeOutput`** is the public, renamed-from-`Value` engine output type.
+  Supports both the `f64`-or-`Absent` hot path (`NodeOutput::Computed`) and
+  typed (non-`f64`) outputs via `NodeOutput::Other(Box<dyn Any>)`.
+
+### Changed — migration guide
+
+- **Restore all catalog methods** with `use tflo_ops::prelude::*;` — this
+  brings `price.sma(20)`, `price.cross_above(&threshold)`, etc. back into
+  scope.
+- **Primitives moved**: `tflo_core::primitives::X` →
+  `tflo_ops::primitives::X` (e.g. `WelfordWindow`, `CrossDetector`,
+  `GlitchFilter`, `RuntDetector`, `LagBuffer`, …).
+- **Event types moved**: `tflo_core::event::{GlitchResult, RuntResult,
+  PulseWidthResult, WindowEvent}` → `tflo_ops::events::*`. The
+  `ThresholdCrossEventMode` in `tflo_ops::events` is a distinct type from
+  the `tflo_core::event::ThresholdCrossEventMode` (which backs `Signal<TMode>`
+  and `EdgeSignal` in the engine).
+- **Div / DivConst zero-divisor behaviour**: arithmetic `Div` and `DivConst`
+  operators now produce `f64::INFINITY` or `f64::NAN` on a zero divisor; the
+  downstream `finite_or_warming` helper turns those into `Absent::WarmingUp`.
+  The older typed `Absent::DivideByZero` path is no longer emitted by these
+  operators.
+
+- **`tflo-core/src/wasm.rs` removed.** The JSON-in/JSON-out indicator bridge
+  (`compute_sma`, `compute_rsi`, `compute_ema`, `compute_bollinger`,
+  `compute_macd`, `detect_cross`, `compute_indicator`) moved from
+  `tflo-core/src/wasm.rs` into `tflo-wasm/src/lib.rs`, which now imports
+  `tflo-ops` and `tflo-fintech` directly. This eliminates the wasm32 build
+  failure caused by the wasm module calling catalog methods (`.sma()`,
+  `.rsi()`, etc.) that moved to `tflo-ops` during the split. The unused
+  `wasm` feature flag was also removed from `tflo-core/Cargo.toml`.
+
+---
+
 ## [Unreleased]
 
 tflo is pre-1.0 and has not been published to crates.io; the API is unstable.

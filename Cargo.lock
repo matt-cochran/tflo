@@ -2260,6 +2260,8 @@ dependencies = [
  "serde_json",
  "tflo-cel",
  "tflo-core",
+ "tflo-fintech",
+ "tflo-ops",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

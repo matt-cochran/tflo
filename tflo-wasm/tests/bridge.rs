@@ -1,4 +1,5 @@
 //! Integration tests for the tflo-wasm bridge — run with `wasm-pack test --node`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use tflo_wasm::{
     WasmCrossDetector, WasmGlitchFilter, WasmHysteresisCrossDetector, WasmPulseWidthDetector,

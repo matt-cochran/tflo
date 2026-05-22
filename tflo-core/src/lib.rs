@@ -213,10 +213,6 @@ pub mod window;
 #[cfg(feature = "async")]
 pub mod r#async;
 
-/// WebAssembly bridge (only compiled for wasm32 targets).
-#[cfg(target_arch = "wasm32")]
-pub mod wasm;
-
 /// Prelude for convenient imports
 pub mod prelude {
     pub use crate::adapter::{

@@ -13,7 +13,9 @@ categories = ["wasm", "science::robust"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-tflo-core = { path = "../tflo-core", features = ["wasm"] }
+tflo-core = { path = "../tflo-core" }
+tflo-ops = { path = "../tflo-ops" }
+tflo-fintech = { path = "../tflo-fintech" }
 tflo-cel = { path = "../tflo-cel" }
 wasm-bindgen = "0.2"
 serde = { version = "1.0", features = ["derive"] }
