@@ -33,7 +33,10 @@ tflo is pre-1.0 and has not been published to crates.io; the API is unstable.
   sites were removed and locked out by `deny`-level clippy lints
   (`unwrap_used`, `expect_used`, `panic`, `unreachable`, `todo`); test code is
   exempt. Calibration constructors gained a total, clamping `new` plus a
-  fallible `try_new`. The `release` profile now enables `overflow-checks`.
+  fallible `try_new`. **Breaking:** `Comp::custom_node` now takes
+  `(first, rest, factory)` so the "at least one input" rule is enforced by the
+  type system instead of an `assert!`. The `release` profile now enables
+  `overflow-checks`.
 - **Working `snapshot()` / `restore()`.** Checkpointing now serializes full
   per-node state (window buffers, accumulators, detector state machines) with
   `postcard`, not just metadata. `snapshot()` returns a `Result` and rejects

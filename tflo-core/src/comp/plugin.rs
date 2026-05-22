@@ -12,14 +12,12 @@ use std::sync::Arc;
 impl<R: 'static> Comp<R, f64> {
     /// Attach a multi-input [`CustomNode`] to the graph.
     ///
-    /// `inputs` lists the computations whose values are passed — in order — to
-    /// the node's [`eval`](CustomNode::eval) on every record. `factory`
-    /// produces a fresh node instance for each compiled graph, so keyed
-    /// execution gets independent per-key state.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `inputs` is empty.
+    /// A custom node needs at least one input — that requirement is in the
+    /// signature: `first` is the mandatory first input and `rest` is any
+    /// further inputs. They are passed — `first`, then `rest` in order — to the
+    /// node's [`eval`](CustomNode::eval) on every record. `factory` produces a
+    /// fresh node instance for each compiled graph, so keyed execution gets
+    /// independent per-key state.
     ///
     /// # Example
     ///
@@ -41,22 +39,25 @@ impl<R: 'static> Comp<R, f64> {
     ///         t.timestamp(|x| x.ts);
     ///         let bid = t.prop(|x| x.bid);
     ///         let ask = t.prop(|x| x.ask);
-    ///         Comp::custom_node(&[&ask, &bid], || Spread)
+    ///         Comp::custom_node(&ask, &[&bid], || Spread)
     ///     })
     ///     .collect();
     /// ```
     #[must_use]
-    pub fn custom_node<F, N>(inputs: &[&Comp<R, f64>], factory: F) -> Comp<R, f64>
+    pub fn custom_node<F, N>(
+        first: &Comp<R, f64>,
+        rest: &[&Comp<R, f64>],
+        factory: F,
+    ) -> Comp<R, f64>
     where
         F: Fn() -> N + Send + Sync + 'static,
         N: CustomNode,
     {
-        assert!(
-            !inputs.is_empty(),
-            "Comp::custom_node requires at least one input"
-        );
-        let state = &inputs[0].state;
-        let input_ids: Vec<NodeId> = inputs.iter().map(|c| c.id).collect();
+        // `first` guarantees at least one input — no empty-slice panic path.
+        let state = &first.state;
+        let input_ids: Vec<NodeId> = std::iter::once(first.id)
+            .chain(rest.iter().map(|c| c.id))
+            .collect();
         let factory: CustomNodeFactory = Arc::new(move || {
             let node: BoxedCustomNode = Box::new(factory());
             node
@@ -80,7 +81,7 @@ impl<R: 'static> Comp<R, f64> {
         F: Fn() -> N + Send + Sync + 'static,
         N: CustomNode,
     {
-        Self::custom_node(&[self], factory)
+        Self::custom_node(self, &[], factory)
     }
 }
 
@@ -152,7 +153,7 @@ mod tests {
                 t.timestamp(|x| x.ts);
                 let a = t.prop(|x| x.a);
                 let b = t.prop(|x| x.b);
-                Comp::custom_node(&[&a, &b], || SumNode)
+                Comp::custom_node(&a, &[&b], || SumNode)
             })
             .collect();
         assert_eq!(out, vec![3.0, 7.0, 15.0]);
@@ -208,7 +209,7 @@ mod tests {
             let _ = builder.timestamp(|r| r.ts);
             let x = builder.prop(sel0);
             let y = builder.prop(sel1);
-            let node = Comp::custom_node(&[&x, &y], || SumNode);
+            let node = Comp::custom_node(&x, &[&y], || SumNode);
             let output_ids = vec![node.id];
             let nodes = builder.into_nodes();
             CompiledGraph::compile(Arc::new(|r: &Quad| r.ts), nodes, output_ids)

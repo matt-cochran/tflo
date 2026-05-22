@@ -201,7 +201,7 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
     }
 
     fn atr_wilder_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(&[self, high, low], move || AtrNode::new(period))
+        Comp::custom_node(self, &[high, low], move || AtrNode::new(period))
     }
 
     fn trima(&self, period: usize) -> Comp<R> {
@@ -246,15 +246,15 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
     }
 
     fn adx_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(&[self, high, low], move || AdxNode::new(period))
+        Comp::custom_node(self, &[high, low], move || AdxNode::new(period))
     }
 
     fn plus_di_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(&[self, high, low], move || PlusDiNode::new(period))
+        Comp::custom_node(self, &[high, low], move || PlusDiNode::new(period))
     }
 
     fn minus_di_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(&[self, high, low], move || MinusDiNode::new(period))
+        Comp::custom_node(self, &[high, low], move || MinusDiNode::new(period))
     }
 
     fn kama_n(&self, period: usize) -> Comp<R> {

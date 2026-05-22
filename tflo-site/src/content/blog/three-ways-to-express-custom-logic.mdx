@@ -210,11 +210,12 @@ Also, closures top out at two inputs (`scan2_f64`). If you need a node with thre
 
 The `CustomNode` trait is the most structured path. It gives you `eval()`, `reset()`, and a `name()` for graph-plan output — a reusable, named node you can attach anywhere. It lives in `tflo_core::custom_node` and is re-exported from the prelude. It's the same mechanism `tflo-fintech` uses to ship indicators like ADX and KAMA without any finance code in `tflo-core`.
 
-A `CustomNode` receives one `f64` per wired input — in declaration order — and returns one `f64`. Returning `f64::NAN` means "still warming up", matching every built-in node:
+A `CustomNode` receives one `Computed` per wired input — in declaration order — and returns one `Computed` (`Result<f64, Absent>`: a finite value, or a typed reason it is absent). The `require` helper reads an input and `?`-propagates its absence:
 
 ```rust
 use std::collections::VecDeque;
-use tflo_core::custom_node::CustomNode;
+use tflo_core::compile::{Absent, Computed};
+use tflo_core::custom_node::{require, CustomNode};
 
 struct RateOfChange {
     period: usize,
@@ -222,25 +223,25 @@ struct RateOfChange {
 }
 
 impl CustomNode for RateOfChange {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let current = inputs.first().copied().unwrap_or(f64::NAN);
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let current = require(inputs, 0)?;
         self.buffer.push_back(current);
         if self.buffer.len() > self.period + 1 {
             self.buffer.pop_front();
         }
         if self.buffer.len() < self.period + 1 {
-            return f64::NAN;
+            return Err(Absent::WarmingUp);
         }
         let n_periods_ago = self.buffer.front().copied().unwrap_or(current);
-        if n_periods_ago == 0.0 { return f64::NAN; }
-        (current - n_periods_ago) / n_periods_ago
+        if n_periods_ago == 0.0 { return Err(Absent::DivideByZero); }
+        Ok((current - n_periods_ago) / n_periods_ago)
     }
     fn reset(&mut self) { self.buffer.clear(); }
     fn name(&self) -> &str { "rate_of_change" }
 }
 ```
 
-Attach it with `comp.custom_node1(factory)` for a single input, or `Comp::custom_node(&[&a, &b], factory)` to wire several inputs. The graph stores the *factory*, not the instance, so every per-key graph in keyed execution gets its own fresh state:
+Attach it with `comp.custom_node1(factory)` for a single input, or `Comp::custom_node(&a, &[&b], factory)` to wire several inputs (`a` is the mandatory first input). The graph stores the *factory*, not the instance, so every per-key graph in keyed execution gets its own fresh state:
 
 ```rust
 let roc: Vec<f64> = detections.into_iter()

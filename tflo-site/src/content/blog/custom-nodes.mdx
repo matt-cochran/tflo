@@ -140,7 +140,7 @@ let spreads: Vec<f64> = readings.into_iter()
         let high = t.prop(|x| x.high);
         let low = t.prop(|x| x.low);
         // inputs reach eval() as [high, low]
-        Comp::custom_node(&[&high, &low], || Spread)
+        Comp::custom_node(&high, &[&low], || Spread)
     })
     .collect();
 ```

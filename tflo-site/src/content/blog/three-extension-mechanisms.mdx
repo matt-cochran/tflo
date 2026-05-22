@@ -185,22 +185,23 @@ All three extension mechanisms solve the same fundamental problem: *changing beh
 
 Sometimes that cost isn't worth paying.
 
-If your logic is well-understood, rarely changes, and performance-sensitive, you're better off writing a custom node in Rust and compiling it directly into the graph. tflo exposes the [`CustomNode`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/custom_node.rs) trait exactly for this — it's in `tflo_core::prelude`. A `CustomNode` receives one `f64` per wired input and returns one `f64`; return `f64::NAN` to mean "still warming up":
+If your logic is well-understood, rarely changes, and performance-sensitive, you're better off writing a custom node in Rust and compiling it directly into the graph. tflo exposes the [`CustomNode`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/custom_node.rs) trait exactly for this — it's in `tflo_core::prelude`. A `CustomNode` receives one `Computed` per wired input and returns one `Computed`; return `Err(Absent::WarmingUp)` to mean "still warming up", or `Err(Absent::FilteredOut)` to drop a value:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_core::custom_node::require;
 
 struct SnrFilter {
     threshold: f64,
 }
 
 impl CustomNode for SnrFilter {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let value = inputs.first().copied().unwrap_or(f64::NAN);
+    fn eval(&mut self, inputs: &[Computed]) -> Computed {
+        let value = require(inputs, 0)?;
         if value > self.threshold {
-            value
+            Ok(value)
         } else {
-            f64::NAN
+            Err(Absent::FilteredOut)
         }
     }
 
