@@ -3,9 +3,9 @@
 //! WMA gives more weight to recent observations using linearly decreasing weights.
 //! The most recent value has weight N, the previous has weight N-1, etc.
 
-use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
+use tflo_core::operator::WindowPrimitive;
 
 /// Count-based Weighted Moving Average.
 ///
@@ -20,7 +20,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::WmaCountWindow;
+/// use tflo_ops::primitives::WmaCountWindow;
 ///
 /// let mut wma = WmaCountWindow::new(3);
 ///

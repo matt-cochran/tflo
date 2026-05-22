@@ -14,16 +14,16 @@
 
 use crate::checkpoint;
 use crate::ops::stats::{Correlation, Covariance, Kurtosis, Median, QuantileOp, Rank, Skewness};
+use crate::primitives::{
+    CorrelationCountWindow, CorrelationTimeWindow, CountEma, CountWindow, MedianCountWindow,
+    MedianTimeWindow, MomentsCountWindow, MomentsTimeWindow, RsiCountWindow, RsiTimeWindow,
+    TimeEma, TimeWindow, WmaCountWindow, WmaTimeWindow,
+};
 use crate::shapes::{BivariateWindowed, Reduce, Windowed};
 use serde::{Deserialize, Serialize};
 use tflo_core::comp::Comp;
 use tflo_core::compile::{Computed, NodeOutput, finite_or_warming};
 use tflo_core::operator::{BoxedOperator, Operator, OperatorLoadError, require};
-use tflo_core::primitives::{
-    CorrelationCountWindow, CorrelationTimeWindow, CountEma, CountWindow, MedianCountWindow,
-    MedianTimeWindow, MomentsCountWindow, MomentsTimeWindow, RsiCountWindow, RsiTimeWindow,
-    TimeEma, TimeWindow, WmaCountWindow, WmaTimeWindow,
-};
 use tflo_core::window::Window;
 
 // ============================================================================

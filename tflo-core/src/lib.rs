@@ -204,7 +204,6 @@ pub mod keyed;
 pub mod operator;
 pub use operator::{BivariateWindow, WindowPrimitive};
 pub mod pipeline;
-pub mod primitives;
 pub mod scalar;
 /// Time point trait for generic time type abstraction.
 pub mod timepoint;
@@ -245,13 +244,6 @@ pub mod prelude {
     pub use crate::pipeline::{
         Hybrid, HybridItem, KeyedTimestamped, PipelineContext, PipelineItem, Sequenced,
         SequencedItem, Timestamped, TimestampedItem,
-    };
-    pub use crate::primitives::{
-        BaselineCorrector, CrossDetector, DcRemover, GainOffsetCalibrator, GlitchFilter,
-        GlitchResult, HysteresisCrossDetector, LagBuffer, LinearRegressor, PrevByTracker,
-        PrevTracker, PulseWidthDetector, PulseWidthResult, RangeNormalizer, RuntDetector,
-        RuntResult, TimeDcRemover, TimestampedPrevByTracker, TimestampedPrevTracker,
-        WelfordAccumulator, WelfordWindow, WindowDetector, WindowEvent, ZScoreNormalizer,
     };
     pub use crate::scalar::Scalar;
     pub use crate::timepoint::TimePoint;

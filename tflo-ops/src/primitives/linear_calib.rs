@@ -28,7 +28,7 @@ use std::collections::VecDeque;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::LinearRegressor;
+/// use tflo_ops::primitives::LinearRegressor;
 ///
 /// // Fit a line through calibration points
 /// let mut regressor = LinearRegressor::new(10);
@@ -84,7 +84,7 @@ pub struct LinearRegressor {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::GainOffsetCalibrator;
+/// use tflo_ops::primitives::GainOffsetCalibrator;
 ///
 /// // Temperature sensor: 0.1°C per ADC count, offset of -40°C
 /// let calibrator = GainOffsetCalibrator::new(0.1, -40.0);
@@ -101,7 +101,7 @@ pub struct LinearRegressor {
 /// You can also convert from physical units back to raw:
 ///
 /// ```rust
-/// use tflo_core::primitives::GainOffsetCalibrator;
+/// use tflo_ops::primitives::GainOffsetCalibrator;
 ///
 /// let calibrator = GainOffsetCalibrator::new(0.1, -40.0);
 ///
@@ -142,11 +142,11 @@ impl LinearRegressor {
     ///
     /// # Errors
     ///
-    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// Returns [`TFloError::Configuration`](tflo_core::error::TFloError::Configuration)
     /// if `window_samples` is less than 2.
-    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+    pub fn try_new(window_samples: usize) -> Result<Self, tflo_core::error::TFloError> {
         if window_samples < 2 {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "LinearRegressor window_samples must be > 1 for regression".to_string(),
             });
         }
@@ -305,16 +305,16 @@ impl GainOffsetCalibrator {
     ///
     /// # Errors
     ///
-    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// Returns [`TFloError::Configuration`](tflo_core::error::TFloError::Configuration)
     /// if `raw1` and `raw2` are equal (the gain cannot be determined).
     pub fn try_from_two_points(
         raw1: f64,
         ref1: f64,
         raw2: f64,
         ref2: f64,
-    ) -> Result<Self, crate::error::TFloError> {
+    ) -> Result<Self, tflo_core::error::TFloError> {
         if (raw2 - raw1).abs() <= f64::EPSILON {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "GainOffsetCalibrator raw1 and raw2 must be different".to_string(),
             });
         }

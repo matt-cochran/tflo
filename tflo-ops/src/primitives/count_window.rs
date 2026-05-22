@@ -2,8 +2,8 @@
 //!
 //! [`CountWindow`] maintains a fixed-size buffer of the most recent values.
 
-use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
+use tflo_core::operator::WindowPrimitive;
 
 /// Count-based sliding window aggregator.
 ///
@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CountWindow;
+/// use tflo_ops::primitives::CountWindow;
 ///
 /// let mut window = CountWindow::new(3);
 ///

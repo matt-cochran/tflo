@@ -3,9 +3,9 @@
 //! [`TimeWindow`] maintains a buffer of timestamped values and provides
 //! efficient computation of common aggregations (mean, std, sum, min, max, count).
 
-use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
+use tflo_core::operator::WindowPrimitive;
 
 /// Time-based sliding window aggregator.
 ///
@@ -16,7 +16,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::TimeWindow;
+/// use tflo_ops::primitives::TimeWindow;
 /// use std::time::Duration;
 ///
 /// let mut window = TimeWindow::new(Duration::from_secs(5));

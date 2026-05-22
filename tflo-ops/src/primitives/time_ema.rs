@@ -18,7 +18,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::TimeEma;
+/// use tflo_ops::primitives::TimeEma;
 /// use std::time::Duration;
 ///
 /// let mut ema = TimeEma::new(Duration::from_secs(5));

@@ -54,7 +54,7 @@ pub(crate) use super::runt_window::{RuntState, WindowState};
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::{HysteresisCrossDetector, ThresholdCrossEventMode};
+/// use tflo_ops::primitives::{HysteresisCrossDetector, ThresholdCrossEventMode};
 ///
 /// // Threshold = 100, Hysteresis = 5
 /// // Rising requires value ≥ 105

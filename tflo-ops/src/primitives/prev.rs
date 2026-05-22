@@ -8,7 +8,7 @@
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::PrevTracker;
+/// use tflo_ops::primitives::PrevTracker;
 ///
 /// let mut tracker = PrevTracker::new();
 ///

@@ -6,7 +6,7 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use crate::operator::BivariateWindow;
+use tflo_core::operator::BivariateWindow;
 
 /// Count-based sliding window for correlation and covariance.
 ///
@@ -16,7 +16,7 @@ use crate::operator::BivariateWindow;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CorrelationCountWindow;
+/// use tflo_ops::primitives::CorrelationCountWindow;
 ///
 /// let mut window = CorrelationCountWindow::new(5);
 ///

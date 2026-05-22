@@ -10,7 +10,7 @@
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CumulativeSum;
+/// use tflo_ops::primitives::CumulativeSum;
 ///
 /// let mut cumsum = CumulativeSum::new();
 ///
@@ -55,7 +55,7 @@ impl CumulativeSum {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CumulativeProduct;
+/// use tflo_ops::primitives::CumulativeProduct;
 ///
 /// let mut cumprod = CumulativeProduct::new();
 ///
@@ -107,7 +107,7 @@ impl CumulativeProduct {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CumulativeMax;
+/// use tflo_ops::primitives::CumulativeMax;
 ///
 /// let mut cummax = CumulativeMax::new();
 ///
@@ -163,7 +163,7 @@ impl CumulativeMax {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CumulativeMin;
+/// use tflo_ops::primitives::CumulativeMin;
 ///
 /// let mut cummin = CumulativeMin::new();
 ///
@@ -218,7 +218,7 @@ impl CumulativeMin {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::CumulativeMean;
+/// use tflo_ops::primitives::CumulativeMean;
 ///
 /// let mut cummean = CumulativeMean::new();
 ///

@@ -14,7 +14,7 @@ use std::hash::Hash;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::PrevByTracker;
+/// use tflo_ops::primitives::PrevByTracker;
 ///
 /// let mut tracker = PrevByTracker::new();
 ///

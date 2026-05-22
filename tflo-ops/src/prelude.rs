@@ -18,3 +18,9 @@ pub use crate::ops::detectors::{CrossOps, DetectorOps};
 pub use crate::ops::math::MathOps;
 pub use crate::ops::trackers::StatefulOps;
 pub use crate::ops::windows::WindowOps;
+pub use crate::primitives::{
+    BaselineCorrector, CrossDetector, DcRemover, GainOffsetCalibrator, GlitchFilter,
+    HysteresisCrossDetector, LagBuffer, LinearRegressor, PrevByTracker, PrevTracker,
+    PulseWidthDetector, RangeNormalizer, RuntDetector, TimeDcRemover, TimestampedPrevByTracker,
+    TimestampedPrevTracker, WelfordAccumulator, WelfordWindow, WindowDetector, ZScoreNormalizer,
+};

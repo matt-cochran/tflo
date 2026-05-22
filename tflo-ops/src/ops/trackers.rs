@@ -26,6 +26,9 @@
 //! into the 2-input [`PrevByOp`].
 
 use crate::checkpoint;
+use crate::primitives::{
+    CumulativeMax, CumulativeMin, CumulativeProduct, CumulativeSum, LagBuffer, PrevTracker,
+};
 use crate::shapes::{StatefulTracker, TrackStep};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -33,9 +36,6 @@ use std::time::Duration;
 use tflo_core::comp::Comp;
 use tflo_core::compile::{Absent, Computed, NodeOutput};
 use tflo_core::operator::{Operator, OperatorLoadError, require};
-use tflo_core::primitives::{
-    CumulativeMax, CumulativeMin, CumulativeProduct, CumulativeSum, LagBuffer, PrevTracker,
-};
 
 // ============================================================================
 // State types

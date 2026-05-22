@@ -67,8 +67,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::primitives::CorrelationCountWindow;
     use tflo_core::operator::Operator;
-    use tflo_core::primitives::CorrelationCountWindow;
 
     #[derive(Default)]
     struct TestCovariance;

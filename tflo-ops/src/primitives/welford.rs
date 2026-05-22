@@ -24,7 +24,7 @@
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::WelfordAccumulator;
+/// use tflo_ops::primitives::WelfordAccumulator;
 ///
 /// let mut acc = WelfordAccumulator::new();
 ///

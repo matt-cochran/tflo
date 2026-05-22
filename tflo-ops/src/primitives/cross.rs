@@ -140,7 +140,7 @@ pub use super::results::{GlitchResult, PulseWidthResult, RuntResult, WindowEvent
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::{CrossDetector, ThresholdCrossEventMode};
+/// use tflo_ops::primitives::{CrossDetector, ThresholdCrossEventMode};
 ///
 /// let mut detector = CrossDetector::new();
 ///

@@ -4,9 +4,9 @@
 //! For count-based windows, uses insertion sort for O(n) per update.
 //! For time-based windows, uses a VecDeque with sorting on access.
 
-use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
+use tflo_core::operator::WindowPrimitive;
 
 /// Count-based sliding window for median and quantile calculations.
 ///
@@ -16,7 +16,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::MedianCountWindow;
+/// use tflo_ops::primitives::MedianCountWindow;
 ///
 /// let mut window = MedianCountWindow::new(5);
 ///

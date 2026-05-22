@@ -27,11 +27,11 @@ impl DcRemover {
     ///
     /// # Errors
     ///
-    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// Returns [`TFloError::Configuration`](tflo_core::error::TFloError::Configuration)
     /// if `window_samples` is 0.
-    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+    pub fn try_new(window_samples: usize) -> Result<Self, tflo_core::error::TFloError> {
         if window_samples == 0 {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "DcRemover window_samples must be > 0".to_string(),
             });
         }
@@ -170,19 +170,19 @@ impl BaselineCorrector {
     ///
     /// # Errors
     ///
-    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// Returns [`TFloError::Configuration`](tflo_core::error::TFloError::Configuration)
     /// if `window_samples` is 0 or `percentile` is not in `[0.0, 1.0]`.
     pub fn try_new(
         window_samples: usize,
         percentile: f64,
-    ) -> Result<Self, crate::error::TFloError> {
+    ) -> Result<Self, tflo_core::error::TFloError> {
         if window_samples == 0 {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "BaselineCorrector window_samples must be > 0".to_string(),
             });
         }
         if !(0.0..=1.0).contains(&percentile) {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "BaselineCorrector percentile must be in [0.0, 1.0]".to_string(),
             });
         }
@@ -272,11 +272,11 @@ impl RangeNormalizer {
     ///
     /// # Errors
     ///
-    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// Returns [`TFloError::Configuration`](tflo_core::error::TFloError::Configuration)
     /// if `window_samples` is 0.
-    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+    pub fn try_new(window_samples: usize) -> Result<Self, tflo_core::error::TFloError> {
         if window_samples == 0 {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "RangeNormalizer window_samples must be > 0".to_string(),
             });
         }
@@ -364,11 +364,11 @@ impl ZScoreNormalizer {
     ///
     /// # Errors
     ///
-    /// Returns [`TFloError::Configuration`](crate::error::TFloError::Configuration)
+    /// Returns [`TFloError::Configuration`](tflo_core::error::TFloError::Configuration)
     /// if `window_samples` is less than 2.
-    pub fn try_new(window_samples: usize) -> Result<Self, crate::error::TFloError> {
+    pub fn try_new(window_samples: usize) -> Result<Self, tflo_core::error::TFloError> {
         if window_samples < 2 {
-            return Err(crate::error::TFloError::Configuration {
+            return Err(tflo_core::error::TFloError::Configuration {
                 message: "ZScoreNormalizer window_samples must be > 1 for std calculation"
                     .to_string(),
             });

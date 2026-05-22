@@ -39,7 +39,7 @@ use super::results::WindowEvent;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::{RuntDetector, RuntResult};
+/// use tflo_ops::primitives::{RuntDetector, RuntResult};
 ///
 /// // LOW = 30, HIGH = 70 (valid signals must reach 70+)
 /// let mut detector = RuntDetector::new(30.0, 70.0);
@@ -118,7 +118,7 @@ pub(crate) enum RuntState {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::{WindowDetector, WindowEvent};
+/// use tflo_ops::primitives::{WindowDetector, WindowEvent};
 ///
 /// // Monitor voltage between 4.5V and 5.5V
 /// let mut detector = WindowDetector::new(4.5, 5.5);

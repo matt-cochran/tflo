@@ -3,9 +3,9 @@
 //! RSI is a momentum indicator that measures the magnitude of recent price changes
 //! to evaluate overbought or oversold conditions.
 
-use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
+use tflo_core::operator::WindowPrimitive;
 
 /// Count-based Relative Strength Index calculator.
 ///
@@ -18,7 +18,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::RsiCountWindow;
+/// use tflo_ops::primitives::RsiCountWindow;
 ///
 /// let mut rsi = RsiCountWindow::new(14);
 ///

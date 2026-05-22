@@ -38,14 +38,14 @@ use crate::checkpoint;
 use crate::events::{
     GlitchResult, PulseWidthResult, RuntResult, ThresholdCrossEventMode, WindowEvent,
 };
+use crate::primitives::{
+    CrossDetector, GlitchFilter, HysteresisCrossDetector, PulseWidthDetector, RuntDetector,
+    WindowDetector,
+};
 use serde::{Deserialize, Serialize};
 use tflo_core::comp::Comp;
 use tflo_core::compile::{Computed, NodeOutput};
 use tflo_core::operator::{BoxedOperator, Operator, OperatorLoadError, require};
-use tflo_core::primitives::{
-    CrossDetector, GlitchFilter, HysteresisCrossDetector, PulseWidthDetector, RuntDetector,
-    WindowDetector,
-};
 
 // ============================================================================
 // Cross detection — 2-input operators
@@ -152,8 +152,8 @@ impl Operator for CrossHysteresisOp {
 
 /// Map the `tflo-core` primitive's `ThresholdCrossEventMode` to the `tflo-ops`
 /// copy of that enum (see [`crate::events`]).
-fn to_event(mode: tflo_core::primitives::ThresholdCrossEventMode) -> ThresholdCrossEventMode {
-    use tflo_core::primitives::ThresholdCrossEventMode as Core;
+fn to_event(mode: crate::primitives::ThresholdCrossEventMode) -> ThresholdCrossEventMode {
+    use crate::primitives::ThresholdCrossEventMode as Core;
     match mode {
         Core::Rising => ThresholdCrossEventMode::Rising,
         Core::Falling => ThresholdCrossEventMode::Falling,
@@ -240,8 +240,8 @@ impl Operator for RuntOp {
 }
 
 /// Map the `tflo-core` primitive's `RuntResult` to the `tflo-ops` copy.
-fn to_runt(result: tflo_core::primitives::RuntResult) -> RuntResult {
-    use tflo_core::primitives::RuntResult as Core;
+fn to_runt(result: crate::primitives::RuntResult) -> RuntResult {
+    use crate::primitives::RuntResult as Core;
     match result {
         Core::Runt { peak } => RuntResult::Runt { peak },
         Core::ValidPulse { peak } => RuntResult::ValidPulse { peak },
@@ -279,8 +279,8 @@ impl Operator for PulseWidthOp {
 }
 
 /// Map the `tflo-core` primitive's `PulseWidthResult` to the `tflo-ops` copy.
-fn to_pulse_width(result: tflo_core::primitives::PulseWidthResult) -> PulseWidthResult {
-    use tflo_core::primitives::PulseWidthResult as Core;
+fn to_pulse_width(result: crate::primitives::PulseWidthResult) -> PulseWidthResult {
+    use crate::primitives::PulseWidthResult as Core;
     match result {
         Core::TooShort { width_ms } => PulseWidthResult::TooShort { width_ms },
         Core::Valid { width_ms } => PulseWidthResult::Valid { width_ms },
@@ -319,8 +319,8 @@ impl Operator for WindowDetectOp {
 }
 
 /// Map the `tflo-core` primitive's `WindowEvent` to the `tflo-ops` copy.
-fn to_window_event(event: tflo_core::primitives::WindowEvent) -> WindowEvent {
-    use tflo_core::primitives::WindowEvent as Core;
+fn to_window_event(event: crate::primitives::WindowEvent) -> WindowEvent {
+    use crate::primitives::WindowEvent as Core;
     match event {
         Core::EnteredWindow => WindowEvent::EnteredWindow,
         Core::ExitedLow => WindowEvent::ExitedLow,

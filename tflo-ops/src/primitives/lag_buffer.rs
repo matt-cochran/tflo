@@ -14,7 +14,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::LagBuffer;
+/// use tflo_ops::primitives::LagBuffer;
 /// use std::time::Duration;
 ///
 /// let mut buffer = LagBuffer::new(Duration::from_secs(5));

@@ -33,9 +33,6 @@ mod value;
 use crate::comp::NodeId;
 use crate::operator::BoxedOperator;
 use crate::pipeline::{PipelineContext, Timestamped};
-use crate::primitives::{
-    GlitchResult, PulseWidthResult, RuntResult, ThresholdCrossEventMode, WindowEvent,
-};
 pub use absent::{Absent, Computed, finite_or_warming};
 pub use extract::ExtractOutput;
 pub use inspect::{GraphPlan, GraphStateSummary};
@@ -82,15 +79,6 @@ macro_rules! impl_extract_output {
 // on the boxed value is correct.
 impl_extract_output!(
     f32, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize, String
-);
-
-// Domain types
-impl_extract_output!(
-    ThresholdCrossEventMode,
-    GlitchResult,
-    RuntResult,
-    PulseWidthResult,
-    WindowEvent
 );
 
 /// `f64` extraction flattens the typed-absence model back to the historical

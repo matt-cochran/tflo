@@ -13,14 +13,14 @@
 //! [`Operator`] so that `q` survives checkpoint `save`/`load` (see its docs).
 
 use crate::checkpoint;
+use crate::primitives::{
+    CorrelationCountWindow, CorrelationTimeWindow, MedianCountWindow, MedianTimeWindow,
+    MomentsCountWindow, MomentsTimeWindow,
+};
 use crate::shapes::Reduce;
 use serde::{Deserialize, Serialize};
 use tflo_core::compile::{Computed, NodeOutput, finite_or_warming};
 use tflo_core::operator::{Operator, OperatorLoadError, require};
-use tflo_core::primitives::{
-    CorrelationCountWindow, CorrelationTimeWindow, MedianCountWindow, MedianTimeWindow,
-    MomentsCountWindow, MomentsTimeWindow,
-};
 
 /// Rolling median (`q = 0.5` quantile) of a distribution window.
 #[derive(Default)]

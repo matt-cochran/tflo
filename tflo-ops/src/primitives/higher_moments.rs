@@ -3,9 +3,9 @@
 //! Provides online calculation of skewness and kurtosis using
 //! incremental algorithms based on central moments.
 
-use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
+use tflo_core::operator::WindowPrimitive;
 
 /// Count-based sliding window for higher-order moments (skewness, kurtosis).
 ///
@@ -14,7 +14,7 @@ use std::time::Duration;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::MomentsCountWindow;
+/// use tflo_ops::primitives::MomentsCountWindow;
 ///
 /// let mut window = MomentsCountWindow::new(10);
 ///

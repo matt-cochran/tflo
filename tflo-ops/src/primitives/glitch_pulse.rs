@@ -36,7 +36,7 @@ use super::results::PulseWidthResult;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::GlitchFilter;
+/// use tflo_ops::primitives::GlitchFilter;
 ///
 /// // Require pulses to be at least 5ms to be valid
 /// let mut filter = GlitchFilter::new(100.0, 5);
@@ -96,7 +96,7 @@ pub(crate) enum GlitchState {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::{PulseWidthDetector, PulseWidthResult};
+/// use tflo_ops::primitives::{PulseWidthDetector, PulseWidthResult};
 ///
 /// // Valid pulses must be between 5ms and 15ms
 /// let mut detector = PulseWidthDetector::new(100.0, 5, 15);

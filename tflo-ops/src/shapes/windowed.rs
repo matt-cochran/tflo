@@ -63,8 +63,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::primitives::CountWindow;
     use tflo_core::operator::Operator;
-    use tflo_core::primitives::CountWindow;
 
     #[derive(Default)]
     struct TestMean;

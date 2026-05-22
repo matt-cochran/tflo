@@ -81,7 +81,7 @@ where
 #[test]
 fn prev_first_record_is_warming_up() {
     let mut op = StatefulTracker::new(
-        tflo_core::primitives::PrevTracker::new(),
+        tflo_ops::primitives::PrevTracker::new(),
         tflo_ops::ops::trackers::PrevStep,
     );
     let out = drive(&mut op, &[(1, 10.0), (2, 20.0), (3, 30.0)]);
@@ -269,7 +269,7 @@ fn lag_returns_value_from_the_past() {
 fn delta_first_record_is_warming_up() {
     // 5s lag: delta at ts=6000 is 150 - 100 = 50.
     let mut op = StatefulTracker::new(
-        tflo_core::primitives::LagBuffer::new(Duration::from_secs(5)),
+        tflo_ops::primitives::LagBuffer::new(Duration::from_secs(5)),
         tflo_ops::ops::trackers::DeltaStep,
     );
     let out = drive(&mut op, &[(1000, 100.0), (6000, 150.0)]);
@@ -460,20 +460,20 @@ fn cumsum_checkpoint_round_trip() {
     let series = [(1, 10.0), (2, 20.0), (3, 5.0), (4, 7.0), (5, 3.0)];
 
     let mut reference = StatefulTracker::new(
-        tflo_core::primitives::CumulativeSum::new(),
+        tflo_ops::primitives::CumulativeSum::new(),
         tflo_ops::ops::trackers::CumSumStep,
     );
     let reference_out = drive_nan(&mut reference, &series);
 
     let mut original = StatefulTracker::new(
-        tflo_core::primitives::CumulativeSum::new(),
+        tflo_ops::primitives::CumulativeSum::new(),
         tflo_ops::ops::trackers::CumSumStep,
     );
     let first_half = drive_nan(&mut original, &series[..2]);
     let bytes = original.save().expect("save should succeed");
 
     let mut restored = StatefulTracker::new(
-        tflo_core::primitives::CumulativeSum::new(),
+        tflo_ops::primitives::CumulativeSum::new(),
         tflo_ops::ops::trackers::CumSumStep,
     );
     restored.load(&bytes).expect("load should succeed");
@@ -497,13 +497,13 @@ fn lag_checkpoint_round_trip_preserves_duration() {
     ];
 
     let mut reference = StatefulTracker::new(
-        tflo_core::primitives::LagBuffer::new(Duration::from_secs(5)),
+        tflo_ops::primitives::LagBuffer::new(Duration::from_secs(5)),
         tflo_ops::ops::trackers::LagStep,
     );
     let reference_out = drive_nan(&mut reference, &series);
 
     let mut original = StatefulTracker::new(
-        tflo_core::primitives::LagBuffer::new(Duration::from_secs(5)),
+        tflo_ops::primitives::LagBuffer::new(Duration::from_secs(5)),
         tflo_ops::ops::trackers::LagStep,
     );
     let first_half = drive_nan(&mut original, &series[..2]);
@@ -512,7 +512,7 @@ fn lag_checkpoint_round_trip_preserves_duration() {
     // Restore into a buffer with a *different* lag — `load` must overwrite it
     // with the serialized 5s lag for the resumed series to match.
     let mut restored = StatefulTracker::new(
-        tflo_core::primitives::LagBuffer::new(Duration::from_secs(999)),
+        tflo_ops::primitives::LagBuffer::new(Duration::from_secs(999)),
         tflo_ops::ops::trackers::LagStep,
     );
     restored.load(&bytes).expect("load should succeed");

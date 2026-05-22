@@ -187,7 +187,7 @@ use std::collections::VecDeque;
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::DcRemover;
+/// use tflo_ops::primitives::DcRemover;
 ///
 /// // Remove DC using a 5-sample window
 /// let mut remover = DcRemover::new(5);
@@ -221,7 +221,7 @@ pub struct DcRemover {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::TimeDcRemover;
+/// use tflo_ops::primitives::TimeDcRemover;
 /// use std::time::Duration;
 ///
 /// // Remove DC using a 1-second window
@@ -275,7 +275,7 @@ pub struct TimeDcRemover {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::BaselineCorrector;
+/// use tflo_ops::primitives::BaselineCorrector;
 ///
 /// // Correct using 10th percentile over 20 samples
 /// let mut corrector = BaselineCorrector::new(20, 0.1);
@@ -336,7 +336,7 @@ pub struct BaselineCorrector {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::RangeNormalizer;
+/// use tflo_ops::primitives::RangeNormalizer;
 ///
 /// // Normalize using a 50-sample window
 /// let mut normalizer = RangeNormalizer::new(50);
@@ -395,7 +395,7 @@ pub struct RangeNormalizer {
 /// # Examples
 ///
 /// ```rust
-/// use tflo_core::primitives::ZScoreNormalizer;
+/// use tflo_ops::primitives::ZScoreNormalizer;
 ///
 /// // Normalize using a 100-sample window
 /// let mut normalizer = ZScoreNormalizer::new(100);
