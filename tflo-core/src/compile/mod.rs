@@ -19,6 +19,7 @@
 //! (`f64` inline, everything else boxed). The external API stays fully
 //! type-safe through generics and the [`ExtractOutput`] trait.
 
+mod absent;
 mod eval;
 mod extract;
 mod inspect;
@@ -40,6 +41,7 @@ use crate::primitives::{
     RsiCountWindow, RsiTimeWindow, RuntDetector, RuntResult, TimeEma, TimeWindow, WindowDetector,
     WindowEvent, WmaCountWindow, WmaTimeWindow,
 };
+pub use absent::{Absent, Computed};
 pub use extract::ExtractOutput;
 pub use inspect::{GraphPlan, GraphStateSummary};
 pub use node::{CompiledNode, CompositionNodeEntry, offset_node_ids};
