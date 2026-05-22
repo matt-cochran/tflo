@@ -1,0 +1,28 @@
+[package]
+name = "tflo-state-s3"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "S3-compatible object store backend for tflo checkpoints"
+license.workspace = true
+repository.workspace = true
+keywords = ["state", "checkpoint", "s3", "object-store"]
+categories = ["data-structures"]
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+async-trait = "0.1"
+hex = { workspace = true }
+tokio = { workspace = true, features = ["rt"], optional = true }
+
+[features]
+default = []
+async = ["dep:tokio"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true

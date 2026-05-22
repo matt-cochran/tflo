@@ -1,0 +1,167 @@
+---
+title: "Custom nodes with the CustomNode trait"
+description: "The built-in operators cover a lot. They don't cover everything. Here's how the CustomNode trait lets you define your own runtime computation nodes for the tflo graph."
+pubDate: 2025-04-03
+tags: ["extensions", "custom-nodes", "custom-node-trait"]
+---
+
+The built-in operators cover a lot. They don't cover everything.
+
+Maybe you need a domain-specific calculation that doesn't fit SMA/EMA/RSI — an RF dwell-time estimator, a custom anomaly score, a protocol-specific health metric. Maybe it's a proprietary detector your team doesn't want to open-source. Maybe you just want to prototype a new operator idea without waiting for it to land in `tflo-core`.
+
+Custom nodes are how you extend the graph. The `CustomNode` trait defines the contract — implement it, and your logic gets wired into the same execution engine that runs built-in nodes. This is the exact mechanism the `tflo-fintech` crate uses to ship ADX, ATR, and KAMA without any finance-specific code living in `tflo-core`.
+
+## The trait
+
+```tflo-core/src/custom_node.rs#L48-68
+pub trait CustomNode: Send + Sync + 'static {
+    /// Evaluate the node against the current record's resolved inputs.
+    fn eval(&mut self, inputs: &[f64]) -> f64;
+
+    /// Reset internal state to the freshly-constructed condition.
+    fn reset(&mut self) {}
+
+    /// Human-readable name, used in graph-plan and debug output.
+    fn name(&self) -> &str {
+        "custom"
+    }
+}
+```
+
+Three methods, and only one is mandatory: `eval`. It receives one `f64` per wired input — in declaration order — and returns one `f64`. Return `f64::NAN` while the node is still warming up; that matches the convention every built-in node follows. `reset` and `name` have default implementations, so you only override them if you need to.
+
+Node outputs are typed `Value`s carrying an inline `f64`, so there is no `Box<dyn Any>` juggling — `eval` just takes and returns plain `f64`s.
+
+## Build a Rate-of-Change node
+
+Rate of Change measures how much a value has changed relative to N records ago: `(current - N_records_ago) / N_records_ago`. (`tflo-core` actually ships this as the `rate_of_change` operator — but it makes a clean, self-contained example of the trait.) Here's the full implementation:
+
+```rust
+use std::collections::VecDeque;
+use tflo_core::custom_node::CustomNode;
+
+struct RateOfChange {
+    period: usize,
+    buffer: VecDeque<f64>,
+}
+
+impl RateOfChange {
+    pub fn new(period: usize) -> Self {
+        Self {
+            period,
+            buffer: VecDeque::with_capacity(period + 1),
+        }
+    }
+}
+
+impl CustomNode for RateOfChange {
+    fn eval(&mut self, inputs: &[f64]) -> f64 {
+        let current = inputs.first().copied().unwrap_or(f64::NAN);
+        self.buffer.push_back(current);
+
+        if self.buffer.len() > self.period + 1 {
+            self.buffer.pop_front();
+        }
+
+        if self.buffer.len() < self.period + 1 {
+            return f64::NAN; // not enough data yet
+        }
+
+        let n_records_ago = self.buffer.front().copied().unwrap_or(current);
+        if n_records_ago == 0.0 {
+            return f64::NAN; // avoid division by zero
+        }
+
+        (current - n_records_ago) / n_records_ago
+    }
+
+    fn reset(&mut self) {
+        self.buffer.clear();
+    }
+
+    fn name(&self) -> &str {
+        "rate_of_change"
+    }
+}
+```
+
+That's it. `eval` reads its single input via `inputs.first()` — a defensive `get` rather than indexing, in case the node is mis-wired — and returns either a value or `f64::NAN`. The trait carries no `step`/context plumbing: a custom node sees only resolved `f64` inputs, which keeps the contract small.
+
+## Wiring it into the graph
+
+A `CustomNode` drops straight into a `.tflo()` closure through `Comp::custom_node` or its single-input shorthand `Comp::custom_node1`:
+
+```rust
+use tflo_core::prelude::*;
+use tflo_core::custom_node::CustomNode;
+
+#[derive(Clone)]
+struct Reading {
+    ts: i64,
+    value: f64,
+}
+
+let roc: Vec<f64> = readings.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let value = t.prop(|x| x.value);
+        // single-input node: consumes `value`
+        value.custom_node1(|| RateOfChange::new(14))
+    })
+    .collect();
+```
+
+`custom_node1` takes a **factory** closure — `|| RateOfChange::new(14)` — not a node instance. The graph stores the factory so it can mint a fresh, independent node for every compiled graph, including each per-key graph in keyed execution. That's what keeps state from leaking between keys.
+
+For a node that reads more than one input, use the multi-input `Comp::custom_node`. The inputs arrive in `eval` in exactly the order you list them:
+
+```rust
+struct Spread;
+
+impl CustomNode for Spread {
+    fn eval(&mut self, inputs: &[f64]) -> f64 {
+        inputs.first().copied().unwrap_or(f64::NAN)
+            - inputs.get(1).copied().unwrap_or(f64::NAN)
+    }
+}
+
+let spreads: Vec<f64> = readings.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let high = t.prop(|x| x.high);
+        let low = t.prop(|x| x.low);
+        // inputs reach eval() as [high, low]
+        Comp::custom_node(&[&high, &low], || Spread)
+    })
+    .collect();
+```
+
+`custom_node` panics if you pass an empty input slice — every node needs at least one input to attach to.
+
+## Use constants via the builder
+
+Need a constant fed into your node? `TFlowBuilder::constant()` registers a `Node::Const` and hands back a `Comp<R>` you can chain or pass as an input:
+
+```rust
+use tflo_core::prelude::*;
+
+// Inside a .tflo() closure:
+let threshold = t.constant(0.05);
+let signal = value.cross_above(&threshold);
+```
+
+## Custom nodes are first-class
+
+Once attached, a custom node compiles into the same execution pipeline as everything else. Same topological ordering guarantees. Same warmup propagation — returning `f64::NAN` holds downstream nodes back exactly like a built-in window that hasn't filled. Same snapshot/restore lifecycle. The only difference is that you wrote the `eval` body.
+
+That's the whole extension story: implement one trait, attach it with one method, and your logic runs shoulder to shoulder with the built-ins.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/custom-nodes`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/custom-nodes)
+
+For composite operator patterns (extension traits), see:
+[`tflo-examples/examples/custom-composite`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/custom-composite)
+
+*— Matt*

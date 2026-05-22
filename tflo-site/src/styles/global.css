@@ -1,0 +1,79 @@
+/* csslint ignore:start */
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-primary: #0ea5e9;
+  --color-primary-dark: #0284c7;
+  --color-accent: #f59e0b;
+  --color-bg: #0f172a;
+  --color-bg-card: #1e293b;
+  --color-bg-card-hover: #334155;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  --color-border: #334155;
+}
+/* csslint ignore:end */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-bg text-text antialiased;
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-lg px-6 py-3 font-semibold
+           bg-primary text-white
+           hover:bg-primary-dark
+           transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-lg px-6 py-3 font-semibold
+           border border-border text-text
+           hover:bg-bg-card
+           transition-colors duration-200;
+  }
+
+  .card {
+    @apply rounded-xl border border-border bg-bg-card p-6;
+  }
+
+  .shiki {
+    @apply rounded-xl p-4;
+  }
+
+  .section-title {
+    @apply text-3xl font-bold tracking-tight text-white sm:text-4xl;
+  }
+
+  .section-subtitle {
+    @apply mt-3 text-lg text-text-muted;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    @apply bg-linear-to-r from-primary to-accent
+           bg-clip-text text-transparent;
+  }
+
+  .gradient-border {
+    border-image: linear-gradient(
+        to right,
+        var(--color-primary),
+        var(--color-accent)
+      )
+      1;
+  }
+}

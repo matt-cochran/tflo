@@ -1,0 +1,41 @@
+[package]
+name = "tflo-examples"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Canonical runnable examples for tflo articles and tutorials"
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+tflo-core = { workspace = true, features = ["full"] }
+tflo-fintech = { workspace = true }
+
+# Scripting filter adapters
+tflo-cel = { workspace = true }
+tflo-rhai = { workspace = true }
+tflo-rego = { workspace = true }
+
+# State-store backends
+tflo-state-files = { workspace = true }
+tflo-state-s3 = { workspace = true }
+
+# Scripting crate re-exports (needed to implement context traits)
+cel-interpreter = "0.8"
+rhai = "1.19"
+
+# S3 mock impl requires async_trait
+async-trait = "0.1"
+
+# Serialization (used by checkpointing example)
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Async runtime (used by async execution mode example)
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+
+[lints]
+workspace = true

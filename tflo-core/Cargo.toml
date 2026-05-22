@@ -1,0 +1,41 @@
+[package]
+name = "tflo-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Time-based streaming computation library with iterator adapters"
+license.workspace = true
+repository.workspace = true
+keywords = ["streaming", "time-series", "iterator", "temporal", "signal-processing"]
+categories = ["data-structures", "algorithms"]
+
+[features]
+default = []
+wasm = []
+async = ["dep:tokio", "dep:tokio-stream", "dep:futures", "dep:pin-project"]
+full = ["async"]
+
+[dependencies]
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Async support (optional)
+tokio = { workspace = true, optional = true }
+tokio-stream = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+pin-project = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+criterion = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio-stream = { workspace = true }
+csv = "1"
+thiserror = { workspace = true }
+
+[[bench]]
+name = "benchmarks"
+harness = false
+
+[lints]
+workspace = true

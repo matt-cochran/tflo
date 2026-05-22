@@ -1,0 +1,41 @@
+//! Full runnable example: tflo-examples/examples/docs-signals
+//! See tflo-core/src/comp/cross.rs for .cross_above() and .cross_under()
+use tflo_core::prelude::*;
+use tflo_fintech::prelude::*; // macd_n is a tflo-fintech indicator
+
+#[derive(Clone)]
+struct Tick {
+    ts: i64,
+    price: f64,
+}
+
+fn main() {
+    let ticks = vec![
+        Tick {
+            ts: 1000,
+            price: 100.0,
+        },
+        Tick {
+            ts: 2000,
+            price: 101.0,
+        },
+        Tick {
+            ts: 3000,
+            price: 99.0,
+        },
+    ];
+
+    let macd_signal = ticks
+        .into_iter()
+        .tflo(|t| {
+            t.timestamp(|x| x.ts);
+            let price = t.prop(|x| x.price);
+            let (macd, signal, _hist) = price.macd_n(12, 26, 9);
+            let bullish = macd.cross_above(&signal);
+            let bearish = macd.cross_under(&signal);
+            (macd, signal, bullish, bearish)
+        })
+        .collect::<Vec<_>>();
+
+    println!("{:?}", macd_signal);
+}

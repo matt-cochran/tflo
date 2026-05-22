@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "structureos": {
+      "command": "/home/mc/.cargo/bin/structureos-mcp",
+      "args": [],
+      "env": {
+        "STRUCTUREOS_WORKSPACE_ROOT": "/home/mc/working/tflo"
+      }
+    }
+  }
+}

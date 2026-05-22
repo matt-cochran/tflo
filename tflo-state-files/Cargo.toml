@@ -1,0 +1,19 @@
+[package]
+name = "tflo-state-files"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "File-based state store backend for tflo checkpoints"
+license.workspace = true
+repository.workspace = true
+keywords = ["state", "checkpoint", "filesystem"]
+categories = ["data-structures"]
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
+[lints]
+workspace = true

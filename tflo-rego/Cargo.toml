@@ -1,0 +1,23 @@
+[package]
+name = "tflo-rego"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "OPA/Rego policy engine integration for tflo"
+license.workspace = true
+repository.workspace = true
+keywords = ["rego", "opa", "policy", "streaming", "temporal"]
+categories = ["config", "parsing"]
+
+[dependencies]
+tflo-core = { workspace = true }
+regorus = "0.2"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_yaml = { workspace = true }
+
+[lints]
+workspace = true

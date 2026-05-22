@@ -1,0 +1,40 @@
+//! Full runnable example: tflo-examples/examples/docs-signals
+//! See tflo-core/src/comp/cross.rs for .cross(), .cross_above(), .cross_under()
+use tflo_core::prelude::*;
+
+#[derive(Clone)]
+struct Tick {
+    ts: i64,
+    price: f64,
+}
+
+fn main() {
+    let ticks = vec![
+        Tick {
+            ts: 1000,
+            price: 100.0,
+        },
+        Tick {
+            ts: 2000,
+            price: 101.0,
+        },
+        Tick {
+            ts: 3000,
+            price: 99.0,
+        },
+    ];
+
+    let overbought_signal = ticks
+        .into_iter()
+        .tflo(|t| {
+            t.timestamp(|x| x.ts);
+            let price = t.prop(|x| x.price);
+            let rsi = price.rsi(14usize);
+            let above = rsi.cross_above(&t.constant(70.0));
+            let below = rsi.cross_under(&t.constant(30.0));
+            (rsi, above, below)
+        })
+        .collect::<Vec<_>>();
+
+    println!("{:?}", overbought_signal);
+}

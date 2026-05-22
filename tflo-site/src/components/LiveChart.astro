@@ -1,0 +1,186 @@
+---
+import type { Tick, Band } from "../lib/wasm";
+
+export interface Props {
+  data: Tick[];
+  indicators?: {
+    sma?: (number | null)[];
+    rsi?: (number | null)[];
+    bollinger?: (Band | null)[];
+  };
+  width?: number;
+  height?: number;
+}
+
+const { data, indicators, width = 600, height = 300 } = Astro.props;
+---
+
+<div
+  class="live-chart"
+  data-props={JSON.stringify({ data, indicators, width, height })}
+  data-island="live-chart"
+>
+  <div class="chart-canvas">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      class="chart-svg"
+      role="img"
+      aria-label="Live streaming chart"
+    >
+      <!-- Price line -->
+      {data.length > 1 && (
+        <polyline
+          points={data
+            .map((t, i) => {
+              const x = (i / Math.max(data.length - 1, 1)) * width;
+              const y =
+                height -
+                ((t.value - 0) / 100) * height;
+              return `${x},${y}`;
+            })
+            .join(" ")}
+          fill="none"
+          stroke="var(--color-accent, #0066cc)"
+          stroke-width="2"
+        />
+      )}
+
+      <!-- SMA overlay -->
+      {indicators?.sma && indicators.sma.length > 1 && (
+        <polyline
+          points={indicators.sma
+            .map((v, i) => {
+              if (v === null) return "";
+              const x = (i / Math.max(indicators.sma!.length - 1, 1)) * width;
+              const y = height - ((v - 0) / 100) * height;
+              return `${x},${y}`;
+            })
+            .filter(Boolean)
+            .join(" ")}
+          fill="none"
+          stroke="#ff6b35"
+          stroke-width="1.5"
+          stroke-dasharray="4 2"
+        />
+      )}
+
+      <!-- Bollinger bands -->
+      {indicators?.bollinger &&
+        indicators.bollinger.length > 1 &&
+        (() => {
+          const bandPoints = indicators.bollinger
+            .map((b, i) => {
+              if (b === null) return "";
+              const x =
+                (i / Math.max(indicators.bollinger!.length - 1, 1)) * width;
+              const upper = height - ((b.upper - 0) / 100) * height;
+              const lower = height - ((b.lower - 0) / 100) * height;
+              return `${x},${upper} ${x},${lower}`;
+            })
+            .filter(Boolean);
+
+          return bandPoints.length > 0 ? (
+            <>
+              {indicators.bollinger.map((b, i) => {
+                if (b === null) return null;
+                const x =
+                  (i / Math.max(indicators.bollinger!.length - 1, 1)) * width;
+                const upper = height - ((b.upper - 0) / 100) * height;
+                const lower = height - ((b.lower - 0) / 100) * height;
+                return (
+                  <>
+                    <circle cx={x} cy={upper} r="1" fill="#4caf5050" />
+                    <circle cx={x} cy={lower} r="1" fill="#4caf5050" />
+                  </>
+                );
+              })}
+              <line
+                x1="0"
+                y1={bandPoints[0].split(" ")[0].split(",")[1]}
+                x2={width}
+                y2={bandPoints[bandPoints.length - 1].split(" ")[0].split(",")[1]}
+                stroke="#4caf5050"
+                stroke-width="1"
+              />
+            </>
+          ) : null;
+        })()}
+    </svg>
+  </div>
+
+  {data.length === 0 && (
+    <div class="chart-empty">
+      <p>No data yet — press <strong>Play</strong> to start.</p>
+    </div>
+  )}
+
+  <div class="chart-legend">
+    <span class="legend-item">
+      <span class="legend-swatch" style="background: var(--color-accent, #0066cc)"></span>
+      Price
+    </span>
+    {indicators?.sma && (
+      <span class="legend-item">
+        <span class="legend-swatch" style="background: #ff6b35"></span>
+        SMA
+      </span>
+    )}
+    {indicators?.bollinger && (
+      <span class="legend-item">
+        <span class="legend-swatch" style="background: #4caf5050; border: 1px solid #4caf50"></span>
+        Bollinger
+      </span>
+    )}
+  </div>
+</div>
+
+<style>
+  .live-chart {
+    background: var(--color-surface, #f5f5f5);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .chart-canvas {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chart-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-muted, #666);
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--color-border, #ddd);
+    font-size: 0.8rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .legend-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 3px;
+    border-radius: 1px;
+  }
+</style>

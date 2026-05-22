@@ -1,0 +1,155 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const cargoSingle = `[dependencies]
+# tflo is pre-1.0 and not yet on crates.io — depend on it via git.
+tflo-core = { git = "https://github.com/matt-cochran/tflo" }`;
+
+const cargoAsync = `[dependencies]
+tflo-core = { git = "https://github.com/matt-cochran/tflo", features = ["async"] }`;
+
+const firstSma = `//! Full runnable example: tflo-examples/examples/docs-quick-start
+use tflo_core::prelude::*;
+
+// A noisy domain event — e.g. a sensor reading or detection confidence.
+#[derive(Clone)]
+struct Reading {
+    ts: i64,
+    value: f64,
+}
+
+fn main() {
+    let readings = vec![
+        Reading { ts: 1000, value: 100.0 },
+        Reading { ts: 2000, value: 101.0 },
+        Reading { ts: 3000, value: 99.0 },
+        Reading { ts: 4000, value: 102.0 },
+        Reading { ts: 5000, value: 103.0 },
+    ];
+
+    let smoothed: Vec<f64> = readings.into_iter()
+        .tflo(|t| {
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.sma(3_u64.secs())
+        })
+        .collect();
+
+    println!("{:?}", smoothed);
+}`;
+
+const multiIndicators = `let results: Vec<(f64, f64)> = readings.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let value = t.prop(|x| x.value);
+        let sma = value.sma(3_u64.secs());
+        let ema = value.ema(3_u64.secs());
+        (sma, ema)
+    })
+    .collect();`;
+
+const enrichment = `let enriched: Vec<(Reading, f64)> = readings.into_iter()
+    .with(|t| {
+        t.timestamp(|x| x.ts);
+        let value = t.prop(|x| x.value);
+        value.sma(3_u64.secs())
+    })
+    .collect();`;
+
+const keyedExecution = `//! Full runnable example: tflo-examples/examples/docs-quick-start
+use tflo_core::prelude::*;
+
+// Events from many emitters — per-sensor, per-host, per-instrument.
+#[derive(Clone)]
+struct Reading {
+    source: String,
+    ts: i64,
+    value: f64,
+}
+
+let results: Vec<Result<_, TFloError>> = readings.into_iter()
+    .tflo_keyed(
+        |t| t.source.clone(),              // key function — partition by source
+        OutOfOrderPolicy::Error,            // fail on out-of-order timestamps
+        |t| {
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.sma(10_u64.secs())
+        },
+    )
+    .collect();
+
+// Each source gets independent window state.
+// See tflo-core/src/keyed.rs for the full API.`;
+---
+
+<DocsLayout title="Quick Start" description="Get started with tflo in 5 minutes.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Quick Start</h1>
+    <p class="text-lg text-text-muted mb-12">Get tflo running in your Rust project in under 5 minutes.</p>
+
+    <!-- Prerequisites -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Prerequisites</h2>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted">
+      <li>Rust 1.85+ (MSRV). Install with <a href="https://rustup.rs" class="text-primary hover:underline">rustup</a>.</li>
+      <li>An existing Rust project, or create one with <code class="text-primary bg-bg-card px-1 py-0.5 rounded text-sm">cargo new my-tflo-app</code>.</li>
+    </ul>
+
+    <!-- Installation -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Installation</h2>
+    <p class="text-text-muted mb-4">Add the core crate to your <code>Cargo.toml</code>:</p>
+    <CodeBlock code={cargoSingle} lang="toml" />
+
+    <p class="text-text-muted mb-4">For async stream support, add the <code>async</code> feature:</p>
+    <CodeBlock code={cargoAsync} lang="toml" />
+
+    <!-- First Computation -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Your First Computation</h2>
+    <p class="text-text-muted mb-4">
+      tflo turns any Rust <code>Iterator</code> of domain events into a streaming computation graph.
+      Here&rsquo;s a simple moving average that smooths a noisy stream:
+    </p>
+    <CodeBlock code={firstSma} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+    <p class="text-text-muted mb-4">What&rsquo;s happening here:</p>
+    <ol class="list-decimal pl-6 space-y-2 text-text-muted">
+      <li><code>.tflo(|t| &#123; ... &#125;)</code> builds a computation graph over your iterator.</li>
+      <li><code>t.timestamp(|x| x.ts)</code> tells tflo which field is the event timestamp.</li>
+      <li><code>t.prop(|x| x.value)</code> extracts the numeric property for computation.</li>
+      <li><code>value.sma(3_u64.secs())</code> computes a 3-second Simple Moving Average.</li>
+      <li>The output is a <code>Vec&lt;f64&gt;</code> &mdash; one value per input event.</li>
+    </ol>
+
+    <!-- Multiple Outputs -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Multiple Outputs</h2>
+    <p class="text-text-muted mb-4">
+      Want SMA and EMA simultaneously? Just compute both in the same graph:
+    </p>
+    <CodeBlock code={multiIndicators} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+    <!-- Enrichment Pattern -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Enrichment Pattern</h2>
+    <p class="text-text-muted mb-4">
+      Use <code>.with()</code> instead of <code>.tflo()</code> to keep the original event alongside computed values:
+    </p>
+    <CodeBlock code={enrichment} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+    <!-- Keyed Execution -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Keyed Execution (Per-Source)</h2>
+    <p class="text-text-muted mb-4">
+      When events arrive from many emitters &mdash; per sensor, per host, per instrument &mdash;
+      use <code>.tflo_keyed()</code> to give each key its own isolated state:
+    </p>
+    <CodeBlock code={keyedExecution} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+    <!-- Next Steps -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Next Steps</h2>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted">
+      <li>Read the <a href="/docs/concepts" class="text-primary hover:underline">Core Concepts</a> to understand the graph model.</li>
+      <li>Explore the available <a href="/docs/indicators" class="text-primary hover:underline">Operations &amp; Indicators</a>.</li>
+      <li>Learn about <a href="/docs/signals" class="text-primary hover:underline">Signal Detection</a>.</li>
+      <li>See the full <a href="/docs/architecture" class="text-primary hover:underline">Crate Architecture</a>.</li>
+    </ul>
+  </div>
+</DocsLayout>

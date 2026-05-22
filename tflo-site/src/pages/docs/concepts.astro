@@ -1,0 +1,159 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const timestampSnippet = `t.timestamp(|tick| tick.ts)`;
+
+const propSnippet = `let price = t.prop(|tick| tick.price)`;
+
+const keyedExecutionSnippet = `events.into_iter()
+    .tflo_keyed(
+        |e| e.source.clone(),              // partition by event source
+        OutOfOrderPolicy::Error,            // out-of-order handling policy
+        |t| {                               // computation per key
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.ema(20_u64.secs())
+        },
+    )
+// See tflo-core/src/keyed.rs for the full keyed execution API.`;
+
+const iteratorSnippet = `let results = my_data.into_iter()
+    .tflo(|t| { ... })
+    .collect::<Vec<_>>();`;
+
+const streamSnippet = `// Requires tflo-core with "async" feature: cargo add tflo-core --features async
+let results: Vec<f64> = my_stream
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let price = t.prop(|x| x.price);
+        price.sma(5_u64.secs())
+    })
+    .collect()
+    .await;
+// See tflo_core::r#async for the TFloStreamExt trait.`;
+---
+
+<DocsLayout title="Core Concepts" description="Understand the computation graph model behind tflo.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Core Concepts</h1>
+    <p class="text-lg text-text-muted mb-12">Understanding the computation graph model that powers tflo.</p>
+
+    <!-- Computation Graph -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">The Computation Graph</h2>
+    <p class="text-text-muted mb-4">
+      At the heart of tflo is a <strong class="text-white">declarative computation graph</strong>. Instead of
+      imperatively looping over data and manually tracking window state, you describe <em>what</em> to compute,
+      and tflo handles <em>how</em>.
+    </p>
+    <p class="text-text-muted mb-4">
+      The graph is built at runtime and compiled into an optimized execution plan. It manages:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted">
+      <li><strong class="text-white">Window state</strong> &mdash; ring buffers, running sums, etc.</li>
+      <li><strong class="text-white">Timestamp handling</strong> &mdash; duration-based windows vs. count-based.</li>
+      <li><strong class="text-white">Lazy evaluation</strong> &mdash; only compute what&rsquo;s needed for output.</li>
+    </ul>
+
+    <!-- Properties -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Properties &amp; Timestamps</h2>
+    <p class="text-text-muted mb-4">
+      Every computation graph starts with two fundamental declarations:
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Timestamp</h3>
+    <CodeBlock code={timestampSnippet} />
+    <p class="text-text-muted mb-4">
+      Timestamps are <code>i64</code> and must be monotonically non-decreasing for correct window behavior.
+      They&rsquo;re used to determine which values fall within a duration window.
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Properties</h3>
+    <CodeBlock code={propSnippet} />
+    <p class="text-text-muted mb-4">
+      Properties extract <code>f64</code> values from your input type. You can define as many properties as
+      you need, and each property has its own independent window state.
+    </p>
+
+    <!-- Window Kinds -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Window Kinds</h2>
+    <p class="text-text-muted mb-4">
+      tflo supports two windowing strategies:
+    </p>
+
+    <div class="overflow-x-auto rounded-xl border border-border mb-8">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Kind</th>
+            <th class="text-left p-4 font-semibold text-white">Syntax</th>
+            <th class="text-left p-4 font-semibold text-white">Behavior</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Duration</td>
+            <td class="p-4"><code class="text-primary">3_u64.secs()</code></td>
+            <td class="p-4">Keeps values within the last N seconds (by timestamp).</td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Count</td>
+            <td class="p-4"><code class="text-primary">3usize</code></td>
+            <td class="p-4">Keeps the last N data points (by position).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="text-text-muted mb-4">
+      Duration windows are ideal for time-series data where intervals may be irregular.
+      Count windows are simpler and faster when you just want "last N elements."
+    </p>
+
+    <!-- Keyed Execution -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Keyed Execution</h2>
+    <p class="text-text-muted mb-4">
+      When events arrive from many emitters &mdash; sensors, hosts, instruments, or any other
+      partition &mdash; tflo can split execution by key. Each key gets its own independent window state:
+    </p>
+    <CodeBlock code={keyedExecutionSnippet} src="tflo-examples/examples/docs-quick-start/main.rs" />
+    <p class="text-text-muted mb-4">
+      <strong>Full runnable example:</strong> <code>tflo-examples/examples/docs-quick-start</code>
+    </p>
+    <p class="text-text-muted mb-4">
+      Internally, tflo maintains a <code>HashMap&lt;Key, KeyedGraphState&gt;</code> and routes each
+      input record to the correct partition before computing.
+    </p>
+
+    <!-- Iterator vs Stream -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Iterator vs Stream</h2>
+    <p class="text-text-muted mb-4">
+      tflo works with both <code>Iterator</code> and <code>Stream</code> (via tflo-core's <code>async</code> feature):
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Iterator (synchronous)</h3>
+    <CodeBlock code={iteratorSnippet} src="tflo-examples/examples/docs-quick-start/main.rs" />
+    <p class="text-text-muted mb-4">
+      <strong>Full runnable example:</strong> <code>tflo-examples/examples/docs-quick-start</code>
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Stream (async)</h3>
+    <CodeBlock code={streamSnippet} src="tflo-examples/examples/docs-advanced/main.rs" />
+    <p class="text-text-muted mb-4">
+      <strong>Full runnable example (async):</strong> <code>tflo-examples/examples/docs-advanced</code>
+    </p>
+
+    <p class="text-text-muted mb-4">
+      The async adapter integrates with Tokio and supports backpressure. It&rsquo;s the backbone
+      for integrations like Kafka.
+    </p>
+
+    <!-- Next -->
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Next:</strong> Explore the available <a href="/docs/indicators" class="text-primary hover:underline">operations &amp; indicators</a> or
+        learn about <a href="/docs/signals" class="text-primary hover:underline">signal detection</a>.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

@@ -1,0 +1,64 @@
+//! # tflow-cel
+//!
+//! CEL (Common Expression Language) rule engine integration for tflow.
+//!
+//! This crate provides runtime-configurable filtering and routing using CEL
+//! expressions, allowing rules to be changed without recompilation.
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use tflo_cel::prelude::*;
+//! use cel_interpreter::Context;
+//!
+//! // Items must implement IntoCelContext to be filtered with CEL
+//! struct Detection {
+//!     power_dbm: f64,
+//!     snr_db: f64,
+//! }
+//!
+//! impl IntoCelContext for Detection {
+//!     fn into_cel_context(&self) -> Context<'static> {
+//!         let mut ctx = Context::default();
+//!         ctx.add_variable("power_dbm", self.power_dbm).unwrap();
+//!         ctx.add_variable("snr_db", self.snr_db).unwrap();
+//!         ctx
+//!     }
+//! }
+//!
+//! let detections = vec![
+//!     Detection { power_dbm: -70.0, snr_db: 15.0 },
+//!     Detection { power_dbm: -90.0, snr_db: 5.0 },
+//! ];
+//!
+//! // Simple filtering with CEL expressions
+//! let filtered: Vec<Detection> = detections.into_iter()
+//!     .cel_filter("snr_db > 10.0 && power_dbm > -80.0")
+//!     .collect();
+//!
+//! assert_eq!(filtered.len(), 1);
+//! ```
+
+#![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
+#![deny(unsafe_code)]
+
+pub mod config;
+pub mod context;
+pub mod error;
+pub mod filter;
+pub mod router;
+pub mod rule_engine;
+
+/// WebAssembly bridge (only compiled for wasm32 targets).
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
+/// Prelude for convenient imports
+pub mod prelude {
+    pub use crate::context::IntoCelContext;
+    pub use crate::error::{CelError, CelResult};
+    pub use crate::filter::CelFilterExt;
+    pub use crate::router::CelRouterExt;
+    pub use crate::rule_engine::{Action, CompiledRule, RuleEngine};
+}

@@ -1,0 +1,23 @@
+[package]
+name = "tflo-cel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "CEL (Common Expression Language) rule engine integration for tflo"
+license.workspace = true
+repository.workspace = true
+keywords = ["cel", "rules", "streaming", "temporal", "policy"]
+categories = ["config", "parsing"]
+
+[dependencies]
+tflo-core = { workspace = true }
+cel-interpreter = "0.8"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true

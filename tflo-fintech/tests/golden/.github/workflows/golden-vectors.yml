@@ -1,0 +1,43 @@
+name: Golden Vector Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'tflo-ta-strict/**'
+      - 'tflo-ta-golden/**'
+      - 'tflo-core/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'tflo-ta-strict/**'
+      - 'tflo-ta-golden/**'
+      - 'tflo-core/**'
+
+jobs:
+  test:
+    name: Validate Golden Vectors
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      
+      - name: Run Golden Vector Tests
+        run: |
+          cargo test --package tflo-ta-golden --lib -- --nocapture
+      
+      - name: Check Golden Vector Count
+        run: |
+          COUNT=$(find tflo-ta-golden/fixtures -name "*.json" -type f | wc -l)
+          echo "Found $COUNT golden vector files"
+          if [ $COUNT -lt 20 ]; then
+            echo "Warning: Expected at least 20 golden vectors, found $COUNT"
+            exit 1
+          fi
+

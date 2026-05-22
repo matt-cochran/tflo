@@ -1,0 +1,63 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import DemoChart from '../../components/DemoChart';
+---
+
+<DocsLayout title="Demos" description="Interactive demo gallery for tflo operations and detectors.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Demo Gallery</h1>
+    <p class="text-lg text-text-muted mb-12">Interactive visualizations of tflo operations and signal detectors.</p>
+
+    <!-- SMA -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">SMA — Simple Moving Average</h2>
+    <div class="card mb-12">
+      <p class="text-text-muted mb-4">20-period SMA on a sine wave feed.</p>
+      <DemoChart
+        dataKey="sma"
+        loop={true}
+        autoplay={true}
+        height={300}
+        client:load
+      />
+    </div>
+
+    <!-- RSI -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">RSI — Relative Strength Index</h2>
+    <div class="card mb-12">
+      <p class="text-text-muted mb-4">14-period RSI on a noisy trend feed.</p>
+      <DemoChart
+        dataKey="rsi"
+        loop={true}
+        autoplay={true}
+        height={300}
+        client:load
+      />
+    </div>
+
+    <!-- Bollinger Bands -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Bollinger Bands</h2>
+    <div class="card mb-12">
+      <p class="text-text-muted mb-4">20-period Bollinger Bands with 2σ multiplier on a sine wave.</p>
+      <DemoChart
+        dataKey="bollinger"
+        loop={true}
+        autoplay={true}
+        height={300}
+        client:load
+      />
+    </div>
+
+    <!-- Cross Detection -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Cross Detection</h2>
+    <div class="card mb-12">
+      <p class="text-text-muted mb-4">Threshold crossing at 70 on a step function feed.</p>
+      <DemoChart
+        dataKey="cross"
+        loop={true}
+        autoplay={true}
+        height={300}
+        client:load
+      />
+    </div>
+  </div>
+</DocsLayout>

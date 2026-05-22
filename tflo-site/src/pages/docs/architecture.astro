@@ -1,0 +1,144 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const architectureDiagram = `<span class="text-text-muted">┌──────────────────────────────────────────────────────────┐</span>
+<span class="text-text-muted">│</span>                   <span class="text-accent">Integration Layer</span>                      <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>  tflo-connect-kafka   tflo-cel   tflo-rhai   tflo-rego   <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                   <span class="text-accent">Persistence Layer</span>                      <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>          tflo-state-files     tflo-state-s3              <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                   <span class="text-accent">Domain Plugin Layer</span>                    <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>          tflo-fintech (financial TA indicators)         <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                   <span class="text-accent">Core Layer</span>                             <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>  tflo-core (temporal event processing engine: graph,    <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>  windowing, statistics, signal detectors, keyed exec)   <span class="text-text-muted">│</span>
+<span class="text-text-muted">└──────────────────────────────────────────────────────────┘</span>`;
+
+const cargoAddCommands = `# Minimal: just the temporal event processing engine
+cargo add tflo-core
+
+# Add the financial technical-analysis plugin
+cargo add tflo-core tflo-fintech
+
+# Engine plus async stream support
+cargo add tflo-core --features async`;
+---
+
+<DocsLayout title="Crate Architecture" description="How the 10 tflo workspace crates fit together.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Crate Architecture</h1>
+    <p class="text-lg text-text-muted mb-12">How the 10 workspace crates compose into a temporal event processing platform: a generic temporal event processing core plus domain plugins, persistence, scripting, and connectors. tflo is experimental and pre-1.0 — not yet published to crates.io.</p>
+
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Dependency Graph</h2>
+    <p class="text-text-muted mb-6">
+      tflo follows a layered architecture where higher-level crates build on lower-level ones:
+    </p>
+
+    <div class="mb-12">
+      <CodeBlock code={architectureDiagram} lang="html" />
+    </div>
+
+    <!-- Core Layer -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Core Layer</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-core</h3>
+        <p class="text-sm text-text-muted mb-3">
+          The temporal event processing engine. Provides the <code>.tflo()</code> and <code>.with()</code>
+          iterator adapters, property extraction, windowing primitives, keyed execution, and
+          the compiled graph runtime. Includes core operations (<code>tflo-core/src/comp/</code>) —
+          moving averages, streaming statistics, derivatives — and signal detection
+          (<code>tflo-core/src/primitives/</code>). Async support via <code>--features async</code>.
+        </p>
+        <p class="text-xs text-text-muted">
+          <code>cargo add tflo-core</code>
+        </p>
+      </div>
+    </div>
+
+    <!-- Domain Plugin Layer -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Domain Plugin Layer</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-fintech</h3>
+        <p class="text-sm text-text-muted mb-3">
+          Financial technical-analysis indicators (MACD, ADX, ATR, KAMA, Stochastic, CCI, …)
+          as a <code>tflo-core</code> plugin. Finance is one domain among many — it lives in its
+          own crate rather than the generic temporal event processing core. Brings the <code>FintechIndicators</code>
+          and <code>FintechAliases</code> traits into scope via <code>tflo_fintech::prelude</code>.
+        </p>
+        <p class="text-xs text-text-muted">
+          <code>cargo add tflo-fintech</code>
+        </p>
+      </div>
+    </div>
+
+    <!-- Persistence Layer -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Persistence Layer</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-state-files</h3>
+        <p class="text-sm text-text-muted">File-based checkpoint store. Serializes window state to local files for crash recovery.</p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-state-s3</h3>
+        <p class="text-sm text-text-muted">S3-compatible checkpoint store. Persist and restore window state from any S3-compatible object store.</p>
+      </div>
+    </div>
+
+    <!-- Integration Layer -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Integration Layer</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-connect-kafka</h3>
+        <p class="text-sm text-text-muted">Kafka integration adapter. Ingest events from topics and publish computed results back.</p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-cel</h3>
+        <p class="text-sm text-text-muted">Common Expression Language integration. Define custom rules and expressions at runtime.</p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-rhai</h3>
+        <p class="text-sm text-text-muted">Rhai scripting integration. Embed Rhai scripts for flexible, user-defined computation.</p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-rego</h3>
+        <p class="text-sm text-text-muted">OPA/Rego policy engine integration. Define policy rules in Rego for compliance and governance.</p>
+      </div>
+    </div>
+
+    <!-- Tooling -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Tooling &amp; Examples</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-wasm</h3>
+        <p class="text-sm text-text-muted">WebAssembly bindings. Run tflo computations in the browser via <code>wasm-bindgen</code> — see the <a href="/docs/wasm" class="text-primary hover:underline">WebAssembly</a> page.</p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">tflo-examples</h3>
+        <p class="text-sm text-text-muted">Runnable examples backing the docs and blog. Not a library — a reference for end-to-end usage patterns.</p>
+      </div>
+    </div>
+
+    <!-- Adding a Crate -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Adding Crates to Your Project</h2>
+    <p class="text-text-muted mb-4">
+      Pick the crates you need — you don&rsquo;t have to pull in everything:
+    </p>
+    <CodeBlock code={cargoAddCommands} lang="shell" />
+
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Next:</strong> Explore <a href="/docs/advanced" class="text-primary hover:underline">Advanced Topics</a> including checkpointing, async, and scripting.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

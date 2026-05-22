@@ -1,0 +1,120 @@
+[workspace]
+resolver = "2"
+members = [
+    "tflo-core",
+    "tflo-fintech",
+    "tflo-cel",
+    "tflo-rego",
+    "tflo-rhai",
+    "tflo-state-files",
+    "tflo-state-s3",
+    "tflo-connect-kafka",
+    "tflo-examples",
+    "tflo-wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Matt Cochran"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/matt-cochran/tflo"
+
+[workspace.dependencies]
+# Internal crates
+tflo-core = { path = "tflo-core" }
+tflo-fintech = { path = "tflo-fintech" }
+tflo-cel = { path = "tflo-cel" }
+tflo-rhai = { path = "tflo-rhai" }
+tflo-rego = { path = "tflo-rego" }
+tflo-state-files = { path = "tflo-state-files" }
+tflo-state-s3 = { path = "tflo-state-s3" }
+tflo-connect-kafka = { path = "tflo-connect-kafka" }
+
+# Async runtime
+tokio = { version = "1.41", default-features = false }
+tokio-stream = { version = "0.1" }
+futures = { version = "0.3" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+serde_yaml = "0.9"
+
+# Utilities (used by >=2 crates)
+pin-project = "1.1"
+hex = "0.4"
+thiserror = "1.0"
+
+# Dev-only (used by >=2 crates as dev-dependency)
+proptest = "1.4"
+criterion = "0.5"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+# ── Build Profiles ─────────────────────────────────────────────────────
+#
+# Philosophy:
+#   dev:    Fast iteration. Full debug info for workspace crates,
+#           minimal debug info for dependencies.
+#   release: Conservative optimizations. Thin LTO for runtime perf
+#            without excessive compile times. Line tables for backtraces.
+#   ci:     Like dev but disables incremental (sccache caches better).
+#           Use in CI: cargo build --profile ci
+
+[profile.dev]
+opt-level = 0
+debug = 1                       # line tables for dependencies (baseline)
+incremental = true
+codegen-units = 256             # max parallelism, fastest recompilation
+lto = false
+overflow-checks = true
+
+# Dependencies: minimal debug info (line tables only)
+[profile.dev.package."*"]
+debug = "line-tables-only"
+
+# Local workspace crates: full debug symbols for LLDB/GDB usability
+[profile.dev.package.tflo-core]
+debug = 2
+
+[profile.dev.package.tflo-fintech]
+debug = 2
+
+[profile.dev.package.tflo-cel]
+debug = 2
+
+[profile.dev.package.tflo-rego]
+debug = 2
+
+[profile.dev.package.tflo-rhai]
+debug = 2
+
+[profile.dev.package.tflo-state-files]
+debug = 2
+
+[profile.dev.package.tflo-state-s3]
+debug = 2
+
+[profile.dev.package.tflo-connect-kafka]
+debug = 2
+
+[profile.release]
+opt-level = 3
+debug = "line-tables-only"      # backtraces without full debuginfo bloat
+incremental = false
+codegen-units = 16              # moderate parallelism for decent optimization
+lto = "thin"                    # cross-crate inlining, acceptable compile time
+overflow-checks = false
+strip = "none"                  # keep symbols for profiling; use "symbols" in CI
+
+[profile.ci]
+inherits = "dev"
+incremental = false             # sccache caches better without incremental artifacts
+codegen-units = 256

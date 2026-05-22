@@ -1,0 +1,142 @@
+---
+title: A deviation band isn't a function. It's a pattern.
+description: A rolling deviation band — Bollinger Bands, in the finance domain — looks like a single indicator. It's not. It's a moving average plus standard deviation, composed together. tflo lets you build it that way.
+pubDate: 2025-04-09
+tags: ["operators", "deviation-band", "outlier-detection", "composition"]
+---
+
+A rolling deviation band looks like a single indicator. It's not. It's a moving average plus standard deviation, composed together. tflo lets you build it that way.
+
+Finance traders know this pattern as **Bollinger Bands** — and that's the example we'll use here, because it's the most familiar one. But the band is domain-neutral: it's the textbook rolling outlier test. "Is this value more than `k` standard deviations from its recent mean?" works equally well on RF spectrum power, request latency, or a sensor reading. Finance is just one domain that happens to have a name for it.
+
+Most libraries give you a monolithic `bbands()` function. Pass in data, get back three bands. Works fine until you want to tweak it — use EMA instead of SMA, change the multiplier per band, add a fourth output. Then you're stuck.
+
+tflo takes the other approach. The band isn't a built-in. It's a pattern you compose from primitives.
+
+## The math is three lines
+
+Middle = SMA(20). Upper = middle + 2 × StdDev(20). Lower = middle − 2 × StdDev(20).
+
+```rust
+use tflo_core::prelude::*;
+
+let middle = signal.sma(20usize);
+let std = signal.std(20usize);
+let upper = &middle + &std * 2.0;
+let lower = &middle - &std * 2.0;
+```
+
+That's the entire band. `*` and `+` and `-` between `Comp` handles — each one adds a node to the graph. No special API, no macro, no magic.
+
+tflo-core also ships a convenience method, `deviation_band`, if you want the standard version in one call:
+
+```rust
+let (middle, upper, lower) = signal.deviation_band(20usize, 2.0);
+```
+
+Same thing. The convenience method is literally composed from the same primitives internally:
+
+```rust
+pub fn deviation_band(&self, window: impl Into<Window>, k: f64) -> (Comp<R>, Comp<R>, Comp<R>) {
+    let w: Window = window.into();
+    let middle = self.sma(w);
+    let std = self.std(w);
+    let band_width = &std * k;
+    let upper = &middle + &band_width;
+    let lower = &middle - &band_width;
+    (middle, upper, lower)
+}
+```
+
+[Source](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/dual_use.rs). It's the same three lines.
+
+If you're working in a finance-flavored codebase and want the traditional name, the `tflo-fintech` crate re-exports `deviation_band` as `bollinger_bands` through its `FintechAliases` trait:
+
+```rust
+use tflo_core::prelude::*;
+use tflo_fintech::prelude::*;
+
+let (middle, upper, lower) = price.bollinger_bands(20usize, 2.0);
+```
+
+It calls straight through to `deviation_band` — same graph, finance vocabulary.
+
+## The composed version is the real API
+
+The convenience method is fine for the standard case. But the composed version is where things get interesting, because you can change anything.
+
+Want the middle band to be an EMA instead of SMA?
+
+```rust
+let middle = signal.ema(20usize);
+let std = signal.std(20usize);
+let upper = &middle + &std * 2.0;
+let lower = &middle - &std * 2.0;
+```
+
+One character changed — `sma` to `ema`. The rest stays the same. No library in the world has a `deviation_band_with_ema_middle()` function. But you don't need one. You just compose.
+
+Want 3σ bands instead of 2σ?
+
+```rust
+let upper = &middle + &std * 3.0;
+let lower = &middle - &std * 3.0;
+```
+
+## Zip them into a single output
+
+When you return a tuple from the `.tflo()` closure, the graph automatically combines them:
+
+```rust
+let results: Vec<(f64, f64, f64)> = readings
+    .into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let signal = t.prop(|x| x.value);
+        let middle = signal.sma(20usize);
+        let std = signal.std(20usize);
+        let upper = &middle + &std * 2.0;
+        let lower = &middle - &std * 2.0;
+        (middle, upper, lower)
+    })
+    .collect();
+```
+
+Each element of the result is `(middle, upper, lower)` at that timestamp.
+
+If you're working with graphs directly rather than the iterator API, `zip()` does the same thing — it combines two `CompiledGraph`s into one that outputs tuples:
+
+```rust
+let bands = middle_graph.zip(upper_graph).zip(lower_graph);
+```
+
+## Squeeze detection in one line
+
+A "squeeze" — when the bands contract below a threshold — means the signal has gone quiet, and a quiet signal often precedes a sharp move. (Finance calls this a Bollinger squeeze; an IoT pipeline would call it "low variance before a fault.") You can detect it with a single comparison:
+
+```rust
+let squeeze = (&upper - &lower).lt(&threshold);
+```
+
+`.lt()` returns 1.0 when the band width is below the threshold, 0.0 otherwise. That's a streaming boolean you can feed into a detector or an alert.
+
+## What about edge cases?
+
+All three bands share the same warmup. They all appear simultaneously at tick 20. Before that, `step()` returns `None` — no output, not NaN. The graph's `min_warmup` is the max across all windowed operators (both SMA and StdDev need 20).
+
+If a sample comes in as `NaN`, it propagates through every arithmetic node. All three bands go `NaN` on that tick. The graph handles this automatically — `NaN` in, `NaN` out.
+
+This uniform warmup is a feature, not a bug. When you have a composed band, every piece warms up at the same time. No half-baked outputs.
+
+## The takeaway
+
+A deviation band isn't a function. It's a pattern — moving average plus standard deviation, scaled and combined. The graph lets you compose the pattern yourself, tweak any piece, add new pieces. The convenience method is just a shortcut for the common case.
+
+Next time you reach for an operator, ask yourself: is this a built-in, or is it a composition of simpler things? In tflo, the answer is almost always the latter. And that's the point.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/bollinger-bands`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/bollinger-bands)
+
+*— Matt*

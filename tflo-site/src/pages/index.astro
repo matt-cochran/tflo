@@ -1,0 +1,306 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+
+const codeExample = `<span class="text-text-muted">use tflo_core::prelude::*;</span>
+
+<span class="text-text-muted">// A noisy domain event — e.g. a sensor or detector reading</span>
+<span class="text-text-muted">#[derive(Clone)]
+struct Reading { ts: i64, level: f64 }</span>
+
+<span class="text-text-muted">let readings = vec![
+    Reading { ts: 1000, level: 100.0 },
+    Reading { ts: 2000, level: 101.0 },
+];</span>
+
+<span class="text-text-muted">// Smooth the stream with a time-based moving average</span>
+<span class="text-primary">let smoothed: Vec&lt;f64&gt;</span> = readings.into_iter()
+    .<span class="text-accent">tflo</span>(|t| {
+        t.timestamp(|x| x.ts);
+        <span class="text-accent">let level = t.prop(|x| x.level);</span>
+        level.sma(2_u64.secs())
+    })
+    .collect();`;
+---
+
+<BaseLayout>
+  <!-- Hero -->
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0 bg-linear-to-br from-primary/10 via-transparent to-accent/10" />
+    <div class="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-24 sm:py-36">
+      <div class="text-center max-w-3xl mx-auto">
+        <div class="inline-flex items-center gap-2 rounded-full border border-border bg-bg-card px-4 py-1.5 text-sm text-text-muted mb-8">
+          <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+          Experimental &middot; pre-1.0
+        </div>
+        <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-tight">
+          A
+          <span class="gradient-text">Temporal Event Processing</span>
+          Engine
+        </h1>
+        <p class="mt-6 text-lg sm:text-xl text-text-muted max-w-2xl mx-auto leading-relaxed">
+          tflo &mdash; short for &ldquo;temporal flow&rdquo; &mdash; turns noisy domain events into clean
+          lifecycle events: <em>appeared</em>, <em>persisted</em>, <em>changed</em>,
+          <em>dropped out</em>, <em>crossed a threshold</em>. Composable computation graphs over
+          iterators and streams, with first-class keyed execution, checkpoint/restore, and observability.
+        </p>
+        <p class="mt-3 text-md text-primary/80 max-w-2xl mx-auto leading-relaxed font-medium">
+          Model your domain events; layer streaming temporal analysis on top.
+        </p>
+        <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a href="/docs/quick-start" class="btn-primary text-base px-8 py-3.5">
+            Get Started
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4l4 4-4 4"/></svg>
+          </a>
+          <a href="#features" class="btn-secondary text-base px-8 py-3.5">
+            Features
+          </a>
+          <a href="/use-cases" class="btn-secondary text-base px-8 py-3.5">
+            Use Cases
+          </a>
+          <a href="https://github.com/matt-cochran/tflo" target="_blank" rel="noopener" class="btn-secondary text-base px-8 py-3.5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture ASCII -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
+    <div class="card flex justify-center overflow-x-auto">
+      <pre class="text-xs text-center sm:text-sm text-text-muted leading-relaxed font-mono whitespace-pre">
+<span class="text-primary">+--------------------------------------------------+</span>
+<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
+<span class="text-primary">|</span>   Noisy Events --&gt; tflo() --&gt; Keyed Execution    <span class="text-primary">|</span>
+<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">|</span>  sma <span class="text-accent">|</span> ema <span class="text-accent">|</span> std <span class="text-accent">|</span> rate <span class="text-accent">|</span>  Streaming     <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">|</span>  deviation_band   <span class="text-accent">|</span> ..   <span class="text-accent">|</span>  Analysis      <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">|</span>  peak_decline <span class="text-accent">|</span> momentum <span class="text-accent">|</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">|</span>  Cross <span class="text-accent">|</span> Hysteresis     <span class="text-accent">|</span>  Detectors     <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">|</span>  Glitch <span class="text-accent">|</span> Pulse <span class="text-accent">|</span> Runt  <span class="text-accent">|</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">|</span>  Window <span class="text-accent">|</span> Pulse-Width   <span class="text-accent">|</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
+<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
+<span class="text-primary">|</span>  Lifecycle Events &lt;-- CompiledGraph &lt;-- Checkpoint<span class="text-primary">|</span>
+<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
+<span class="text-primary">+--------------------------------------------------+</span>
+      </pre>
+    </div>
+  </section>
+
+  <!-- Feature Matrix -->
+  <section id="features" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
+    <div class="text-center mb-14">
+      <h2 class="section-title">Why tflo?</h2>
+      <p class="section-subtitle">Built from the ground up for real-time streaming workloads.</p>
+    </div>
+
+    <div class="overflow-x-auto rounded-xl border border-border">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Capability</th>
+            <th class="text-center p-4 font-semibold"><span class="gradient-text">tflo</span></th>
+            <th class="text-center p-4 font-semibold text-text-muted">Hand-rolled state</th>
+            <th class="text-center p-4 font-semibold text-text-muted">Batch jobs / SQL</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Streaming-first &mdash; no full history in memory</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717; (batch)</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Keyed execution &mdash; independent state per entity</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Checkpoint/restore</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Lifecycle events (appeared / persisted / dropped out)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Iterator + Stream adapters</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Async-native</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Event detectors (cross, hysteresis, glitch, runt, pulse)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Functional graph primitives (map/scan/filter closures)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">CEL/Rhai/Rego policy filters</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Time-based windows on irregular data</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Enrichment pipeline (keep original records)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Stream combinators (merge, join, batch, dedupe)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Domain plugins (e.g. tflo-fintech indicators)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4">Signal conditioning (DC removal, normalization)</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2717;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Feature Highlights -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 border-t border-border">
+    <div class="text-center mb-14">
+      <h2 class="section-title">Everything you need</h2>
+      <p class="section-subtitle">A complete toolkit for turning noisy events into clean lifecycle events.</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <FeatureCard title="Streaming-First" icon="&#x26A1;">
+        Built on Rust's <code>Iterator</code> and <code>Stream</code> traits. Every node works
+        on live data without accumulating the full history in memory.
+      </FeatureCard>
+      <FeatureCard title="Keyed Execution" icon="&#x1F511;">
+        Process every entity &mdash; signal, device, host, source IP &mdash; independently.
+        Each key gets its own window state, perfect for per-entity tracking.
+      </FeatureCard>
+      <FeatureCard title="Checkpoint and Restore" icon="&#x1F4BE;">
+        Persist window state to files or S3 via <code>tflo-state-files</code> and
+        <code>tflo-state-s3</code>. Crash recovery and fast restart without
+        recomputing from the beginning of time.
+      </FeatureCard>
+      <FeatureCard title="Lifecycle Events" icon="&#x1F4CA;">
+        The core pattern: noisy domain events in, clean lifecycle events out &mdash;
+        appeared, persisted, changed, dropped out, crossed a threshold.
+      </FeatureCard>
+      <FeatureCard title="Event Detectors" icon="&#x1F3AF;">
+        Cross, hysteresis, glitch, runt, pulse, pulse-width, and window detectors.
+        Composable primitives for building custom alerting logic.
+      </FeatureCard>
+      <FeatureCard title="Custom Runtime Nodes" icon="&#x1F9E9;">
+        Drop in your own logic with the <code>CustomNode</code> trait via
+        <code>Comp::custom_node</code> &mdash; first-class alongside the built-ins.
+      </FeatureCard>
+      <FeatureCard title="Policy Filters" icon="&#x1F527;">
+        Express filter and alert rules in CEL, Rhai, or Rego via <code>tflo-cel</code>,
+        <code>tflo-rhai</code>, and <code>tflo-rego</code>. Update a policy without recompiling.
+      </FeatureCard>
+      <FeatureCard title="Async Native" icon="&#x1F504;">
+        First-class <code>Stream</code> adapters with Tokio. Integrate directly
+        into async pipelines with backpressure support.
+      </FeatureCard>
+      <FeatureCard title="Kafka Integration" icon="&#x1F4E1;">
+        Connect directly to Kafka topics with <code>tflo-connect-kafka</code>.
+        Ingest events and publish results with built-in serde support.
+      </FeatureCard>
+      <FeatureCard title="Irregular Data, No Resampling" icon="&#x23F0;">
+        Time-based windows work on naturally sparse data &mdash; detector hits, sensor
+        readings, or events with irregular intervals. No padding, interpolation,
+        or normalized time series required. Just timestamps and values.
+      </FeatureCard>
+      <FeatureCard title="Domain Plugins" icon="&#x1F4E6;">
+        The temporal event processing engine lives in <code>tflo-core</code>; domain logic plugs in on top.
+        <code>tflo-fintech</code> ships financial TA indicators &mdash; one domain among
+        RF, observability, fraud, and IoT.
+      </FeatureCard>
+      <FeatureCard title="Stream Composition" icon="&#x1F500;">
+        Merge multiple streams by timestamp, window-join two streams, batch
+        by time windows, deduplicate by key, rate-limit output, or partition
+        with predicates. Stream-processing framework features in a library.
+      </FeatureCard>
+      <FeatureCard title="Signal Conditioning" icon="&#x1F4A1;">
+        Preprocess raw signals before analysis: DC removal, drifting baseline
+        correction, range normalization, z-score standardization, and
+        gain/offset calibration. Built for sensor and RF pipelines.
+      </FeatureCard>
+    </div>
+  </section>
+
+  <!-- Quick Start Preview -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 border-t border-border">
+    <div class="text-center mb-10">
+      <h2 class="section-title">Start in 5 lines</h2>
+      <p class="section-subtitle">A declarative computation graph over any iterator or stream of events.</p>
+    </div>
+    <div class="card max-w-2xl mx-auto overflow-x-auto">
+      <pre class="text-sm text-text leading-relaxed font-mono"><Fragment set:html={codeExample} /></pre>
+    </div>
+    <div class="text-center mt-8">
+      <a href="/docs/quick-start" class="btn-primary">
+        Full Quick Start Guide
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4l4 4-4 4"/></svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 border-t border-border">
+    <div class="card text-center py-16 relative overflow-hidden">
+      <div class="absolute inset-0 bg-linear-to-br from-primary/5 to-accent/5" />
+      <div class="relative">
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-white">Ready to model your events?</h2>
+        <p class="mt-4 text-lg text-text-muted max-w-lg mx-auto">
+          Add <code>tflo-core</code> to your <code>Cargo.toml</code> and start building
+          real-time event-processing pipelines today.
+        </p>
+        <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <a href="/docs/quick-start" class="btn-primary text-lg px-10 py-4">Get Started</a>
+          <a href="/playground" class="btn-accent text-lg px-10 py-4">Try the Playground</a>
+          <a href="/docs" class="btn-secondary text-lg px-10 py-4">Browse Docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

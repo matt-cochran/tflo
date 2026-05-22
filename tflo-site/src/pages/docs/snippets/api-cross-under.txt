@@ -1,0 +1,3 @@
+//! API: fn cross_under<R: IntoComp>(&self, other: &Comp<R>) -> Comp<ThresholdCrossEventMode>
+let oversold = rsi.cross_under(&t.constant(30.0));
+// Comp<ThresholdCrossEventMode> - Falling when RSI enters oversold

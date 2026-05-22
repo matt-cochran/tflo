@@ -1,0 +1,537 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PlaygroundChart from "../components/PlaygroundChart.tsx";
+---
+
+<BaseLayout title="Playground">
+  <slot name="head">
+    <script>
+      // Lazy-initialize the wasm module on page load
+      (async () => {
+        try {
+          const { initWasm } = await import("../lib/wasm");
+          await initWasm();
+          console.log("[tflo] wasm module loaded");
+        } catch (err) {
+          console.error("[tflo] wasm init failed:", err);
+        }
+      })();
+    </script>
+  </slot>
+
+  <div class="playground-container">
+    <header class="playground-header">
+      <h1>Interactive Playground</h1>
+      <p class="subtitle">
+        Generate a synthetic event stream, run streaming analysis in-browser via
+        the <code>tflo-wasm</code> bindings, and watch lifecycle events fire in real time.
+      </p>
+    </header>
+
+    <div class="playground-layout">
+      <!-- Left column: controls -->
+      <aside class="controls-panel">
+        <section class="control-section" id="feed-section">
+          <h2>Data Feed</h2>
+          <div id="feed-selector">
+            <label for="feed-type">Signal type</label>
+            <select id="feed-type">
+              <option value="sine">Sine wave</option>
+              <option value="step">Step function</option>
+              <option value="noisy" selected>Noisy trend</option>
+              <option value="sawtooth">Sawtooth</option>
+            </select>
+          </div>
+          <div class="playback-controls">
+            <button id="btn-play" class="btn btn-primary" aria-label="Play/Pause">
+              ▶ Play
+            </button>
+            <button id="btn-reset" class="btn btn-secondary" aria-label="Reset">
+              ⟲ Reset
+            </button>
+            <div class="speed-control">
+              <label for="speed-slider">Speed: <span id="speed-label">1x</span></label>
+              <input
+                type="range"
+                id="speed-slider"
+                min="1"
+                max="100"
+                value="1"
+                step="1"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="control-section" id="indicator-section">
+          <h2>Indicators</h2>
+
+          <div class="indicator-row">
+            <label>
+              <input type="checkbox" id="chk-sma" />
+              SMA period
+            </label>
+            <input type="number" id="sma-period" value="20" min="2" max="200" disabled />
+          </div>
+
+          <div class="indicator-row">
+            <label>
+              <input type="checkbox" id="chk-rsi" />
+              RSI period
+            </label>
+            <input type="number" id="rsi-period" value="14" min="2" max="200" disabled />
+          </div>
+
+          <div class="indicator-row">
+            <label>
+              <input type="checkbox" id="chk-bollinger" />
+              Bollinger
+            </label>
+            <div class="inline-group">
+              <input type="number" id="boll-period" value="20" min="2" max="200" disabled />
+              <input type="number" id="boll-k" value="2" min="0.5" max="5" step="0.1" disabled />
+            </div>
+          </div>
+
+          <div class="indicator-row">
+            <label>
+              <input type="checkbox" id="chk-cross" />
+              Cross threshold
+            </label>
+            <input type="number" id="cross-threshold" value="70" min="0" max="100" disabled />
+          </div>
+        </section>
+
+        <section class="control-section" id="cel-section">
+          <h2>CEL Rules</h2>
+          <div class="cel-editor">
+            <label for="cel-rules">Rules (JSON)</label>
+            <textarea id="cel-rules" rows="6" placeholder='[{"name": "high", "condition": "value > 80", "action": {"type": "alert"}}]' data-default='[{"name": "high", "condition": "value > 80", "action": {"type": "alert"}}, {"name": "low", "condition": "value < 20", "action": {"type": "log"}}]'></textarea>
+            <button id="btn-cel-apply" class="btn btn-secondary" disabled title="Wasm init required">Apply Rules</button>
+          </div>
+          <div id="cel-results" class="cel-results">
+            <p class="muted">No rules evaluated yet.</p>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Right column: chart -->
+      <main class="chart-area">
+        <div id="chart-container">
+          <PlaygroundChart client:load />
+        </div>
+
+        <div id="event-log" class="event-log">
+          <h3>Crossing Events</h3>
+          <div id="event-list">
+            <p class="muted">No events yet.</p>
+          </div>
+        </div>
+
+        <div id="cel-log" class="event-log">
+          <h3>CEL Rule Matches</h3>
+          <div id="cel-list">
+            <p class="muted">No CEL rules evaluated yet.</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .playground-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  .playground-header {
+    margin-bottom: 2rem;
+  }
+
+  .playground-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    color: var(--color-muted, #666);
+    max-width: 600px;
+  }
+
+  .playground-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 1.5rem;
+    min-height: 60vh;
+  }
+
+  @media (max-width: 768px) {
+    .playground-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .controls-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .control-section {
+    background: var(--color-surface, #f5f5f5);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .control-section h2 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+  }
+
+  .control-section label {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  select, input[type="number"] {
+    width: 100%;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--color-border, #ccc);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+  }
+
+  .playback-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    align-items: center;
+  }
+
+  .btn {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .btn-primary {
+    background: var(--color-accent, #0066cc);
+    color: white;
+  }
+
+  .btn-secondary {
+    background: var(--color-surface-alt, #e0e0e0);
+    color: inherit;
+  }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+  }
+
+  .speed-control input[type="range"] {
+    width: 80px;
+  }
+
+  .indicator-row {
+    margin-bottom: 0.6rem;
+    padding: 0.4rem;
+    border-radius: 4px;
+  }
+
+  .indicator-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+
+  .indicator-row input[type="checkbox"] {
+    accent-color: var(--color-accent, #0066cc);
+  }
+
+  .inline-group {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .inline-group input {
+    width: auto;
+    flex: 1;
+  }
+
+  .chart-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  #chart-container {
+    background: var(--color-surface, #f5f5f5);
+    border-radius: 8px;
+    min-height: 400px;
+    overflow: hidden;
+  }
+
+  .event-log {
+    background: var(--color-surface, #f5f5f5);
+    border-radius: 8px;
+    padding: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .event-log h3 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .muted {
+    color: var(--color-muted, #666);
+    font-size: 0.85rem;
+  }
+</style>
+
+<script>
+  // ── Playground controller script ────────────────────────────────────
+  import type {
+    PlaygroundState,
+    FeedGenerator,
+  } from "../lib/engine";
+  import { LiveFeedEngine, createEngine, getEngine } from "../lib/engine";
+  import {
+    sineWave,
+    stepFunction,
+    noisyTrend,
+    sawtooth,
+  } from "../lib/feeds";
+  import { evaluateCelRules } from "../lib/wasm";
+  import type { CelRuleItem } from "../lib/wasm";
+
+  // DOM refs
+  const feedSelect = document.getElementById("feed-type") as HTMLSelectElement;
+  const btnPlay = document.getElementById("btn-play") as HTMLButtonElement;
+  const btnReset = document.getElementById("btn-reset") as HTMLButtonElement;
+  const speedSlider = document.getElementById("speed-slider") as HTMLInputElement;
+  const speedLabel = document.getElementById("speed-label") as HTMLSpanElement;
+
+  const chkSma = document.getElementById("chk-sma") as HTMLInputElement;
+  const smaPeriod = document.getElementById("sma-period") as HTMLInputElement;
+  const chkRsi = document.getElementById("chk-rsi") as HTMLInputElement;
+  const rsiPeriod = document.getElementById("rsi-period") as HTMLInputElement;
+  const chkBoll = document.getElementById("chk-bollinger") as HTMLInputElement;
+  const bollPeriod = document.getElementById("boll-period") as HTMLInputElement;
+  const bollK = document.getElementById("boll-k") as HTMLInputElement;
+  const chkCross = document.getElementById("chk-cross") as HTMLInputElement;
+  const crossThreshold = document.getElementById("cross-threshold") as HTMLInputElement;
+  const eventList = document.getElementById("event-list") as HTMLDivElement;
+  const celTextarea = document.getElementById("cel-rules") as HTMLTextAreaElement;
+  const btnCelApply = document.getElementById("btn-cel-apply") as HTMLButtonElement;
+  const celList = document.getElementById("cel-list") as HTMLDivElement;
+
+  // Set textarea default from data attribute
+  if (celTextarea && celTextarea.dataset.default) {
+    celTextarea.value = celTextarea.dataset.default;
+  }
+
+  // Feed generator map
+  const generators: Record<string, FeedGenerator> = {
+    sine: (n: number) => sineWave(5, 40, n, 0),
+    step: (n: number) => stepFunction(5, n),
+    noisy: (n: number) => noisyTrend(0.05, 1.5, n),
+    sawtooth: (n: number) => sawtooth(3, 50, n),
+  };
+
+  let engine: LiveFeedEngine | null = null;
+
+  function buildIndicatorConfig() {
+    const indicators = [];
+    if (chkSma.checked) {
+      indicators.push({ indicator: "sma" as const, period: parseInt(smaPeriod.value) || 20 });
+    }
+    if (chkRsi.checked) {
+      indicators.push({ indicator: "rsi" as const, period: parseInt(rsiPeriod.value) || 14 });
+    }
+    if (chkBoll.checked) {
+      indicators.push({
+        indicator: "bollinger" as const,
+        period: parseInt(bollPeriod.value) || 20,
+        multiplier: parseFloat(bollK.value) || 2,
+      });
+    }
+    if (chkCross.checked) {
+      indicators.push({
+        indicator: "cross" as const,
+        threshold: parseFloat(crossThreshold.value) || 70,
+        direction: "both" as const,
+      });
+    }
+    return indicators;
+  }
+
+  function initEngine() {
+    const feedType = feedSelect.value;
+    const generator = generators[feedType] || generators.noisy;
+    engine = createEngine(generator, {
+      batchSize: 10,
+      frameIntervalMs: 100,
+      initialSpeed: parseInt(speedSlider.value) || 1,
+      indicators: buildIndicatorConfig(),
+    });
+
+    engine.subscribe(updateUI);
+  }
+
+  function updateUI(state: PlaygroundState) {
+    btnPlay.textContent = state.isRunning ? "⏸ Pause" : "▶ Play";
+    speedLabel.textContent = `${state.speed}x`;
+
+    // Update cross events
+    if (state.indicators.crosses && state.indicators.crosses.length > 0) {
+      const events = state.indicators.crosses.slice(-10).reverse();
+      eventList.innerHTML = events
+        .map(
+          (e) =>
+            `<div class="event-entry">ts=${e.ts} value=${e.value.toFixed(2)} → <strong>${e.direction}</strong></div>`,
+        )
+        .join("");
+    } else {
+      eventList.innerHTML = '<p class="muted">No events yet.</p>';
+    }
+  }
+
+  // ── Wire up event handlers ──────────────────────────────────────────
+
+  btnPlay.addEventListener("click", () => {
+    if (!engine) initEngine();
+    engine!.toggle();
+  });
+
+  btnReset.addEventListener("click", () => {
+    if (engine) {
+      engine.reset();
+      engine = null;
+    }
+    btnPlay.textContent = "▶ Play";
+    eventList.innerHTML = '<p class="muted">No events yet.</p>';
+  });
+
+  speedSlider.addEventListener("input", () => {
+    if (engine) {
+      engine.setSpeed(parseInt(speedSlider.value));
+    }
+    speedLabel.textContent = `${speedSlider.value}x`;
+  });
+
+  // Indicator checkboxes: enable/disable their associated inputs
+  chkSma.addEventListener("change", () => {
+    smaPeriod.disabled = !chkSma.checked;
+    if (engine) engine.setIndicators(buildIndicatorConfig());
+  });
+  smaPeriod.addEventListener("input", () => {
+    if (engine && chkSma.checked) engine.setIndicators(buildIndicatorConfig());
+  });
+
+  chkRsi.addEventListener("change", () => {
+    rsiPeriod.disabled = !chkRsi.checked;
+    if (engine) engine.setIndicators(buildIndicatorConfig());
+  });
+  rsiPeriod.addEventListener("input", () => {
+    if (engine && chkRsi.checked) engine.setIndicators(buildIndicatorConfig());
+  });
+
+  chkBoll.addEventListener("change", () => {
+    bollPeriod.disabled = !chkBoll.checked;
+    bollK.disabled = !chkBoll.checked;
+    if (engine) engine.setIndicators(buildIndicatorConfig());
+  });
+  bollPeriod.addEventListener("input", () => {
+    if (engine && chkBoll.checked) engine.setIndicators(buildIndicatorConfig());
+  });
+  bollK.addEventListener("input", () => {
+    if (engine && chkBoll.checked) engine.setIndicators(buildIndicatorConfig());
+  });
+
+  chkCross.addEventListener("change", () => {
+    crossThreshold.disabled = !chkCross.checked;
+    if (engine) engine.setIndicators(buildIndicatorConfig());
+  });
+  crossThreshold.addEventListener("input", () => {
+    if (engine && chkCross.checked) engine.setIndicators(buildIndicatorConfig());
+  });
+
+  feedSelect.addEventListener("change", () => {
+    // Restart with new feed type
+    if (engine) {
+      engine.reset();
+      engine = null;
+    }
+    initEngine();
+    engine!.start();
+  });
+
+  // ── CEL Rules ───────────────────────────────────────────────────────
+
+  btnCelApply?.addEventListener("click", () => {
+    const wasmModule = (window as unknown as Record<string, unknown>)["__tfloWasm"];
+    if (!wasmModule) {
+      celList.innerHTML = '<p class="error-msg">Wasm not initialized. Wait for init to complete.</p>';
+      return;
+    }
+
+    let rulesJson: string;
+    try {
+      const parsed = JSON.parse(celTextarea.value);
+      rulesJson = JSON.stringify({ rules: parsed });
+    } catch {
+      celList.innerHTML = '<p class="error-msg">Invalid JSON in rules editor.</p>';
+      return;
+    }
+
+    const items: CelRuleItem[] = [
+      { id: "current", value: 85, level: "high" },
+      { id: "mid", value: 50, level: "medium" },
+      { id: "low", value: 10, level: "low" },
+    ];
+
+    try {
+      const results = evaluateCelRules(JSON.parse(rulesJson), items);
+      if (results.length === 0) {
+        celList.innerHTML = '<p class="muted">No results.</p>';
+      } else {
+        celList.innerHTML = results
+          .map(
+            (r) =>
+              `<div class="event-entry"><strong>${r.item_id}</strong>: ${r.matched_rules.length > 0 ? r.matched_rules.join(", ") : "—"}</div>`,
+          )
+          .join("");
+      }
+    } catch (err) {
+      celList.innerHTML = `<p class="error-msg">${err instanceof Error ? err.message : String(err)}</p>`;
+    }
+  });
+
+  // Enable CEL button when wasm is ready
+  const checkWasm = setInterval(() => {
+    const wasmModule = (window as unknown as Record<string, unknown>)["__tfloWasm"];
+    if (wasmModule) {
+      btnCelApply.disabled = false;
+      btnCelApply.title = "Evaluate rules against sample data";
+      clearInterval(checkWasm);
+    }
+  }, 500);
+</script>

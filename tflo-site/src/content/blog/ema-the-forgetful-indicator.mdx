@@ -1,0 +1,187 @@
+---
+title: EMA — the forgetful indicator
+description: SMA treats every value the same. EMA forgets old values exponentially. Time-based vs count-based, half-life mechanics, and why irregular data changes everything.
+pubDate: 2025-04-14
+tags: ["indicators", "ema", "exponential", "moving-average", "streaming"]
+---
+
+import DemoChart from '../../components/DemoChart.tsx';
+
+SMA treats every value the same. The tick from 20 minutes ago counts as much as the tick from 2 seconds ago. That doesn't match how most systems actually work.
+
+Markets change regimes. Sensors drift. Processes warm up and cool down. Old data shouldn't weigh as much as new data.
+
+That's what EMA is for.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="sma"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## The math
+
+EMA is a weighted average where each new observation has more influence than the old ones. The update rule:
+
+```
+new_ema = α × new_value + (1 − α) × previous_ema
+```
+
+Alpha controls how fast old values decay. An α of 0.3 means the new value gets 30% weight. An α of 0.9 means it gets 90% — reactive but noisy. The sweet spot depends on your data and your use case.
+
+## Count-based EMA
+
+`CountEma` is the traditional implementation. Fixed α per tick, regardless of elapsed time:
+
+```rust
+pub struct CountEma {
+    alpha: f64,       // smoothing factor
+    value: f64,
+    initialized: bool,
+}
+```
+
+You create one with a period. Alpha is derived as `2 / (period + 1)`:
+
+```rust
+use tflo_core::primitives::CountEma;
+
+// Period 20 → α ≈ 0.095
+let mut ema = CountEma::new(20);
+```
+
+Or you can set alpha directly:
+
+```rust
+let mut ema = CountEma::with_alpha(0.3);
+```
+
+Push values one at a time:
+
+```rust
+let v1 = ema.push(100.0);  // first value → returns 100.0
+let v2 = ema.push(105.0);  // 0.3 × 105 + 0.7 × 100 = 101.5
+let v3 = ema.push(110.0);  // 0.3 × 110 + 0.7 × 101.5 = 104.05
+```
+
+The first value initializes the EMA. After that, each new value blends in.
+
+In the graph, count-based EMA is `ema`:
+
+```rust
+use tflo_core::prelude::*;
+
+// Count-based EMA over 20 ticks
+let ema = price.ema(20usize);
+```
+
+## Time-based EMA
+
+`TimeEma` is where things get interesting. Instead of a fixed α per tick, the decay is calculated from elapsed time:
+
+```
+α = 1 − e^(−Δt / halflife)
+```
+
+Where `Δt` is the actual time between observations and `halflife` is how long it takes for old values to decay by 50%.
+
+```rust
+pub struct TimeEma {
+    halflife_ms: f64,
+    last_ts: Option<i64>,
+    value: f64,
+    initialized: bool,
+}
+```
+
+Create one with a halflife:
+
+```rust
+use std::time::Duration;
+use tflo_core::primitives::TimeEma;
+
+let mut ema = TimeEma::new(Duration::from_secs(5));
+```
+
+Push values with timestamps:
+
+```rust
+// First value initializes
+let v1 = ema.push(0, 100.0);
+assert_eq!(v1, 100.0);
+
+// 2.5 seconds later — halflife is 5s, so α ≈ 0.29
+let v2 = ema.push(2500, 200.0);
+// 0.29 × 200 + 0.71 × 100 = 129.0
+
+// 10 seconds later — halflife is 5s, so α ≈ 0.75
+let v3 = ema.push(12500, 200.0);
+// 0.75 × 200 + 0.25 × 100 = 175.0
+```
+
+Same price jump, different gaps — different EMA values. That's the whole point. When data arrives irregularly, the elapsed time between ticks determines how much weight the new value gets.
+
+A 2.5s gap after a 5s halflife gives α ≈ 0.29. A 10s gap gives α ≈ 0.75. The longer the gap, the more weight the new observation carries — because the old value is assumed to be stale.
+
+In the graph:
+
+```rust
+use tflo_core::prelude::*;
+
+// Time-based EMA with 5-minute halflife
+let ema = price.ema(5_u64.mins());
+```
+
+## What the graph sees
+
+Both count and time EMA map to the same node type:
+
+```rust
+pub enum Node {
+    Ema(NodeId, Window),
+    // ...
+}
+```
+
+`Window::Time(halflife)` gives you time-based decay. `Window::Count(period)` gives you fixed-α per tick.
+
+```rust
+// These produce the same node type with different Window variants
+let time_ema = price.ema(5_u64.mins());      // Window::Time
+let count_ema = price.ema(20usize);           // Window::Count
+```
+
+## The NaN problem
+
+EMA doesn't magically handle bad data. If you push NaN, the EMA becomes NaN:
+
+```rust
+ema.push(f64::NAN);  // → NaN
+```
+
+And because EMA is recursive — `new = α × value + (1 − α) × previous` — once NaN enters, it never leaves. Every subsequent output is NaN too.
+
+The same applies to `CountEma`. `get()` returns `f64::NAN` if no values have been pushed.
+
+This is why validation matters. If your input stream might contain corrupt data, wrap it in strict validation before it reaches the EMA node.
+
+## When to use which
+
+**If your data arrives on a regular heartbeat** — every 100ms, every second, every bar — count-based EMA is fine. The elapsed time between ticks is constant, so the time-based variant gives the same result with more overhead.
+
+**If your data is bursty or has gaps** — sensor readings when events happen, trade data with microsecond timestamps, irregular heartbeats — use time-based EMA. It accounts for the gaps naturally.
+
+**If you need equal weighting** — don't use EMA. Use SMA. That's what it's for.
+
+The decision isn't hard. It just depends on whether your data keeps a schedule or shows up when it feels like it.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/ema-the-forgetful-indicator`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/ema-the-forgetful-indicator)
+
+*— Matt*

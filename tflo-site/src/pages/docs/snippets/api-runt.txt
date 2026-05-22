@@ -1,0 +1,5 @@
+//! API: RuntDetector::new(low_threshold: f64, high_threshold: f64) -> Self
+//! det.update(value: f64) -> Option<RuntResult>
+let mut runt = RuntDetector::new(50.0, 100.0);
+let result = runt.update(price);
+// match result { Some(Runt{peak}) => ..., Some(ValidPulse{peak}) => ..., None => ... }

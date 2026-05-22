@@ -1,0 +1,32 @@
+# ── sccache ──────────────────────────────────────────────────────────────
+# Install: cargo install sccache
+# Start:   sccache --start-server    (or let Cargo auto-spawn it)
+# Verify:  sccache --show-stats
+#
+# CI usage: set SCCACHE_GCS_BUCKET / SCCACHE_S3_BUCKET / SCCACHE_REDIS
+# for remote caching. See: https://github.com/mozilla/sccache#usage
+[build]
+rustc-wrapper = "sccache"
+
+# ── Linker selection (uncomment based on platform) ─────────────────────
+# Linux — mold (fastest, install: sudo apt install mold)
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+#
+# Linux — lld (good alternative, ships with rustup via `rustup component add llvm-tools`)
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+#
+# macOS — lld is not well-supported; use the default ld64.
+# Instead, enable split-debuginfo for faster linking:
+# (configured in Cargo.toml profiles, uncomment `split-debuginfo = "unpacked"`)
+
+# ── CI-friendly config (optional, uncomment in CI) ─────────────────────
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld", "-D", "warnings"]
+
+# ── sccache env vars for CI (example) ──────────────────────────────────
+# [env]
+# SCCACHE_CACHE_SIZE = "10G"
+# SCCACHE_IDLE_TIMEOUT = "0"    # never evict idle
+# RUSTC_WRAPPER = { value = "sccache", force = true }

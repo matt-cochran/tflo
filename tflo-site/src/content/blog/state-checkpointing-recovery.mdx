@@ -1,0 +1,109 @@
+---
+title: "State checkpointing and recovery"
+description: "Your service restarted. Every streaming graph forgot its state. SMA is cold. RSI starts from zero. Here's how tflo snapshots and restores graph state so you don't lose your place."
+pubDate: 2025-04-02
+tags: ["production", "state", "checkpointing"]
+---
+
+Your service restarted. Your ten thousand streaming graphs forgot everything. Every SMA is warm again. Every RSI starts from zero.
+
+This is the problem state checkpointing solves. When you're running streaming computations at scale — especially across Kafka partitions or distributed workers — your graphs need to survive restarts. tflo gives you two primitives: snapshots and stores.
+
+## Take a snapshot
+
+Any compiled graph can dump its state to a `StateSnapshot`:
+
+```rust
+use tflo_core::keyed::{SnapshotMetadata, StateSnapshot};
+use tflo_core::prelude::*;
+
+let mut graph = CompiledGraph::<MyTick, f64>::compile(ts_fn, nodes, output_ids);
+// ... process data ...
+
+let snapshot: StateSnapshot = graph.snapshot();
+```
+
+A `StateSnapshot` has two fields: `data: Vec<u8>` with the serialized state, and `metadata: SnapshotMetadata` containing a `key: Option<Vec<u8>>`, `timestamp_ms: i64`, and `version: u32`. The version field lets you handle format migrations — if you change graph topology between deployments, the version tells you which snapshot format to expect.
+
+## Restore from a snapshot
+
+When your service comes back up, feed the snapshot back in:
+
+```rust
+graph.restore(&snapshot).map_err(|e| format!("restore failed: {e}"))?;
+// Graph is now back to its previous state
+// records_seen counter, warmup status — all restored
+```
+
+The `restore` method checks that the graph topology matches — same number of nodes, same output IDs. If something changed in your deployment, it returns a `ComputeError` (specifically `ComputeError::InvalidInput { reason: "..." }`) instead of silently corrupting state. Currently it restores top-level metadata (records seen, warmup). Full per-node restoration is a work in progress, but the structure is in place.
+
+## Bring your own codec
+
+How do you serialize the snapshot? That's up to you. The `SnapshotCodec` trait separates encoding from your storage backend:
+
+```rust
+pub trait SnapshotCodec: Send + Sync {
+    fn encode(&self, snapshot: &StateSnapshot) -> Result<Vec<u8>, String>;
+    fn decode(&self, data: &[u8]) -> Result<StateSnapshot, String>;
+}
+```
+
+JSON, protobuf, bincode, your custom format — whatever fits your ecosystem. The point is that encoding is pluggable, not hardcoded.
+
+## Bring your own backend
+
+Once encoded, where do you put the snapshot? The `StateStore` trait abstracts the storage layer:
+
+```rust
+pub trait StateStore: Send + Sync {
+    fn save(&self, key: &[u8], snapshot: &StateSnapshot) -> Result<(), String>;
+    fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String>;
+    fn list_keys(&self) -> Result<Vec<Vec<u8>>, String>;
+}
+```
+
+Two implementations ship as separate crates: `tflo-state-files` for local file-based storage and `tflo-state-s3` for S3-compatible object storage. If neither fits, implement the trait yourself.
+
+## Keyed checkpointing with Kafka
+
+When you run keyed execution — one graph per sensor, per partition, per RF channel, per host — you need more than a single snapshot. Each key has its own graph state. That's what `tflo_keyed()` handles. You provide a `key_fn` to extract the key from each record, an `OutOfOrderPolicy` for handling late arrivals, and a `builder_fn` that constructs the graph for each key.
+
+```rust
+let results: Vec<_> = events.into_iter()
+    .tflo_keyed(
+        |r| r.sensor_id.clone(),
+        OutOfOrderPolicy::Buffer { max_lateness_ms: 5000 },
+        |t| {
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.sma(5_u64.secs())
+        }
+    )
+    .collect();
+```
+
+The `OutOfOrderPolicy` lets you choose how to handle records that arrive late: `Error` (fail fast), `Drop` (ignore), or `Buffer` with a configurable lateness window.
+
+## Kafka integration
+
+The `tflo-connect-kafka` crate brings this together with `KafkaTfloAdapter`. Kafka partitions map naturally to `tflo_keyed` keys, and checkpoint coordination happens through the `Checkpoint` struct:
+
+```rust
+pub struct Checkpoint {
+    pub id: CheckpointId,
+    pub state: StateSnapshot,
+}
+```
+
+Each checkpoint pairs a state snapshot with a Kafka offset. On restart, you load the snapshot and resume processing from the committed offset. No data loss, no duplicate processing, no cold starts.
+
+The `tflo-connect-kafka` crate is a reference implementation — it shows the integration pattern without depending on a specific Kafka client library. For production Kafka integration, wire in a Kafka client library (e.g., rdkafka) and follow the adapter pattern shown in the crate.
+
+This is how you run ten thousand streaming graphs in production. One snapshot per partition. One store per deployment. One restart that doesn't forget.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/state-checkpointing-recovery`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/state-checkpointing-recovery)
+
+*— Matt*

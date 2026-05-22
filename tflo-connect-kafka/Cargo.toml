@@ -1,0 +1,23 @@
+[package]
+name = "tflo-connect-kafka"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Kafka consumer adapter for tflo keyed execution"
+license.workspace = true
+repository.workspace = true
+keywords = ["kafka", "streaming", "adapter"]
+categories = ["data-structures"]
+
+[dependencies]
+tflo-core = { workspace = true }
+tflo-state-files = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
+

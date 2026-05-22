@@ -1,0 +1,5 @@
+//! API: GlitchFilter::new(threshold: f64, min_duration_ms: u64) -> Self
+//! det.update(value: f64, timestamp_ms: u64) -> Option<bool>
+let mut glitch = GlitchFilter::new(100.0, 50);
+let result = glitch.update(price, now_ms);
+// Some(false) if price spike above 100 lasts < 50ms

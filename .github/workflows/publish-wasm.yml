@@ -1,0 +1,39 @@
+name: Publish tflo-wasm to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build wasm package
+        run: wasm-pack build --target web
+        working-directory: tflo-wasm
+
+      - name: Copy README
+        run: cp README.md pkg/README.md
+        working-directory: tflo-wasm
+
+      - name: Publish to npm
+        run: npm publish
+        working-directory: tflo-wasm/pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

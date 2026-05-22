@@ -1,0 +1,42 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Documentation" description="Learn how to use tflo, a temporal event processing engine for domain-driven applications.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <div class="mb-12">
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-white">Documentation</h1>
+      <p class="mt-4 text-lg text-text-muted max-w-2xl">
+        Everything you need to build streaming temporal event processing pipelines with tflo:
+        model your domain events, then layer temporal analysis on top.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <a href="/docs/quick-start" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Quick Start</h2>
+        <p class="mt-2 text-sm text-text-muted">Get up and running in 5 minutes. Add tflo to your project and run your first streaming computation.</p>
+      </a>
+      <a href="/docs/concepts" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Core Concepts</h2>
+        <p class="mt-2 text-sm text-text-muted">Computation graphs, properties, timestamps, keyed execution, and windowing explained.</p>
+      </a>
+      <a href="/docs/indicators" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Operations &amp; Indicators</h2>
+        <p class="mt-2 text-sm text-text-muted">Core ops — SMA, EMA, RSI, statistics, derivatives — plus the tflo-fintech TA plugin.</p>
+      </a>
+      <a href="/docs/signals" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Signals</h2>
+        <p class="mt-2 text-sm text-text-muted">Cross, glitch, runt, pulse, window detectors — composable primitives for lifecycle events.</p>
+      </a>
+      <a href="/docs/architecture" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Crate Architecture</h2>
+        <p class="mt-2 text-sm text-text-muted">How the 10 workspace crates fit together: core, fintech, state, scripting, and connectors.</p>
+      </a>
+      <a href="/docs/advanced" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Advanced</h2>
+        <p class="mt-2 text-sm text-text-muted">Checkpointing, async streams, Kafka integration, multi-language scripting, and performance tuning.</p>
+      </a>
+    </div>
+  </div>
+</DocsLayout>
