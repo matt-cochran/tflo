@@ -31,14 +31,14 @@ use std::task::{Context, Poll};
 /// use tokio_stream::StreamExt;
 ///
 /// async fn process_stream(stream: impl Stream<Item = Tick>) {
-///     let mut computed = stream.temporal(|t| {
+///     let mut computed = stream.tflo(|t| {
 ///         t.timestamp(|x| x.ts);
 ///         let price = t.prop(|x| x.price);
-///         price.sma(5.mins())
+///         price.map_f64(|x| x * 2.0)
 ///     });
 ///
-///     while let Some(sma) = computed.next().await {
-///         println!("SMA: {}", sma);
+///     while let Some(value) = computed.next().await {
+///         println!("value: {}", value);
 ///     }
 /// }
 /// ```
@@ -349,7 +349,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::duration::IntoDuration;
     use tokio_stream::StreamExt;
 
     #[derive(Clone, Debug)]
@@ -377,11 +376,19 @@ mod tests {
 
         let stream = from_iter(records);
 
+        // Use scan_f64 to compute a running mean (replaces the old sma() builder)
         let results: Vec<f64> = stream
             .tflo(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                value.sma(10_u64.secs())
+                value.scan_f64(
+                    || (0.0_f64, 0_usize),
+                    |s, x| {
+                        s.0 += x;
+                        s.1 += 1;
+                        s.0 / s.1 as f64
+                    },
+                )
             })
             .collect()
             .await;
@@ -407,11 +414,12 @@ mod tests {
 
         let stream = from_iter(records);
 
+        // Use map_f64 identity to verify tflo_with streaming (replaces old sma() builder)
         let results: Vec<(TestRecord, f64)> = stream
             .tflo_with(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                value.sma(10_u64.secs())
+                value.map_f64(|x| x)
             })
             .collect()
             .await;

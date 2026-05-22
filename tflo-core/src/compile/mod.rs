@@ -31,16 +31,10 @@ mod tests;
 mod value;
 
 use crate::comp::NodeId;
-use crate::event::ThresholdCrossEventMode;
 use crate::operator::BoxedOperator;
 use crate::pipeline::{PipelineContext, Timestamped};
 use crate::primitives::{
-    CorrelationCountWindow, CorrelationTimeWindow, CountEma, CountWindow, CrossDetector,
-    CumulativeMax, CumulativeMin, CumulativeProduct, CumulativeSum, GlitchFilter, GlitchResult,
-    HysteresisCrossDetector, LagBuffer, MedianCountWindow, MedianTimeWindow, MomentsCountWindow,
-    MomentsTimeWindow, PrevByTracker, PrevTracker, PulseWidthDetector, PulseWidthResult,
-    RsiCountWindow, RsiTimeWindow, RuntDetector, RuntResult, TimeEma, TimeWindow, WindowDetector,
-    WindowEvent, WmaCountWindow, WmaTimeWindow,
+    GlitchResult, PulseWidthResult, RuntResult, ThresholdCrossEventMode, WindowEvent,
 };
 pub use absent::{Absent, Computed, finite_or_warming};
 pub use extract::ExtractOutput;
@@ -178,195 +172,20 @@ pub(crate) enum CompositionNodeKind {
 pub(crate) enum NodeState {
     /// No state needed.
     Stateless,
-    /// Time-based window.
-    TimeWindow(TimeWindow),
-    /// Count-based window.
-    CountWindow(CountWindow),
-    /// Time-based EMA.
-    TimeEma(TimeEma),
-    /// Count-based EMA.
-    CountEma(CountEma),
-    /// Previous value tracker.
-    Prev(PrevTracker),
-    /// Previous value by key.
-    PrevBy(PrevByTracker<u64>),
-    /// Lag buffer.
-    Lag(LagBuffer),
-    /// Cross detector.
-    Cross(CrossDetector),
-    /// Hysteresis cross detector.
-    CrossHysteresis(HysteresisCrossDetector),
-    /// Glitch filter.
-    GlitchFilterState(GlitchFilter),
-    /// Runt detector.
-    RuntDetectorState(RuntDetector),
-    /// Pulse width detector state.
-    PulseWidthState(PulseWidthDetector),
-    /// Window detector state.
-    WindowDetectorState(WindowDetector),
     /// State for scan_f64.
     ScanState(Box<dyn Any + Send + Sync>),
     /// State for scan2_f64.
     Scan2State(Box<dyn Any + Send + Sync>),
-    /// Rate tracker (stores previous timestamp and value).
-    Rate {
-        prev_ts: Option<i64>,
-        prev_value: Option<f64>,
-    },
-    /// Velocity tracker (first derivative).
-    Velocity {
-        prev_ts: Option<i64>,
-        prev_value: Option<f64>,
-    },
-    /// Acceleration tracker (second derivative).
-    Acceleration {
-        prev_ts: Option<i64>,
-        prev_velocity: Option<f64>,
-        velocity_state: Box<NodeState>,
-    },
-    /// Median/quantile time window.
-    MedianTimeWindow(MedianTimeWindow),
-    /// Median/quantile count window.
-    MedianCountWindow(MedianCountWindow),
-    /// Correlation time window (holds two series).
-    CorrelationTimeWindow(CorrelationTimeWindow),
-    /// Correlation count window (holds two series).
-    CorrelationCountWindow(CorrelationCountWindow),
-    /// Higher moments time window.
-    MomentsTimeWindow(MomentsTimeWindow),
-    /// Higher moments count window.
-    MomentsCountWindow(MomentsCountWindow),
-    /// WMA time window.
-    WmaTimeWindow(WmaTimeWindow),
-    /// WMA count window.
-    WmaCountWindow(WmaCountWindow),
-    /// RSI time window.
-    RsiTimeWindow(RsiTimeWindow),
-    /// RSI count window.
-    RsiCountWindow(RsiCountWindow),
-    /// RSI with Wilder smoothing.
-    RsiWilderState(RsiWilderState),
-    /// Cumulative sum.
-    CumSum(CumulativeSum),
-    /// Cumulative max.
-    CumMax(CumulativeMax),
-    /// Cumulative min.
-    CumMin(CumulativeMin),
-    /// Cumulative product.
-    CumProd(CumulativeProduct),
-    /// Percentage change tracker.
-    PctChange { prev: Option<f64> },
-    /// Log return tracker.
-    LogReturn { prev: Option<f64> },
     /// State for a plugin node.
     Plugin(BoxedOperator),
 }
 
-// ============================================================================
-// RSI Wilder State Structure
-// ============================================================================
-
-/// State tracker for RSI with Wilder smoothing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct RsiWilderState {
-    pub period: usize,
-    pub prev: Option<f64>,
-    pub count: usize,
-    pub sum_gain: f64,
-    pub sum_loss: f64,
-    pub avg_gain: f64,
-    pub avg_loss: f64,
-    pub initialized: bool,
-}
-
-impl RsiWilderState {
-    pub fn new(period: usize) -> Self {
-        Self {
-            period,
-            prev: None,
-            count: 0,
-            sum_gain: 0.0,
-            sum_loss: 0.0,
-            avg_gain: 0.0,
-            avg_loss: 0.0,
-            initialized: false,
-        }
-    }
-}
-
 /// The operation to perform for a node.
 pub(crate) enum NodeOp<R> {
+    /// Extract a property from the input record.
     Prop(Arc<dyn Fn(&R) -> f64 + Send + Sync>),
+    /// Constant value.
     Const(f64),
-    Sma(NodeId),
-    Ema(NodeId),
-    Std(NodeId),
-    Variance(NodeId),
-    Max(NodeId),
-    Min(NodeId),
-    Sum(NodeId),
-    Count(NodeId),
-    Prev(NodeId),
-    PrevBy(NodeId, Arc<dyn Fn(&R) -> u64 + Send + Sync>),
-    Lag(NodeId),
-    Delta(NodeId),
-    Add(NodeId, NodeId),
-    Sub(NodeId, NodeId),
-    Mul(NodeId, NodeId),
-    Div(NodeId, NodeId),
-    MulConst(NodeId, f64),
-    AddConst(NodeId, f64),
-    Abs(NodeId),
-    Sqrt(NodeId),
-    Ln(NodeId),
-    Neg(NodeId),
-    Cross(NodeId, NodeId),
-    CrossAbove(NodeId, NodeId),
-    CrossUnder(NodeId, NodeId),
-    CrossHysteresis(NodeId, NodeId),
-    Rate(NodeId),
-    Velocity(NodeId),
-    Acceleration(NodeId),
-    Gt(NodeId, NodeId),
-    Gte(NodeId, NodeId),
-    Lt(NodeId, NodeId),
-    Lte(NodeId, NodeId),
-    Eq(NodeId, NodeId),
-    // Statistical
-    Median(NodeId),
-    Quantile(NodeId, f64),
-    Correlation(NodeId, NodeId),
-    Covariance(NodeId, NodeId),
-    Skewness(NodeId),
-    Kurtosis(NodeId),
-    Rank(NodeId),
-    // Moving averages
-    Wma(NodeId),
-    // Momentum
-    Rsi(NodeId),
-    // Cumulative
-    CumSum(NodeId),
-    CumMax(NodeId),
-    CumMin(NodeId),
-    CumProd(NodeId),
-    // Returns
-    PctChange(NodeId),
-    LogReturn(NodeId),
-    // Math
-    Pow(NodeId, f64),
-    Exp(NodeId),
-    Log10(NodeId),
-    Log2(NodeId),
-    Clamp(NodeId, f64, f64),
-    Floor(NodeId),
-    Ceil(NodeId),
-    Round(NodeId),
-    DivConst(NodeId, f64),
-    // Trigger primitives
-    GlitchFilter(NodeId),
-    RuntDetect(NodeId),
-    PulseWidth(NodeId),
-    WindowDetect(NodeId),
     // Custom functional operators
     MapF64(NodeId, Arc<dyn Fn(f64) -> f64 + Send + Sync>),
     Map2F64(NodeId, NodeId, Arc<dyn Fn(f64, f64) -> f64 + Send + Sync>),

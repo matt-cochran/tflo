@@ -139,43 +139,6 @@ impl std::fmt::Debug for NodeState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Stateless => write!(f, "Stateless"),
-            Self::TimeWindow(w) => write!(f, "TimeWindow(count={})", w.count()),
-            Self::CountWindow(w) => write!(f, "CountWindow(count={})", w.count()),
-            Self::TimeEma(_) => write!(f, "TimeEma"),
-            Self::CountEma(_) => write!(f, "CountEma"),
-            Self::Prev(_) => write!(f, "Prev"),
-            Self::PrevBy(_) => write!(f, "PrevBy"),
-            Self::Lag(_) => write!(f, "Lag"),
-            Self::Cross(_) => write!(f, "Cross"),
-            Self::CrossHysteresis(_) => write!(f, "CrossHysteresis"),
-            Self::GlitchFilterState(_) => write!(f, "GlitchFilter"),
-            Self::RuntDetectorState(_) => write!(f, "RuntDetector"),
-            Self::PulseWidthState(_) => write!(f, "PulseWidthDetector"),
-            Self::WindowDetectorState(_) => write!(f, "WindowDetector"),
-            Self::Rate { .. } => write!(f, "Rate"),
-            Self::Velocity { .. } => write!(f, "Velocity"),
-            Self::Acceleration { .. } => write!(f, "Acceleration"),
-            Self::MedianTimeWindow(w) => write!(f, "MedianTimeWindow(count={})", w.count()),
-            Self::MedianCountWindow(w) => write!(f, "MedianCountWindow(count={})", w.count()),
-            Self::CorrelationTimeWindow(w) => {
-                write!(f, "CorrelationTimeWindow(count={})", w.count())
-            }
-            Self::CorrelationCountWindow(w) => {
-                write!(f, "CorrelationCountWindow(count={})", w.count())
-            }
-            Self::MomentsTimeWindow(w) => write!(f, "MomentsTimeWindow(count={})", w.count()),
-            Self::MomentsCountWindow(w) => write!(f, "MomentsCountWindow(count={})", w.count()),
-            Self::WmaTimeWindow(w) => write!(f, "WmaTimeWindow(count={})", w.count()),
-            Self::WmaCountWindow(w) => write!(f, "WmaCountWindow(count={})", w.count()),
-            Self::RsiTimeWindow(w) => write!(f, "RsiTimeWindow(count={})", w.count()),
-            Self::RsiCountWindow(w) => write!(f, "RsiCountWindow(count={})", w.count()),
-            Self::RsiWilderState(_) => write!(f, "RsiWilderState"),
-            Self::CumSum(_) => write!(f, "CumSum"),
-            Self::CumMax(_) => write!(f, "CumMax"),
-            Self::CumMin(_) => write!(f, "CumMin"),
-            Self::CumProd(_) => write!(f, "CumProd"),
-            Self::PctChange { .. } => write!(f, "PctChange"),
-            Self::LogReturn { .. } => write!(f, "LogReturn"),
             Self::ScanState(_) => write!(f, "ScanState"),
             Self::Scan2State(_) => write!(f, "Scan2State"),
             Self::Plugin(op) => write!(f, "Plugin({})", op.name()),

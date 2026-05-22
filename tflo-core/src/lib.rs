@@ -206,8 +206,6 @@ pub use operator::{BivariateWindow, WindowPrimitive};
 pub mod pipeline;
 pub mod primitives;
 pub mod scalar;
-/// Signal building utilities for cross detection.
-pub mod signal_builder;
 /// Time point trait for generic time type abstraction.
 pub mod timepoint;
 pub mod validation;
@@ -256,7 +254,6 @@ pub mod prelude {
         WelfordAccumulator, WelfordWindow, WindowDetector, WindowEvent, ZScoreNormalizer,
     };
     pub use crate::scalar::Scalar;
-    pub use crate::signal_builder::{CrossBuilder, CrossBuilderExt};
     pub use crate::timepoint::TimePoint;
     pub use crate::validation::ValidationOptions;
     pub use crate::validation::{

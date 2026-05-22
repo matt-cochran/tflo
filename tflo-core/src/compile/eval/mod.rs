@@ -1,9 +1,8 @@
 mod ctx;
 // The `eval` submodule shares its parent's name — a deliberate
-// `eval/{ctx,eval,helpers}.rs` split of the evaluation code.
+// `eval/{ctx,eval}.rs` split of the evaluation code.
 #[allow(clippy::module_inception)]
 mod eval;
-mod helpers;
 
 use self::ctx::CompilationCtx;
 use crate::comp::Node;
