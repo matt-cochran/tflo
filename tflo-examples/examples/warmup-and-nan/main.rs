@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::{CompiledGraph, StepResult};
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 /// A single PM2.5 measurement from an air-quality monitor.
 #[derive(Clone, Debug)]

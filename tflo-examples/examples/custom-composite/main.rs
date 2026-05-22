@@ -1,5 +1,6 @@
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 // ============================================================================
 // Extension trait for custom composite algorithms

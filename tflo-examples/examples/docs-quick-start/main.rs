@@ -3,6 +3,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// A weather-station reading: a timestamp and a sensor measurement
 /// (e.g. temperature in degrees Celsius).

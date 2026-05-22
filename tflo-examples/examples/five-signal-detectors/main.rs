@@ -1,4 +1,6 @@
 use tflo_core::prelude::*;
+use tflo_ops::events::ThresholdCrossEventMode;
+use tflo_ops::prelude::*;
 
 // A vibration reading from an accelerometer on a pump or motor.
 #[derive(Clone, Debug)]

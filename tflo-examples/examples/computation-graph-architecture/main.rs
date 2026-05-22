@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // A power-grid telemetry sample: instantaneous load on a feeder, in megawatts.
 #[derive(Clone, Debug)]

@@ -1,6 +1,7 @@
 use tflo_core::prelude::*;
 use tflo_examples::*;
 use tflo_fintech::prelude::*;
+use tflo_ops::prelude::*;
 
 fn main() {
     println!("=== Golden Tests: Methodology Demonstration ===");

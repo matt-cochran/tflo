@@ -2173,6 +2173,7 @@ dependencies = [
  "tflo-cel",
  "tflo-core",
  "tflo-fintech",
+ "tflo-ops",
  "tflo-rego",
  "tflo-rhai",
  "tflo-state-files",

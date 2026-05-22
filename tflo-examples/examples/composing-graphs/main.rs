@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // A per-interval API health stat: fraction of requests that returned an error.
 #[derive(Clone, Debug)]

@@ -1,4 +1,5 @@
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 /// A single reading from an IoT soil-moisture sensor.
 #[derive(Clone, Debug)]

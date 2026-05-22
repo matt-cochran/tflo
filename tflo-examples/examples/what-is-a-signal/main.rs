@@ -1,4 +1,6 @@
 use tflo_core::prelude::*;
+use tflo_ops::events::ThresholdCrossEventMode;
+use tflo_ops::prelude::*;
 
 // An RF spectrum-monitoring record: a detection of an emitter on the band.
 #[derive(Clone, Debug)]
@@ -59,7 +61,10 @@ fn main() {
     println!("--- Simple (no payload) ---");
     let cross_signal = Signal::simple(ThresholdCrossEventMode::Rising);
     println!("ThresholdCross signal: mode={:?}", cross_signal.mode);
-    println!("  is_active={}", cross_signal.mode.is_active());
+    println!(
+        "  is_active={}",
+        cross_signal.mode != ThresholdCrossEventMode::None
+    );
 
     // Signal with payload
     println!("\n--- Signal with payload ---");

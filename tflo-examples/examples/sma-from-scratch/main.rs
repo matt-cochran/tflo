@@ -3,6 +3,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::{CompiledGraph, StepResult};
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// A single outdoor temperature reading from an IoT sensor.
 #[derive(Clone, Debug)]
@@ -71,7 +72,7 @@ fn main() {
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let temperature = t.prop(|x| x.celsius);
-            temperature.over(20_u64.secs()).sma()
+            temperature.sma(20_u64.secs())
         })
         .collect();
     print_summary("SMA(20s) WindowSpec", &ws_smas);

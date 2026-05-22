@@ -3,6 +3,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// An RF spectrum detection event: a timestamp and the measured
 /// signal-to-noise ratio (dB) at a given centre frequency (MHz).

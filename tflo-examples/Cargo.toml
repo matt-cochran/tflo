@@ -10,6 +10,7 @@ publish = false
 
 [dependencies]
 tflo-core = { workspace = true, features = ["full"] }
+tflo-ops = { workspace = true }
 tflo-fintech = { workspace = true }
 
 # Scripting filter adapters
