@@ -90,9 +90,12 @@ impl std::error::Error for OperatorLoadError {}
 pub trait WindowPrimitive {
     /// Admit a value; `ts` is ignored by count-based windows.
     fn push(&mut self, ts: i64, value: f64);
-    /// Number of values currently retained.
+    /// Number of observations the window currently holds toward its
+    /// reduction. For change-based windows (e.g. RSI) this counts changes —
+    /// one fewer than the values pushed — so `is_empty` stays `true` until
+    /// the window can actually produce a result.
     fn len(&self) -> usize;
-    /// True when the window holds no values.
+    /// True when the window holds no observations yet.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }

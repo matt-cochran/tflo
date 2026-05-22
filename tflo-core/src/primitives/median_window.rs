@@ -4,6 +4,7 @@
 //! For count-based windows, uses insertion sort for O(n) per update.
 //! For time-based windows, uses a VecDeque with sorting on access.
 
+use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -290,6 +291,34 @@ impl MedianTimeWindow {
     /// Clear all values from the window.
     pub fn clear(&mut self) {
         self.buffer.clear();
+    }
+}
+
+impl WindowPrimitive for MedianCountWindow {
+    fn push(&mut self, _ts: i64, value: f64) {
+        self.push(value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl WindowPrimitive for MedianTimeWindow {
+    fn push(&mut self, ts: i64, value: f64) {
+        self.push(ts, value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 

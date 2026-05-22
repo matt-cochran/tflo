@@ -3,6 +3,7 @@
 //! RSI is a momentum indicator that measures the magnitude of recent price changes
 //! to evaluate overbought or oversold conditions.
 
+use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -261,6 +262,26 @@ impl RsiTimeWindow {
         self.prev_value = None;
         self.sum_gains = 0.0;
         self.sum_losses = 0.0;
+    }
+}
+
+impl WindowPrimitive for RsiCountWindow {
+    fn push(&mut self, _ts: i64, value: f64) {
+        self.push(value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+}
+
+impl WindowPrimitive for RsiTimeWindow {
+    fn push(&mut self, ts: i64, value: f64) {
+        self.push(ts, value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
     }
 }
 

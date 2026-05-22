@@ -2,6 +2,7 @@
 //!
 //! [`CountWindow`] maintains a fixed-size buffer of the most recent values.
 
+use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 
 /// Count-based sliding window aggregator.
@@ -162,6 +163,20 @@ impl CountWindow {
         self.buffer.clear();
         self.sum = 0.0;
         self.sum_sq = 0.0;
+    }
+}
+
+impl WindowPrimitive for CountWindow {
+    fn push(&mut self, _ts: i64, value: f64) {
+        self.push(value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 

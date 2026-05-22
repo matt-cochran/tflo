@@ -3,6 +3,7 @@
 //! Provides online calculation of skewness and kurtosis using
 //! incremental algorithms based on central moments.
 
+use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -303,6 +304,30 @@ impl MomentsTimeWindow {
         self.sum_sq = 0.0;
         self.sum_cube = 0.0;
         self.sum_quad = 0.0;
+    }
+}
+
+impl WindowPrimitive for MomentsCountWindow {
+    fn push(&mut self, _ts: i64, value: f64) {
+        self.push(value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl WindowPrimitive for MomentsTimeWindow {
+    fn push(&mut self, ts: i64, value: f64) {
+        self.push(ts, value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
     }
 }
 

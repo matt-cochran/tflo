@@ -3,6 +3,7 @@
 //! WMA gives more weight to recent observations using linearly decreasing weights.
 //! The most recent value has weight N, the previous has weight N-1, etc.
 
+use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -186,6 +187,30 @@ impl WmaTimeWindow {
     /// Clear the window.
     pub fn clear(&mut self) {
         self.buffer.clear();
+    }
+}
+
+impl WindowPrimitive for WmaCountWindow {
+    fn push(&mut self, _ts: i64, value: f64) {
+        self.push(value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+impl WindowPrimitive for WmaTimeWindow {
+    fn push(&mut self, ts: i64, value: f64) {
+        self.push(ts, value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
     }
 }
 

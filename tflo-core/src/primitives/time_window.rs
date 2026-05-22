@@ -3,6 +3,7 @@
 //! [`TimeWindow`] maintains a buffer of timestamped values and provides
 //! efficient computation of common aggregations (mean, std, sum, min, max, count).
 
+use crate::operator::WindowPrimitive;
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -180,6 +181,20 @@ impl TimeWindow {
         self.buffer.clear();
         self.sum = 0.0;
         self.sum_sq = 0.0;
+    }
+}
+
+impl WindowPrimitive for TimeWindow {
+    fn push(&mut self, ts: i64, value: f64) {
+        self.push(ts, value);
+    }
+
+    fn len(&self) -> usize {
+        self.count()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.is_empty()
     }
 }
 
