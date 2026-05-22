@@ -2194,6 +2194,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tflo-ops"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "proptest",
+ "serde",
+ "tflo-core",
+]
+
+[[package]]
 name = "tflo-rego"
 version = "0.1.0"
 dependencies = [

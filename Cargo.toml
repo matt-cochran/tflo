@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "tflo-core",
+    "tflo-ops",
     "tflo-fintech",
     "tflo-cel",
     "tflo-rego",
@@ -24,6 +25,7 @@ repository = "https://github.com/matt-cochran/tflo"
 [workspace.dependencies]
 # Internal crates
 tflo-core = { path = "tflo-core" }
+tflo-ops = { path = "tflo-ops" }
 tflo-fintech = { path = "tflo-fintech" }
 tflo-cel = { path = "tflo-cel" }
 tflo-rhai = { path = "tflo-rhai" }
@@ -102,6 +104,9 @@ debug = "line-tables-only"
 
 # Local workspace crates: full debug symbols for LLDB/GDB usability
 [profile.dev.package.tflo-core]
+debug = 2
+
+[profile.dev.package.tflo-ops]
 debug = 2
 
 [profile.dev.package.tflo-fintech]
