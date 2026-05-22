@@ -140,6 +140,27 @@ impl<R: 'static> Comp<R, f64> {
     {
         Self::custom_node_dyn(self, &[], factory)
     }
+
+    /// Create a sibling source node that extracts an `f64` directly from each
+    /// input record, independent of `self`'s value.
+    ///
+    /// This is the [`Node::Prop`] equivalent of [`TFlowBuilder::prop`], but
+    /// reachable from a `Comp` handle rather than the builder. It is useful for
+    /// [`Operator`](crate::operator::Operator) plugins in extension crates that
+    /// need a record-derived auxiliary input — e.g. a partition key fed as a
+    /// second input to a multi-input [`custom_node`](Self::custom_node).
+    ///
+    /// The returned `Comp` lives in the same graph as `self`, so it can be
+    /// passed straight to `custom_node`.
+    ///
+    /// [`TFlowBuilder::prop`]: crate::builder::TFlowBuilder::prop
+    #[must_use]
+    pub fn prop_from_record<F>(&self, extract: F) -> Comp<R, f64>
+    where
+        F: Fn(&R) -> f64 + Send + Sync + 'static,
+    {
+        Self::add_node_to_state(&self.state, Node::Prop(Arc::new(extract)))
+    }
 }
 
 #[cfg(test)]
@@ -251,6 +272,35 @@ mod tests {
             })
             .collect();
         assert_eq!(out, vec![5.0, 12.0, 15.0]);
+    }
+
+    /// `prop_from_record` builds a sibling source node that can be wired as a
+    /// second input to a multi-input custom node — here it supplies `b` so the
+    /// `SumNode` reads `a + b` without `b` ever being a builder-level `prop`.
+    #[test]
+    fn prop_from_record_feeds_a_custom_node() {
+        let data = vec![
+            Rec {
+                ts: 1,
+                a: 1.0,
+                b: 2.0,
+            },
+            Rec {
+                ts: 2,
+                a: 3.0,
+                b: 4.0,
+            },
+        ];
+        let out: Vec<f64> = data
+            .into_iter()
+            .tflo(|t| {
+                t.timestamp(|x| x.ts);
+                let a = t.prop(|x| x.a);
+                let b = a.prop_from_record(|x| x.b);
+                Comp::custom_node(&a, &[&b], || SumNode)
+            })
+            .collect();
+        assert_eq!(out, vec![3.0, 7.0]);
     }
 
     /// Regression guard: `zip` must offset a custom node's input IDs, otherwise
