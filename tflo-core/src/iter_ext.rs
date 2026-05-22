@@ -31,12 +31,12 @@ use std::sync::Arc;
 ///     Tick { ts: 3000, price: 102.0 },
 /// ];
 ///
-/// // Just the computed values
-/// let smas: Vec<f64> = ticks.iter().cloned()
+/// // Just the computed values (scale price by 2)
+/// let doubled: Vec<f64> = ticks.iter().cloned()
 ///     .tflo(|t| {
 ///         t.timestamp(|x| x.ts);
 ///         let price = t.prop(|x| x.price);
-///         price.sma(5_u64.secs())
+///         price.map_f64(|x| x * 2.0)
 ///     })
 ///     .collect();
 ///
@@ -45,7 +45,7 @@ use std::sync::Arc;
 ///     .with(|t| {
 ///         t.timestamp(|x| x.ts);
 ///         let price = t.prop(|x| x.price);
-///         price.sma(5_u64.secs())
+///         price.map_f64(|x| x * 2.0)
 ///     })
 ///     .collect();
 /// ```
@@ -217,7 +217,7 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
     ///         |t| {
     ///             t.timestamp(|x| x.ts);
     ///             let price = t.prop(|x| x.price);
-    ///             price.sma(5_u64.secs())
+    ///             price.map_f64(|x| x * 2.0)
     ///         }
     ///     )
     ///     .collect();
@@ -465,7 +465,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::duration::IntoDuration;
 
     #[derive(Clone, Debug)]
     struct TestRecord {
@@ -474,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn test_temporal_sma() {
+    fn test_temporal_map() {
         let records = vec![
             TestRecord {
                 ts: 1000,
@@ -495,14 +494,14 @@ mod tests {
             .tflo(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                value.sma(10_u64.secs())
+                value.map_f64(|x| x * 2.0)
             })
             .collect();
 
         assert_eq!(results.len(), 3);
-        assert!((results[0] - 10.0).abs() < 0.001);
-        assert!((results[1] - 15.0).abs() < 0.001);
-        assert!((results[2] - 20.0).abs() < 0.001);
+        assert!((results[0] - 20.0).abs() < 0.001);
+        assert!((results[1] - 40.0).abs() < 0.001);
+        assert!((results[2] - 60.0).abs() < 0.001);
     }
 
     #[test]
@@ -523,13 +522,13 @@ mod tests {
             .with(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                value.sma(10_u64.secs())
+                value.map_f64(|x| x + 1.0)
             })
             .collect();
 
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0.value, 10.0);
-        assert!((results[0].1 - 10.0).abs() < 0.001);
+        assert!((results[0].1 - 11.0).abs() < 0.001);
     }
 
     #[test]
@@ -550,14 +549,14 @@ mod tests {
             .tflo(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                let sma = value.sma(10_u64.secs());
-                let max = value.max(10_u64.secs());
-                (sma, max)
+                let doubled = value.map_f64(|x| x * 2.0);
+                let tripled = value.map_f64(|x| x * 3.0);
+                (doubled, tripled)
             })
             .collect();
 
         assert_eq!(results.len(), 2);
-        assert!((results[1].0 - 15.0).abs() < 0.001); // SMA
-        assert!((results[1].1 - 20.0).abs() < 0.001); // Max
+        assert!((results[1].0 - 40.0).abs() < 0.001); // doubled
+        assert!((results[1].1 - 60.0).abs() < 0.001); // tripled
     }
 }

@@ -5,20 +5,13 @@
 //! - [`Comp`]: A handle to a computation that can be composed
 //! - [`ThresholdCross`]: Threshold crossing modes (Rising, Falling, None)
 
-mod cross;
 mod custom;
-mod dual_use;
-mod math;
 mod plugin;
-mod stateful;
-mod windowed;
 
 use crate::builder::BuilderState;
 use crate::event::ThresholdCrossEventMode;
 use crate::operator::OperatorFactory;
 use crate::window::Window;
-// Note: CrossBuilderExt is intentionally not imported here to avoid conflict with existing cross() method
-// Users can import it explicitly if they want the fluent builder API
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -482,7 +475,7 @@ impl<R: 'static> std::ops::Add for &Comp<R> {
     type Output = Comp<R>;
 
     fn add(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Add(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a + b)
     }
 }
 
@@ -490,7 +483,7 @@ impl<R: 'static> std::ops::Sub for &Comp<R> {
     type Output = Comp<R>;
 
     fn sub(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Sub(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a - b)
     }
 }
 
@@ -498,24 +491,30 @@ impl<R: 'static> std::ops::Mul for &Comp<R> {
     type Output = Comp<R>;
 
     fn mul(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Mul(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a * b)
     }
 }
 
+/// Builds a closure node — division by zero produces `f64::INFINITY` /
+/// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
+/// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div for &Comp<R> {
     type Output = Comp<R>;
 
     fn div(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Div(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a / b)
     }
 }
 
 // Allow owned Comp / &Comp for chaining (e.g., `(a - b) / &c`)
+/// Builds a closure node — division by zero produces `f64::INFINITY` /
+/// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
+/// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div<&Comp<R>> for Comp<R> {
     type Output = Comp<R>;
 
     fn div(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Div(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a / b)
     }
 }
 
@@ -523,7 +522,7 @@ impl<R: 'static> std::ops::Mul<&Comp<R>> for Comp<R> {
     type Output = Comp<R>;
 
     fn mul(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Mul(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a * b)
     }
 }
 
@@ -531,7 +530,7 @@ impl<R: 'static> std::ops::Add<&Comp<R>> for Comp<R> {
     type Output = Comp<R>;
 
     fn add(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Add(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a + b)
     }
 }
 
@@ -539,7 +538,7 @@ impl<R: 'static> std::ops::Sub<&Comp<R>> for Comp<R> {
     type Output = Comp<R>;
 
     fn sub(self, rhs: &Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Sub(self.id, rhs.id))
+        self.map2_f64(rhs, |a, b| a - b)
     }
 }
 
@@ -547,7 +546,7 @@ impl<R: 'static> std::ops::Mul<f64> for &Comp<R> {
     type Output = Comp<R>;
 
     fn mul(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::MulConst(self.id, rhs))
+        self.map_f64(move |a| a * rhs)
     }
 }
 
@@ -555,7 +554,7 @@ impl<R: 'static> std::ops::Add<f64> for &Comp<R> {
     type Output = Comp<R>;
 
     fn add(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::AddConst(self.id, rhs))
+        self.map_f64(move |a| a + rhs)
     }
 }
 
@@ -563,7 +562,7 @@ impl<R: 'static> std::ops::Sub<f64> for &Comp<R> {
     type Output = Comp<R>;
 
     fn sub(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::AddConst(self.id, -rhs))
+        self.map_f64(move |a| a - rhs)
     }
 }
 
@@ -571,7 +570,7 @@ impl<R: 'static> std::ops::Neg for &Comp<R> {
     type Output = Comp<R>;
 
     fn neg(self) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Neg(self.id))
+        self.map_f64(|a| -a)
     }
 }
 
@@ -583,23 +582,29 @@ impl<R: 'static> std::ops::Mul<f64> for Comp<R> {
     type Output = Comp<R>;
 
     fn mul(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::MulConst(self.id, rhs))
+        self.map_f64(move |a| a * rhs)
     }
 }
 
+/// Builds a closure node — division by zero produces `f64::INFINITY` /
+/// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
+/// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div<f64> for Comp<R> {
     type Output = Comp<R>;
 
     fn div(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::DivConst(self.id, rhs))
+        self.map_f64(move |a| a / rhs)
     }
 }
 
+/// Builds a closure node — division by zero produces `f64::INFINITY` /
+/// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
+/// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div<f64> for &Comp<R> {
     type Output = Comp<R>;
 
     fn div(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::DivConst(self.id, rhs))
+        self.map_f64(move |a| a / rhs)
     }
 }
 
@@ -607,7 +612,7 @@ impl<R: 'static> std::ops::Add<f64> for Comp<R> {
     type Output = Comp<R>;
 
     fn add(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::AddConst(self.id, rhs))
+        self.map_f64(move |a| a + rhs)
     }
 }
 
@@ -615,16 +620,19 @@ impl<R: 'static> std::ops::Sub<f64> for Comp<R> {
     type Output = Comp<R>;
 
     fn sub(self, rhs: f64) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::AddConst(self.id, -rhs))
+        self.map_f64(move |a| a - rhs)
     }
 }
 
 // Owned Comp / Owned Comp for convenience
+/// Builds a closure node — division by zero produces `f64::INFINITY` /
+/// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
+/// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div for Comp<R> {
     type Output = Comp<R>;
 
     fn div(self, rhs: Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Div(self.id, rhs.id))
+        self.map2_f64(&rhs, |a, b| a / b)
     }
 }
 
@@ -632,7 +640,7 @@ impl<R: 'static> std::ops::Add for Comp<R> {
     type Output = Comp<R>;
 
     fn add(self, rhs: Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Add(self.id, rhs.id))
+        self.map2_f64(&rhs, |a, b| a + b)
     }
 }
 
@@ -640,7 +648,7 @@ impl<R: 'static> std::ops::Sub for Comp<R> {
     type Output = Comp<R>;
 
     fn sub(self, rhs: Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Sub(self.id, rhs.id))
+        self.map2_f64(&rhs, |a, b| a - b)
     }
 }
 
@@ -648,6 +656,6 @@ impl<R: 'static> std::ops::Mul for Comp<R> {
     type Output = Comp<R>;
 
     fn mul(self, rhs: Comp<R>) -> Comp<R> {
-        Comp::<R, f64>::add_node_to_state(&self.state, Node::Mul(self.id, rhs.id))
+        self.map2_f64(&rhs, |a, b| a * b)
     }
 }

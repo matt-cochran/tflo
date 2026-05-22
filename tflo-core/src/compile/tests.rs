@@ -1,6 +1,5 @@
 use super::*;
 use crate::builder::TFlowBuilder;
-use crate::duration::IntoDuration;
 use crate::pipeline::Sequenced;
 
 #[derive(Clone, Debug)]
@@ -19,26 +18,14 @@ fn make_graph_passthrough() -> CompiledGraph<TestRecord, f64, Timestamped> {
     CompiledGraph::compile(Arc::new(|r: &TestRecord| r.ts), nodes, output_ids)
 }
 
-/// Graph with SMA for testing windowing
+/// Graph with a map for testing — doubles the value.
 #[allow(dead_code)]
-fn make_graph_sma() -> CompiledGraph<TestRecord, f64, Timestamped> {
+fn make_graph_double() -> CompiledGraph<TestRecord, f64, Timestamped> {
     let mut builder = TFlowBuilder::<TestRecord>::new();
     let _ = builder.timestamp(|r| r.ts);
     let v = builder.prop(|r| r.value);
-    let sma = v.sma(1_u64.secs());
-    let output_ids = vec![sma.id];
-    let nodes = builder.into_nodes();
-    CompiledGraph::compile(Arc::new(|r: &TestRecord| r.ts), nodes, output_ids)
-}
-
-#[allow(dead_code)]
-fn make_graph_signal() -> CompiledGraph<TestRecord, ThresholdCrossEventMode, Timestamped> {
-    let mut builder = TFlowBuilder::<TestRecord>::new();
-    let _ = builder.timestamp(|r| r.ts);
-    let v = builder.prop(|r| r.value);
-    let threshold = builder.constant(100.0);
-    let cross = v.cross(&threshold);
-    let output_ids = vec![cross.id];
+    let doubled = v.map_f64(|x| x * 2.0);
+    let output_ids = vec![doubled.id];
     let nodes = builder.into_nodes();
     CompiledGraph::compile(Arc::new(|r: &TestRecord| r.ts), nodes, output_ids)
 }

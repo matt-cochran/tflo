@@ -5,13 +5,15 @@
 //! produce higher-level signals. They add no new runtime nodes.
 //!
 //! Methods are ported verbatim from `tflo-core/src/comp/dual_use.rs`. The
-//! bodies use plain method-call syntax so they resolve to the legacy
-//! `tflo-core` inherent methods during Phase 2 and to the `tflo-ops`
-//! extension-trait methods after Phase 3 removes the legacy catalog.
+//! bodies use plain method-call syntax; the extension traits [`WindowOps`] and
+//! [`StatefulOps`] are imported below so those methods resolve to the
+//! `tflo-ops` extension-trait impls.
 //!
 //! Every method is exposed on `Comp<R, f64>` through the single [`Composites`]
 //! extension trait so call sites read naturally — e.g. `price.zscore(20)`.
 
+use crate::ops::trackers::StatefulOps;
+use crate::ops::windows::WindowOps;
 use tflo_core::comp::Comp;
 use tflo_core::window::Window;
 

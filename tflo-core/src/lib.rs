@@ -40,35 +40,17 @@
 //! // Step 1: Define an extension trait
 //! pub trait MyExt<R: 'static> {
 //!     fn spread_ratio(&self, other: &Comp<R, f64>) -> Comp<R, f64>;
-//!     fn mean_band<W: Into<Window>>(
-//!         &self, window: W, k: f64,
-//!     ) -> (Comp<R, f64>, Comp<R, f64>, Comp<R, f64>);
-//!     fn normalized_score<W: Into<Window>>(&self, window: W) -> Comp<R, f64>;
+//!     fn log_scaled(&self) -> Comp<R, f64>;
 //! }
 //!
-//! // Step 2: Implement using only public APIs
+//! // Step 2: Implement using only public APIs (closure ops)
 //! impl<R: 'static> MyExt<R> for Comp<R, f64> {
 //!     fn spread_ratio(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
 //!         (self - other) / other
 //!     }
 //!
-//!     fn mean_band<W: Into<Window>>(
-//!         &self, window: W, k: f64,
-//!     ) -> (Comp<R, f64>, Comp<R, f64>, Comp<R, f64>) {
-//!         let w: Window = window.into();
-//!         let middle = self.sma(w);
-//!         let std = self.std(w);
-//!         let band = &std * k;
-//!         let upper = &middle + &band;
-//!         let lower = &middle - &band;
-//!         (middle, upper, lower)
-//!     }
-//!
-//!     fn normalized_score<W: Into<Window>>(&self, window: W) -> Comp<R, f64> {
-//!         let w: Window = window.into();
-//!         let mean = self.sma(w);
-//!         let std = self.std(w);
-//!         (self - &mean) / &std
+//!     fn log_scaled(&self) -> Comp<R, f64> {
+//!         self.map_f64(|x| if x > 0.0 { x.ln() } else { f64::NAN })
 //!     }
 //! }
 //!
@@ -78,7 +60,7 @@
 //!         .tflo(|t| {
 //!             t.timestamp(|x| x.0);
 //!             let price = t.prop(|x| x.1);
-//!             price.normalized_score(14)
+//!             price.log_scaled()
 //!         })
 //!         .collect()
 //! }
@@ -98,7 +80,7 @@
 //! - **Window genericity**: Use `impl Into<Window>` to accept both time-based
 //!   ([`Duration`]) and count-based ([`usize`]) windows.
 //! - **Chaining**: Composite methods compose freely with each other and with
-//!   built-ins. For example: `price.normalized_score(14).sma(5).spread_ratio(&threshold)`.
+//!   closure primitives. For example: `price.log_scaled().map_f64(|x| x * 2.0).spread_ratio(&baseline)`.
 //!
 //! See the full example at [`tflo-examples/examples/custom-composite`]
 //! (../../tflo-examples/examples/custom-composite) for a complete, runnable demo.
@@ -166,8 +148,8 @@
 //! > **Note on closures**: [`map_f64`], [`map2_f64`], [`filter_f64`], [`filter_map_f64`] are
 //! > per-record transforms. [`scan_f64`] and [`scan2_f64`] are per-record state machines —
 //! > their state advances once per input record, not once per window. For rolling
-//! > count-windowed or time-windowed behavior, compose with [`Window`]-based operators
-//! > like `sma(n)` or `sma(duration)`.
+//! > count-windowed or time-windowed behavior, compose with catalog operators from
+//! > [`tflo-ops`] (the operator catalog crate).
 //!
 //! > **Note on naming**: Closure bodies are opaque to `tflo-core`; even though Rust compiles
 //! > them, `tflo-core` cannot inspect or display the formula inside. Optional
@@ -192,12 +174,12 @@
 //!     Tick { ts: 3000, price: 99.0 },
 //! ];
 //!
+//! // Apply a stateless transform using a closure primitive
 //! let results: Vec<_> = ticks.into_iter()
 //!     .tflo(|t| {
 //!         t.timestamp(|x| x.ts);
 //!         let price = t.prop(|x| x.price);
-//!         let sma = price.sma(2_u64.secs());
-//!         sma
+//!         price.map_f64(|x| x * 2.0)
 //!     })
 //!     .collect();
 //! ```

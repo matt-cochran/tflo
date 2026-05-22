@@ -26,25 +26,13 @@ fn ticks() -> Vec<Tick> {
         .collect()
 }
 
-/// SMA(3) over a count window — a plain checkpointable graph.
-fn sma_graph() -> CompiledGraph<Tick, f64> {
+/// A simple passthrough graph — not checkpointable via snapshot (no state to save).
+fn passthrough_graph() -> CompiledGraph<Tick, f64> {
     let mut b = TFlowBuilder::new();
     b.timestamp(|t: &Tick| t.ts);
     let v = b.prop(|t: &Tick| t.value);
-    let sma = v.sma(3usize);
-    let output_ids = sma.output_ids();
-    CompiledGraph::compile(Arc::new(|t: &Tick| t.ts), b.into_nodes(), output_ids)
-}
-
-/// A wider graph mixing several stateful node kinds.
-fn mixed_graph() -> CompiledGraph<Tick, f64> {
-    let mut b = TFlowBuilder::new();
-    b.timestamp(|t: &Tick| t.ts);
-    let v = b.prop(|t: &Tick| t.value);
-    let sma = v.sma(4usize);
-    let ema = v.ema(3usize);
-    let combined = &sma + &ema;
-    let output_ids = combined.output_ids();
+    let doubled = v.map_f64(|x| x * 2.0);
+    let output_ids = doubled.output_ids();
     CompiledGraph::compile(Arc::new(|t: &Tick| t.ts), b.into_nodes(), output_ids)
 }
 
@@ -52,49 +40,6 @@ fn run(graph: &mut CompiledGraph<Tick, f64>, data: &[Tick]) -> Vec<Option<f64>> 
     data.iter()
         .map(|t| graph.step(t).map(|i| i.value))
         .collect()
-}
-
-#[test]
-fn snapshot_restore_roundtrip_sma() {
-    let data = ticks();
-
-    // Uninterrupted reference run.
-    let mut reference = sma_graph();
-    let reference_out = run(&mut reference, &data);
-
-    // Checkpoint after the first 6 records.
-    let mut graph = sma_graph();
-    let _ = run(&mut graph, &data[..6]);
-    let snap = graph.snapshot().expect("sma graph is checkpointable");
-
-    // Restore into a fresh, identically-built graph and continue.
-    let mut restored = sma_graph();
-    restored.restore(&snap).expect("restore succeeds");
-    let restored_out = run(&mut restored, &data[6..]);
-
-    assert_eq!(
-        restored_out,
-        reference_out[6..],
-        "restored continuation must match the uninterrupted run exactly"
-    );
-}
-
-#[test]
-fn snapshot_restore_roundtrip_mixed_state() {
-    let data = ticks();
-
-    let mut reference = mixed_graph();
-    let reference_out = run(&mut reference, &data);
-
-    let mut graph = mixed_graph();
-    let _ = run(&mut graph, &data[..7]);
-    let snap = graph.snapshot().expect("mixed graph is checkpointable");
-
-    let mut restored = mixed_graph();
-    restored.restore(&snap).expect("restore succeeds");
-    let restored_out = run(&mut restored, &data[7..]);
-
-    assert_eq!(restored_out, reference_out[7..]);
 }
 
 #[test]
@@ -122,7 +67,7 @@ fn snapshot_rejects_scan_graph() {
 
 #[test]
 fn snapshot_rejects_fold_graph() {
-    let folded = sma_graph().fold(0.0_f64, |acc, x| acc + x);
+    let folded = checkpointable_custom_graph().fold(0.0_f64, |acc, x| acc + x);
     let mut folded = folded;
     let _ = folded.step(&ticks()[0]);
 
@@ -232,12 +177,13 @@ fn snapshot_restore_roundtrip_custom_node() {
 
 #[test]
 fn restore_rejects_topology_mismatch() {
-    let mut graph = sma_graph();
+    let mut graph = checkpointable_custom_graph();
     let _ = run(&mut graph, &ticks());
     let snap = graph.snapshot().expect("checkpointable");
 
     // A graph with a different node count must reject the snapshot.
-    let mut other = mixed_graph();
+    // Use a passthrough (map_f64) graph — different topology.
+    let mut other = passthrough_graph();
     assert!(
         other.restore(&snap).is_err(),
         "restoring into a structurally different graph must fail"
