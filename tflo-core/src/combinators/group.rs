@@ -173,8 +173,8 @@ mod tests {
         let groups = values.into_iter().group_by_key(|s| s.chars().next());
 
         assert_eq!(groups.key_count(), 2);
-        assert_eq!(groups.get(&Some('a')).map(|v| v.len()), Some(2));
-        assert_eq!(groups.get(&Some('b')).map(|v| v.len()), Some(2));
+        assert_eq!(groups.get(&Some('a')).map(std::vec::Vec::len), Some(2));
+        assert_eq!(groups.get(&Some('b')).map(std::vec::Vec::len), Some(2));
     }
 
     #[test]

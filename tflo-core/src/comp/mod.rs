@@ -172,7 +172,7 @@ pub struct Comp<R, T = f64> {
 
 impl<R, T> Clone for Comp<R, T> {
     fn clone(&self) -> Self {
-        Comp {
+        Self {
             id: self.id,
             state: Rc::clone(&self.state),
             _marker: PhantomData,
@@ -268,34 +268,34 @@ impl<R: 'static> std::ops::Div for &Comp<R> {
 /// Builds a closure node — division by zero produces `f64::INFINITY` /
 /// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
 /// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
-impl<R: 'static> std::ops::Div<&Comp<R>> for Comp<R> {
-    type Output = Comp<R>;
+impl<R: 'static> std::ops::Div<&Self> for Comp<R> {
+    type Output = Self;
 
-    fn div(self, rhs: &Comp<R>) -> Comp<R> {
+    fn div(self, rhs: &Self) -> Self {
         self.map2_f64(rhs, |a, b| a / b)
     }
 }
 
-impl<R: 'static> std::ops::Mul<&Comp<R>> for Comp<R> {
-    type Output = Comp<R>;
+impl<R: 'static> std::ops::Mul<&Self> for Comp<R> {
+    type Output = Self;
 
-    fn mul(self, rhs: &Comp<R>) -> Comp<R> {
+    fn mul(self, rhs: &Self) -> Self {
         self.map2_f64(rhs, |a, b| a * b)
     }
 }
 
-impl<R: 'static> std::ops::Add<&Comp<R>> for Comp<R> {
-    type Output = Comp<R>;
+impl<R: 'static> std::ops::Add<&Self> for Comp<R> {
+    type Output = Self;
 
-    fn add(self, rhs: &Comp<R>) -> Comp<R> {
+    fn add(self, rhs: &Self) -> Self {
         self.map2_f64(rhs, |a, b| a + b)
     }
 }
 
-impl<R: 'static> std::ops::Sub<&Comp<R>> for Comp<R> {
-    type Output = Comp<R>;
+impl<R: 'static> std::ops::Sub<&Self> for Comp<R> {
+    type Output = Self;
 
-    fn sub(self, rhs: &Comp<R>) -> Comp<R> {
+    fn sub(self, rhs: &Self) -> Self {
         self.map2_f64(rhs, |a, b| a - b)
     }
 }
@@ -337,9 +337,9 @@ impl<R: 'static> std::ops::Neg for &Comp<R> {
 // ============================================================================
 
 impl<R: 'static> std::ops::Mul<f64> for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn mul(self, rhs: f64) -> Comp<R> {
+    fn mul(self, rhs: f64) -> Self {
         self.map_f64(move |a| a * rhs)
     }
 }
@@ -348,9 +348,9 @@ impl<R: 'static> std::ops::Mul<f64> for Comp<R> {
 /// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
 /// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div<f64> for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn div(self, rhs: f64) -> Comp<R> {
+    fn div(self, rhs: f64) -> Self {
         self.map_f64(move |a| a / rhs)
     }
 }
@@ -367,17 +367,17 @@ impl<R: 'static> std::ops::Div<f64> for &Comp<R> {
 }
 
 impl<R: 'static> std::ops::Add<f64> for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn add(self, rhs: f64) -> Comp<R> {
+    fn add(self, rhs: f64) -> Self {
         self.map_f64(move |a| a + rhs)
     }
 }
 
 impl<R: 'static> std::ops::Sub<f64> for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn sub(self, rhs: f64) -> Comp<R> {
+    fn sub(self, rhs: f64) -> Self {
         self.map_f64(move |a| a - rhs)
     }
 }
@@ -387,33 +387,33 @@ impl<R: 'static> std::ops::Sub<f64> for Comp<R> {
 /// `f64::NAN`, which downstream `finite_or_warming` mapping turns into
 /// `Absent::WarmingUp` (not the older `Absent::DivideByZero`).
 impl<R: 'static> std::ops::Div for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn div(self, rhs: Comp<R>) -> Comp<R> {
+    fn div(self, rhs: Self) -> Self {
         self.map2_f64(&rhs, |a, b| a / b)
     }
 }
 
 impl<R: 'static> std::ops::Add for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn add(self, rhs: Comp<R>) -> Comp<R> {
+    fn add(self, rhs: Self) -> Self {
         self.map2_f64(&rhs, |a, b| a + b)
     }
 }
 
 impl<R: 'static> std::ops::Sub for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn sub(self, rhs: Comp<R>) -> Comp<R> {
+    fn sub(self, rhs: Self) -> Self {
         self.map2_f64(&rhs, |a, b| a - b)
     }
 }
 
 impl<R: 'static> std::ops::Mul for Comp<R> {
-    type Output = Comp<R>;
+    type Output = Self;
 
-    fn mul(self, rhs: Comp<R>) -> Comp<R> {
+    fn mul(self, rhs: Self) -> Self {
         self.map2_f64(&rhs, |a, b| a * b)
     }
 }

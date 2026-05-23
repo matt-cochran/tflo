@@ -72,11 +72,11 @@ impl NodeState {
     /// node, or a custom node whose `save()` returns `None`.
     pub(crate) fn to_snapshot(&self) -> Option<NodeStateSnapshot> {
         Some(match self {
-            NodeState::Stateless => NodeStateSnapshot::Stateless,
+            Self::Stateless => NodeStateSnapshot::Stateless,
             // A plugin operator is checkpointable only if it overrides `save()`.
-            NodeState::Plugin(op) => return op.save().map(NodeStateSnapshot::Plugin),
+            Self::Plugin(op) => return op.save().map(NodeStateSnapshot::Plugin),
             // `scan`/`scan2` hold opaque closure state — not checkpointable.
-            NodeState::ScanState(_) | NodeState::Scan2State(_) => return None,
+            Self::ScanState(_) | Self::Scan2State(_) => return None,
         })
     }
 }
@@ -89,8 +89,8 @@ impl NodeStateSnapshot {
     /// variant does not match the live node — i.e. the topology changed.
     pub(crate) fn apply_to(self, state: &mut NodeState, index: usize) -> Result<(), SnapshotError> {
         match (self, &mut *state) {
-            (NodeStateSnapshot::Stateless, NodeState::Stateless) => {}
-            (NodeStateSnapshot::Plugin(bytes), NodeState::Plugin(op)) => {
+            (Self::Stateless, NodeState::Stateless) => {}
+            (Self::Plugin(bytes), NodeState::Plugin(op)) => {
                 op.load(&bytes)
                     .map_err(|_| SnapshotError::Decode { index })?;
             }

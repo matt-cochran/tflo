@@ -12,7 +12,7 @@ struct Sample {
 }
 
 impl Sample {
-    fn new(ts: i64, latency_ms: f64) -> Self {
+    const fn new(ts: i64, latency_ms: f64) -> Self {
         Self { ts, latency_ms }
     }
 }

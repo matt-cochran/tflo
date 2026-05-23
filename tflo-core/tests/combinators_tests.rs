@@ -4,8 +4,8 @@ use tflo_core::combinators::{
     GroupByExt, PartitionExt, fork, partition_lazy, rate_limit_keep_last,
 };
 
-/// When partition_lazy is applied,
-/// the combinator shall yield (item, is_match) pairs,
+/// When `partition_lazy` is applied,
+/// the combinator shall yield (item, `is_match`) pairs,
 /// So that items can be processed lazily without allocation,
 /// And each item will include its partition assignment.
 #[test]
@@ -21,7 +21,7 @@ fn test_partition_lazy() {
     assert_eq!(partitioned[4], (5, false)); // 5 is odd
 }
 
-/// When partition_lazy is used with filter,
+/// When `partition_lazy` is used with filter,
 /// users shall be able to process only matching items,
 /// So that non-matching items are skipped efficiently,
 /// And no intermediate collections are created.
@@ -78,7 +78,7 @@ fn test_fork_empty() {
     }
 }
 
-/// When rate_limit_keep_last is applied,
+/// When `rate_limit_keep_last` is applied,
 /// the combinator shall keep the most recent item within each interval,
 /// So that the latest data is preserved rather than first,
 /// And gaps will contain the most recent observation.
@@ -99,7 +99,7 @@ fn test_rate_limit_keep_last() {
     assert!(!limited.is_empty());
 }
 
-/// When group_by_key is used via extension trait,
+/// When `group_by_key` is used via extension trait,
 /// the iterator shall be collected into groups by key,
 /// So that related items are grouped together,
 /// And the syntax is ergonomic.
@@ -109,11 +109,11 @@ fn test_group_by_ext() {
     let groups = values.into_iter().group_by_key(|&x| x % 2);
 
     assert_eq!(groups.key_count(), 2);
-    assert_eq!(groups.get(&0).map(|v| v.len()), Some(3)); // Even: 2, 4, 6
-    assert_eq!(groups.get(&1).map(|v| v.len()), Some(3)); // Odd: 1, 3, 5
+    assert_eq!(groups.get(&0).map(std::vec::Vec::len), Some(3)); // Even: 2, 4, 6
+    assert_eq!(groups.get(&1).map(std::vec::Vec::len), Some(3)); // Odd: 1, 3, 5
 }
 
-/// When partition_by is used via extension trait,
+/// When `partition_by` is used via extension trait,
 /// the iterator shall be partitioned into two vectors,
 /// So that matching and non-matching items are separated,
 /// And the syntax is ergonomic.
@@ -126,7 +126,7 @@ fn test_partition_ext() {
     assert_eq!(odds, vec![1, 3, 5]);
 }
 
-/// When partition_lazy_by is used via extension trait,
+/// When `partition_lazy_by` is used via extension trait,
 /// the iterator shall lazily yield partitioned items,
 /// So that streaming partition is available via fluent API,
 /// And no intermediate allocation is needed.

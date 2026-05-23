@@ -175,7 +175,7 @@ impl LinearRegressor {
 
     /// Get the current regression coefficients (slope, intercept).
     ///
-    /// Returns (0.0, mean_y) if there's insufficient variation in x.
+    /// Returns (0.0, `mean_y`) if there's insufficient variation in x.
     #[must_use]
     pub fn coefficients(&self) -> (f64, f64) {
         let n = self.buffer.len() as f64;

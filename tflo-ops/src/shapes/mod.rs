@@ -33,5 +33,11 @@ pub trait Reduce<W>: Default + Send + Sync + 'static {
 /// stays `Default`-restorable with the step `#[serde(skip)]`-ped.
 pub trait TrackStep<S>: Default + Send + Sync + 'static {
     /// Advance the tracker state and produce this record's result.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(Absent::*)` when the tracker has no defined output for
+    /// this record (warming up, empty window, etc.); the specific reason is
+    /// step-defined.
     fn step(&self, state: &mut S, value: f64, ts: i64) -> Computed;
 }

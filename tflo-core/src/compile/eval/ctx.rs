@@ -20,7 +20,7 @@ pub struct CompilationCtx<R> {
 
 impl<R> CompilationCtx<R> {
     /// Create a new compilation context.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             _marker: std::marker::PhantomData,
         }

@@ -37,7 +37,7 @@ pub struct LagBuffer {
 impl LagBuffer {
     /// Create a new lag buffer with the specified lookback duration.
     #[must_use]
-    pub fn new(lag: Duration) -> Self {
+    pub const fn new(lag: Duration) -> Self {
         Self::with_max_size(lag, 10_000)
     }
 
@@ -46,7 +46,7 @@ impl LagBuffer {
     /// The buffer will not grow beyond this size, which helps prevent
     /// memory exhaustion with high-frequency data.
     #[must_use]
-    pub fn with_max_size(lag: Duration, max_size: usize) -> Self {
+    pub const fn with_max_size(lag: Duration, max_size: usize) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let lag_ms = lag.as_millis() as i64;
         Self {
@@ -135,7 +135,7 @@ impl LagBuffer {
 
     /// Get the configured lag duration in milliseconds.
     #[must_use]
-    pub fn lag_ms(&self) -> i64 {
+    pub const fn lag_ms(&self) -> i64 {
         self.lag_ms
     }
 }

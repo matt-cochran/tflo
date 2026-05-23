@@ -19,7 +19,7 @@ fn ema_returns_one_value_per_tick() {
     let out = compute_ema(&ramp_ticks(50), "{\"period\":10}");
     let parsed: Vec<Option<f64>> = serde_json::from_str(&out).unwrap();
     assert_eq!(parsed.len(), 50);
-    assert!(parsed.iter().any(|v| v.is_some()));
+    assert!(parsed.iter().any(std::option::Option::is_some));
 }
 
 #[wasm_bindgen_test]

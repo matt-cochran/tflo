@@ -26,7 +26,7 @@ pub struct CumulativeSum {
 impl CumulativeSum {
     /// Create a new cumulative sum tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { sum: 0.0 }
     }
 
@@ -38,7 +38,7 @@ impl CumulativeSum {
 
     /// Get the current cumulative sum without adding a value.
     #[must_use]
-    pub fn value(&self) -> f64 {
+    pub const fn value(&self) -> f64 {
         self.sum
     }
 
@@ -77,7 +77,7 @@ impl Default for CumulativeProduct {
 impl CumulativeProduct {
     /// Create a new cumulative product tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { product: 1.0 }
     }
 
@@ -89,7 +89,7 @@ impl CumulativeProduct {
 
     /// Get the current cumulative product without adding a value.
     #[must_use]
-    pub fn value(&self) -> f64 {
+    pub const fn value(&self) -> f64 {
         self.product
     }
 
@@ -130,7 +130,7 @@ impl Default for CumulativeMax {
 impl CumulativeMax {
     /// Create a new cumulative max tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             max: f64::NEG_INFINITY,
         }
@@ -146,7 +146,7 @@ impl CumulativeMax {
 
     /// Get the current cumulative maximum without adding a value.
     #[must_use]
-    pub fn value(&self) -> f64 {
+    pub const fn value(&self) -> f64 {
         self.max
     }
 
@@ -186,7 +186,7 @@ impl Default for CumulativeMin {
 impl CumulativeMin {
     /// Create a new cumulative min tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { min: f64::INFINITY }
     }
 
@@ -200,7 +200,7 @@ impl CumulativeMin {
 
     /// Get the current cumulative minimum without adding a value.
     #[must_use]
-    pub fn value(&self) -> f64 {
+    pub const fn value(&self) -> f64 {
         self.min
     }
 
@@ -235,7 +235,7 @@ pub struct CumulativeMean {
 impl CumulativeMean {
     /// Create a new cumulative mean tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             count: 0,
             mean: 0.0,
@@ -254,13 +254,13 @@ impl CumulativeMean {
     ///
     /// Returns `f64::NAN` if no values have been added.
     #[must_use]
-    pub fn value(&self) -> f64 {
+    pub const fn value(&self) -> f64 {
         if self.count == 0 { f64::NAN } else { self.mean }
     }
 
     /// Get the count of values.
     #[must_use]
-    pub fn count(&self) -> u64 {
+    pub const fn count(&self) -> u64 {
         self.count
     }
 

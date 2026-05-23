@@ -147,7 +147,7 @@ impl Scalar for f32 {
     }
 
     fn from_f64(value: f64) -> Self {
-        value as f32
+        value as Self
     }
 
     fn to_f64(self) -> f64 {

@@ -11,7 +11,7 @@ struct ProcessSample {
 }
 
 impl ProcessSample {
-    fn new(ts: i64, level: f64) -> Self {
+    const fn new(ts: i64, level: f64) -> Self {
         Self { ts, level }
     }
 }

@@ -13,7 +13,7 @@ pub struct Tick {
 }
 
 impl Tick {
-    pub fn new(ts: i64, price: f64) -> Self {
+    pub const fn new(ts: i64, price: f64) -> Self {
         Self { ts, price }
     }
 }
@@ -27,7 +27,7 @@ pub struct TradeTick {
 }
 
 impl TradeTick {
-    pub fn new(ts: i64, price: f64, volume: f64) -> Self {
+    pub const fn new(ts: i64, price: f64, volume: f64) -> Self {
         Self { ts, price, volume }
     }
 }
@@ -43,7 +43,7 @@ pub struct OhlcTick {
 }
 
 impl OhlcTick {
-    pub fn new(ts: i64, open: f64, high: f64, low: f64, close: f64) -> Self {
+    pub const fn new(ts: i64, open: f64, high: f64, low: f64, close: f64) -> Self {
         Self {
             ts,
             open,
@@ -63,7 +63,7 @@ pub struct Detection {
 }
 
 impl Detection {
-    pub fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
+    pub const fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
         Self { ts, snr, freq_mhz }
     }
 }

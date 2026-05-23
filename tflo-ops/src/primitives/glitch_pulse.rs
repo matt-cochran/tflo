@@ -145,7 +145,7 @@ impl GlitchFilter {
     /// * `threshold` - The amplitude threshold for detecting pulses
     /// * `min_duration_ms` - Minimum pulse duration in milliseconds to be valid
     #[must_use]
-    pub fn new(threshold: f64, min_duration_ms: i64) -> Self {
+    pub const fn new(threshold: f64, min_duration_ms: i64) -> Self {
         Self {
             threshold,
             min_duration_ms,
@@ -164,8 +164,8 @@ impl GlitchFilter {
     /// # Returns
     ///
     /// - `None` if no pulse transition occurred
-    /// - `Some(true)` if a valid pulse ended (duration ≥ min_duration)
-    /// - `Some(false)` if a glitch was filtered out (duration < min_duration)
+    /// - `Some(true)` if a valid pulse ended (duration ≥ `min_duration`)
+    /// - `Some(false)` if a glitch was filtered out (duration < `min_duration`)
     pub fn update(&mut self, value: f64, ts_ms: i64) -> Option<bool> {
         let is_high = value >= self.threshold;
 
@@ -273,7 +273,7 @@ impl PulseWidthDetector {
         }
     }
 
-    fn classify_width(&self, width_ms: i64) -> PulseWidthResult {
+    const fn classify_width(&self, width_ms: i64) -> PulseWidthResult {
         if width_ms < self.min_width_ms {
             PulseWidthResult::TooShort { width_ms }
         } else if width_ms > self.max_width_ms {

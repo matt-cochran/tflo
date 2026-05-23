@@ -245,7 +245,7 @@ pub struct CorrelationTimeWindow {
 impl CorrelationTimeWindow {
     /// Create a new time-based correlation window.
     #[must_use]
-    pub fn new(window: Duration) -> Self {
+    pub const fn new(window: Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {

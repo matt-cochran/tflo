@@ -82,13 +82,13 @@ impl CountWindow {
 
     /// Get the maximum capacity of the window.
     #[must_use]
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.max_count
     }
 
     /// Get the sum of all values in the window.
     #[must_use]
-    pub fn sum(&self) -> f64 {
+    pub const fn sum(&self) -> f64 {
         self.sum
     }
 

@@ -14,7 +14,7 @@ struct Part {
 }
 
 impl Part {
-    fn new(ts: i64, diameter_mm: f64, spindle_temp_c: f64) -> Self {
+    const fn new(ts: i64, diameter_mm: f64, spindle_temp_c: f64) -> Self {
         Self {
             ts,
             diameter_mm,

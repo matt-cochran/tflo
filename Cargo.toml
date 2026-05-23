@@ -70,6 +70,23 @@ nursery = { level = "allow", priority = -1 }
 # work in `docs/lint-backlog.md`.
 type_complexity = "allow"
 
+# ── Lint backlog batch 1 (re-enabled) ─────────────────────────────────
+# Specific lints have priority over the `pedantic`/`nursery` group entries
+# above, so adding them here opts individual lints back in. See
+# `docs/lint-backlog.md` for the staged plan.
+uninlined_format_args = "deny"
+redundant_closure_for_method_calls = "deny"
+explicit_iter_loop = "deny"
+
+# ── Lint backlog batch 2 (re-enabled) ─────────────────────────────────
+doc_markdown = "deny"
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+
+# ── Lint backlog batch 3 (re-enabled) ─────────────────────────────────
+use_self = "deny"
+missing_const_for_fn = "deny"
+
 # ── Panic-freedom (hardening pass) ─────────────────────────────────────
 # Production code must not panic. These `restriction` lints are denied
 # workspace-wide; test code is exempted with a per-crate

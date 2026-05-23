@@ -27,6 +27,12 @@ where
     }
 
     /// Transform items, returning errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::CompileError`](crate::error::RhaiError::CompileError)
+    /// when `expr` fails to compile as a Rhai expression.
     fn rhai_map_result(self, expr: &str) -> RhaiResult<RhaiMapResult<Self, T>> {
         RhaiMapResult::new(self, expr)
     }

@@ -418,61 +418,61 @@ pub trait StatefulOps<R> {
 }
 
 impl<R: 'static> StatefulOps<R> for Comp<R, f64> {
-    fn prev(&self) -> Comp<R, f64> {
+    fn prev(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(PrevTracker::new(), PrevStep))
     }
 
-    fn prev_by<F>(&self, key_fn: F) -> Comp<R, f64>
+    fn prev_by<F>(&self, key_fn: F) -> Self
     where
         F: Fn(&R) -> f64 + Send + Sync + 'static,
     {
         // Wire a hidden source node that extracts the partition key from each
         // record, then feed it as the second input to the 2-input `PrevByOp`.
         let key = self.prop_from_record(key_fn);
-        Comp::custom_node(self, &[&key], PrevByOp::default)
+        Self::custom_node(self, &[&key], PrevByOp::default)
     }
 
-    fn lag(&self, duration: Duration) -> Comp<R, f64> {
+    fn lag(&self, duration: Duration) -> Self {
         self.custom_node1(move || StatefulTracker::new(LagBuffer::new(duration), LagStep))
     }
 
-    fn delta(&self, duration: Duration) -> Comp<R, f64> {
+    fn delta(&self, duration: Duration) -> Self {
         self.custom_node1(move || StatefulTracker::new(LagBuffer::new(duration), DeltaStep))
     }
 
-    fn rate(&self, _window: Duration) -> Comp<R, f64> {
+    fn rate(&self, _window: Duration) -> Self {
         self.custom_node1(|| StatefulTracker::new(DerivativeState::default(), RateStep))
     }
 
-    fn velocity(&self, _window: Duration) -> Comp<R, f64> {
+    fn velocity(&self, _window: Duration) -> Self {
         self.custom_node1(|| StatefulTracker::new(DerivativeState::default(), VelocityStep))
     }
 
-    fn acceleration(&self, _window: Duration) -> Comp<R, f64> {
+    fn acceleration(&self, _window: Duration) -> Self {
         self.custom_node1(|| StatefulTracker::new(AccelerationState::default(), AccelerationStep))
     }
 
-    fn cumsum(&self) -> Comp<R, f64> {
+    fn cumsum(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(CumulativeSum::new(), CumSumStep))
     }
 
-    fn cummax(&self) -> Comp<R, f64> {
+    fn cummax(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(CumulativeMax::new(), CumMaxStep))
     }
 
-    fn cummin(&self) -> Comp<R, f64> {
+    fn cummin(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(CumulativeMin::new(), CumMinStep))
     }
 
-    fn cumprod(&self) -> Comp<R, f64> {
+    fn cumprod(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(CumulativeProduct::new(), CumProdStep))
     }
 
-    fn pct_change(&self) -> Comp<R, f64> {
+    fn pct_change(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(PctChangeState::default(), PctChangeStep))
     }
 
-    fn log_return(&self) -> Comp<R, f64> {
+    fn log_return(&self) -> Self {
         self.custom_node1(|| StatefulTracker::new(LogReturnState::default(), LogReturnStep))
     }
 }

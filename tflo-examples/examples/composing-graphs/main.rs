@@ -12,7 +12,7 @@ struct RequestStat {
 }
 
 impl RequestStat {
-    fn new(ts: i64, error_rate: f64) -> Self {
+    const fn new(ts: i64, error_rate: f64) -> Self {
         Self { ts, error_rate }
     }
 }

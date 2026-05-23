@@ -14,12 +14,12 @@ struct Reading {
 }
 
 impl Reading {
-    fn new(ts: i64, value: f64) -> Self {
+    const fn new(ts: i64, value: f64) -> Self {
         Self { ts, value }
     }
 }
 
-/// Sample readings streamed from an outdoor IoT weather station.
+/// Sample readings streamed from an outdoor `IoT` weather station.
 fn sample_readings() -> Vec<Reading> {
     vec![
         Reading::new(1000, 18.0),

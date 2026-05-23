@@ -28,6 +28,11 @@ impl PolicyEngine {
     }
 
     /// Add a policy from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegoError::ParseError`](crate::error::RegoError::ParseError)
+    /// when `policy` is not a valid Rego policy.
     pub fn add_policy(&mut self, name: &str, policy: &str) -> RegoResult<()> {
         let _ = self
             .engine
@@ -40,6 +45,12 @@ impl PolicyEngine {
     }
 
     /// Add a policy from a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegoError::IoError`](crate::error::RegoError::IoError) when
+    /// `path` cannot be read, plus any error from
+    /// [`add_policy`](Self::add_policy) for parsing.
     pub fn add_policy_from_file<P: AsRef<Path>>(&mut self, path: P) -> RegoResult<()> {
         let content = fs::read_to_string(path.as_ref())?;
         let name = path
@@ -51,6 +62,13 @@ impl PolicyEngine {
     }
 
     /// Add all policies from a directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegoError::IoError`](crate::error::RegoError::IoError) when
+    /// `path` cannot be read or entries cannot be enumerated, plus any
+    /// error from [`add_policy_from_file`](Self::add_policy_from_file) for
+    /// each `.rego` file found.
     pub fn add_policies_from_directory<P: AsRef<Path>>(&mut self, path: P) -> RegoResult<usize> {
         let mut count = 0;
         for entry in fs::read_dir(path)? {
@@ -65,6 +83,12 @@ impl PolicyEngine {
     }
 
     /// Add static data that policies can reference.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RegoError::EvaluationError`](crate::error::RegoError::EvaluationError)
+    /// when the underlying engine rejects the supplied data.
     pub fn add_data(&mut self, data: serde_json::Value) -> RegoResult<()> {
         let rego_value: regorus::Value = data.into();
         self.engine
@@ -77,6 +101,14 @@ impl PolicyEngine {
     }
 
     /// Add data from a JSON file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegoError::IoError`](crate::error::RegoError::IoError) when
+    /// `path` cannot be read,
+    /// [`RegoError::JsonError`](crate::error::RegoError::JsonError) when
+    /// the file is not valid JSON, plus any error from
+    /// [`add_data`](Self::add_data).
     pub fn add_data_from_file<P: AsRef<Path>>(&mut self, path: P) -> RegoResult<()> {
         let content = fs::read_to_string(path)?;
         let data: serde_json::Value = serde_json::from_str(&content)?;
@@ -84,6 +116,11 @@ impl PolicyEngine {
     }
 
     /// Set the input for evaluation.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible — the `Result` shape is reserved for future
+    /// engine-side validation of the input document.
     pub fn set_input(&mut self, input: serde_json::Value) -> RegoResult<()> {
         let rego_value: regorus::Value = input.into();
         self.engine.set_input(rego_value);
@@ -91,6 +128,12 @@ impl PolicyEngine {
     }
 
     /// Evaluate a query and return the result as JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RegoError::EvaluationError`](crate::error::RegoError::EvaluationError)
+    /// when the underlying Rego engine fails to evaluate `query`.
     #[allow(clippy::disallowed_methods)] // serde_json::json! macro internally uses unwrap
     pub fn eval_query(&mut self, query: &str) -> RegoResult<serde_json::Value> {
         let results = self
@@ -120,6 +163,13 @@ impl PolicyEngine {
     }
 
     /// Evaluate a query with input and return a boolean result.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`set_input`](Self::set_input) and
+    /// [`eval_query`](Self::eval_query), and returns
+    /// [`RegoError::EvaluationError`](crate::error::RegoError::EvaluationError)
+    /// when the query result cannot be coerced to a boolean.
     pub fn eval_allow<T: IntoRegoInput>(&mut self, input: &T, query: &str) -> RegoResult<bool> {
         let input_value = input.into_rego_input();
         self.set_input(input_value)?;
@@ -131,6 +181,11 @@ impl PolicyEngine {
     }
 
     /// Evaluate and return a value result.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`set_input`](Self::set_input) and
+    /// [`eval_query`](Self::eval_query).
     pub fn eval_value<T: IntoRegoInput>(
         &mut self,
         input: &T,
@@ -166,7 +221,7 @@ impl PolicyEngine {
         if result
             .get("result")
             .and_then(|r| r.as_array())
-            .is_some_and(|a| a.is_empty())
+            .is_some_and(std::vec::Vec::is_empty)
         {
             return Ok(false);
         }
@@ -183,7 +238,7 @@ impl PolicyEngine {
     }
 }
 
-/// Convert regorus Value to serde_json Value.
+/// Convert regorus Value to `serde_json` Value.
 fn value_to_json(value: &regorus::Value) -> serde_json::Value {
     match value {
         regorus::Value::Null => serde_json::Value::Null,

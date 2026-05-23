@@ -200,47 +200,47 @@ pub trait MathOps<R> {
 }
 
 impl<R: 'static> MathOps<R> for Comp<R, f64> {
-    fn abs(&self) -> Comp<R, f64> {
+    fn abs(&self) -> Self {
         self.map_f64(f64::abs)
     }
 
-    fn sqrt(&self) -> Comp<R, f64> {
+    fn sqrt(&self) -> Self {
         self.custom_node1(Sqrt::default)
     }
 
-    fn ln(&self) -> Comp<R, f64> {
+    fn ln(&self) -> Self {
         self.custom_node1(Ln::default)
     }
 
-    fn log10(&self) -> Comp<R, f64> {
+    fn log10(&self) -> Self {
         self.custom_node1(Log10::default)
     }
 
-    fn log2(&self) -> Comp<R, f64> {
+    fn log2(&self) -> Self {
         self.custom_node1(Log2::default)
     }
 
-    fn exp(&self) -> Comp<R, f64> {
+    fn exp(&self) -> Self {
         self.map_f64(f64::exp)
     }
 
-    fn pow(&self, exponent: f64) -> Comp<R, f64> {
+    fn pow(&self, exponent: f64) -> Self {
         self.map_f64(move |x| x.powf(exponent))
     }
 
-    fn clamp(&self, lo: f64, hi: f64) -> Comp<R, f64> {
+    fn clamp(&self, lo: f64, hi: f64) -> Self {
         self.map_f64(move |x| x.clamp(lo, hi))
     }
 
-    fn floor(&self) -> Comp<R, f64> {
+    fn floor(&self) -> Self {
         self.map_f64(f64::floor)
     }
 
-    fn ceil(&self) -> Comp<R, f64> {
+    fn ceil(&self) -> Self {
         self.map_f64(f64::ceil)
     }
 
-    fn round(&self) -> Comp<R, f64> {
+    fn round(&self) -> Self {
         self.map_f64(f64::round)
     }
 }

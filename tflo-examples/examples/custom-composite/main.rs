@@ -17,7 +17,7 @@ pub trait CustomCompositeExt<R: 'static> {
 }
 
 impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
-    fn spread_ratio(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
+    fn spread_ratio(&self, other: &Self) -> Self {
         (self - other) / other
     }
 
@@ -25,7 +25,7 @@ impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
         &self,
         window: W,
         k: f64,
-    ) -> (Comp<R, f64>, Comp<R, f64>, Comp<R, f64>) {
+    ) -> (Self, Self, Self) {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);
@@ -35,7 +35,7 @@ impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
         (middle, upper, lower)
     }
 
-    fn normalized_score<W: Into<Window>>(&self, window: W) -> Comp<R, f64> {
+    fn normalized_score<W: Into<Window>>(&self, window: W) -> Self {
         let w: Window = window.into();
         let mean = self.sma(w);
         let std = self.std(w);
@@ -51,7 +51,7 @@ struct Vital {
 }
 
 impl Vital {
-    fn new(ts: i64, bpm: f64) -> Self {
+    const fn new(ts: i64, bpm: f64) -> Self {
         Self { ts, bpm }
     }
 }
@@ -65,7 +65,7 @@ struct VitalPair {
 }
 
 impl VitalPair {
-    fn new(ts: i64, bpm: f64, resp_rate: f64) -> Self {
+    const fn new(ts: i64, bpm: f64, resp_rate: f64) -> Self {
         Self { ts, bpm, resp_rate }
     }
 }
@@ -145,8 +145,7 @@ fn main() {
         .collect();
     for (ts, (ratio, score)) in vital_pairs.iter().map(|v| v.ts).zip(&composed) {
         println!(
-            "  ts={:>6} spread_ratio={:.4} normalized_score={:.4}",
-            ts, ratio, score
+            "  ts={ts:>6} spread_ratio={ratio:.4} normalized_score={score:.4}"
         );
     }
 

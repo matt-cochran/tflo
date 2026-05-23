@@ -62,19 +62,19 @@ pub enum WindowEvent {
 impl GlitchResult {
     /// Returns `true` if this is a valid pulse.
     #[must_use]
-    pub fn is_valid_pulse(&self) -> bool {
+    pub const fn is_valid_pulse(&self) -> bool {
         matches!(self, Self::ValidPulse)
     }
 
     /// Returns `true` if this is a rejected glitch.
     #[must_use]
-    pub fn is_rejected(&self) -> bool {
+    pub const fn is_rejected(&self) -> bool {
         matches!(self, Self::Rejected)
     }
 
     /// Returns `true` if no transition occurred.
     #[must_use]
-    pub fn is_no_transition(&self) -> bool {
+    pub const fn is_no_transition(&self) -> bool {
         matches!(self, Self::NoTransition)
     }
 
@@ -84,7 +84,7 @@ impl GlitchResult {
     /// - `Rejected` → `ThresholdCrossEventMode::Falling`
     /// - `NoTransition` → `ThresholdCrossEventMode::None`
     #[must_use]
-    pub fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
+    pub const fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
         match self {
             Self::ValidPulse => ThresholdCrossEventMode::Rising,
             Self::Rejected => ThresholdCrossEventMode::Falling,
@@ -92,17 +92,17 @@ impl GlitchResult {
         }
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_edge_mode(&self) -> ThresholdCrossEventMode {
+    pub const fn to_edge_mode(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_signal(&self) -> ThresholdCrossEventMode {
+    pub const fn to_signal(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 }
@@ -110,19 +110,19 @@ impl GlitchResult {
 impl RuntResult {
     /// Returns `true` if this is a valid pulse.
     #[must_use]
-    pub fn is_valid(&self) -> bool {
+    pub const fn is_valid(&self) -> bool {
         matches!(self, Self::ValidPulse { .. })
     }
 
     /// Returns `true` if this is a runt pulse.
     #[must_use]
-    pub fn is_runt(&self) -> bool {
+    pub const fn is_runt(&self) -> bool {
         matches!(self, Self::Runt { .. })
     }
 
     /// Get the peak value regardless of result type.
     #[must_use]
-    pub fn peak(&self) -> f64 {
+    pub const fn peak(&self) -> f64 {
         match self {
             Self::Runt { peak } | Self::ValidPulse { peak } => *peak,
         }
@@ -133,24 +133,24 @@ impl RuntResult {
     /// - `ValidPulse` → `ThresholdCrossEventMode::Rising`
     /// - `Runt` → `ThresholdCrossEventMode::Falling`
     #[must_use]
-    pub fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
+    pub const fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
         match self {
             Self::ValidPulse { .. } => ThresholdCrossEventMode::Rising,
             Self::Runt { .. } => ThresholdCrossEventMode::Falling,
         }
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_edge_mode(&self) -> ThresholdCrossEventMode {
+    pub const fn to_edge_mode(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_signal(&self) -> ThresholdCrossEventMode {
+    pub const fn to_signal(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 }
@@ -158,25 +158,25 @@ impl RuntResult {
 impl PulseWidthResult {
     /// Returns `true` if this is a valid pulse width.
     #[must_use]
-    pub fn is_valid(&self) -> bool {
+    pub const fn is_valid(&self) -> bool {
         matches!(self, Self::Valid { .. })
     }
 
     /// Returns `true` if the pulse was too short.
     #[must_use]
-    pub fn is_too_short(&self) -> bool {
+    pub const fn is_too_short(&self) -> bool {
         matches!(self, Self::TooShort { .. })
     }
 
     /// Returns `true` if the pulse was too long.
     #[must_use]
-    pub fn is_too_long(&self) -> bool {
+    pub const fn is_too_long(&self) -> bool {
         matches!(self, Self::TooLong { .. })
     }
 
     /// Get the pulse width in milliseconds.
     #[must_use]
-    pub fn width_ms(&self) -> i64 {
+    pub const fn width_ms(&self) -> i64 {
         match self {
             Self::TooShort { width_ms } | Self::Valid { width_ms } | Self::TooLong { width_ms } => {
                 *width_ms
@@ -186,7 +186,7 @@ impl PulseWidthResult {
 
     /// Get the pulse duration in milliseconds (alias for `width_ms`).
     #[must_use]
-    pub fn duration_ms(&self) -> Option<i64> {
+    pub const fn duration_ms(&self) -> Option<i64> {
         Some(self.width_ms())
     }
 
@@ -195,24 +195,24 @@ impl PulseWidthResult {
     /// - `Valid` → `ThresholdCrossEventMode::Rising`
     /// - `TooShort` or `TooLong` → `ThresholdCrossEventMode::Falling`
     #[must_use]
-    pub fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
+    pub const fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
         match self {
             Self::Valid { .. } => ThresholdCrossEventMode::Rising,
             Self::TooShort { .. } | Self::TooLong { .. } => ThresholdCrossEventMode::Falling,
         }
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_edge_mode(&self) -> ThresholdCrossEventMode {
+    pub const fn to_edge_mode(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_signal(&self) -> ThresholdCrossEventMode {
+    pub const fn to_signal(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 }
@@ -220,25 +220,25 @@ impl PulseWidthResult {
 impl WindowEvent {
     /// Returns `true` if this is an entry event.
     #[must_use]
-    pub fn is_entered(&self) -> bool {
+    pub const fn is_entered(&self) -> bool {
         matches!(self, Self::EnteredWindow)
     }
 
     /// Returns `true` if this is an exit through the low threshold.
     #[must_use]
-    pub fn is_exited_low(&self) -> bool {
+    pub const fn is_exited_low(&self) -> bool {
         matches!(self, Self::ExitedLow)
     }
 
     /// Returns `true` if this is an exit through the high threshold.
     #[must_use]
-    pub fn is_exited_high(&self) -> bool {
+    pub const fn is_exited_high(&self) -> bool {
         matches!(self, Self::ExitedHigh)
     }
 
     /// Returns `true` if this is any exit event.
     #[must_use]
-    pub fn is_exited(&self) -> bool {
+    pub const fn is_exited(&self) -> bool {
         matches!(self, Self::ExitedLow | Self::ExitedHigh)
     }
 
@@ -247,24 +247,24 @@ impl WindowEvent {
     /// - `EnteredWindow` → `ThresholdCrossEventMode::Rising`
     /// - `ExitedLow` or `ExitedHigh` → `ThresholdCrossEventMode::Falling`
     #[must_use]
-    pub fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
+    pub const fn to_threshold_cross(&self) -> ThresholdCrossEventMode {
         match self {
             Self::EnteredWindow => ThresholdCrossEventMode::Rising,
             Self::ExitedLow | Self::ExitedHigh => ThresholdCrossEventMode::Falling,
         }
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_edge_mode(&self) -> ThresholdCrossEventMode {
+    pub const fn to_edge_mode(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 
-    /// Deprecated alias for to_threshold_cross.
+    /// Deprecated alias for `to_threshold_cross`.
     #[deprecated(since = "2.0.0", note = "Use to_threshold_cross() instead")]
     #[must_use]
-    pub fn to_signal(&self) -> ThresholdCrossEventMode {
+    pub const fn to_signal(&self) -> ThresholdCrossEventMode {
         self.to_threshold_cross()
     }
 }

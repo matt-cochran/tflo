@@ -232,7 +232,7 @@ static SEQUENCE_COUNTER: AtomicU64 = AtomicU64::new(0);
 impl PipelineContext for Sequenced {
     #[inline]
     fn from_ordering_key(_key: i64) -> Self {
-        Sequenced(SEQUENCE_COUNTER.fetch_add(1, Ordering::Relaxed) as i64)
+        Self(SEQUENCE_COUNTER.fetch_add(1, Ordering::Relaxed) as i64)
     }
 
     #[inline]
@@ -245,7 +245,7 @@ impl Sequenced {
     /// Create a new sequenced context with explicit value.
     #[must_use]
     pub const fn new(seq: i64) -> Self {
-        Sequenced(seq)
+        Self(seq)
     }
 
     /// Get the sequence number (ordering key).
@@ -294,7 +294,7 @@ static HYBRID_COUNTER: AtomicU64 = AtomicU64::new(0);
 impl PipelineContext for Hybrid {
     #[inline]
     fn from_ordering_key(key: i64) -> Self {
-        Hybrid {
+        Self {
             ts: key,
             seq: HYBRID_COUNTER.fetch_add(1, Ordering::Relaxed),
         }
@@ -310,7 +310,7 @@ impl Hybrid {
     /// Create a new hybrid context.
     #[must_use]
     pub const fn new(ts: i64, seq: u64) -> Self {
-        Hybrid { ts, seq }
+        Self { ts, seq }
     }
 
     /// Get the timestamp (ordering key).
@@ -362,7 +362,7 @@ impl Hybrid {
 pub struct KeyedTimestamped<K> {
     /// Timestamp in milliseconds since epoch (used as ordering key).
     pub ts: i64,
-    /// The key value (symbol, device_id, etc.).
+    /// The key value (symbol, `device_id`, etc.).
     pub key: K,
 }
 
@@ -374,7 +374,7 @@ impl<K: Clone + Send + Sync + 'static + Default + std::hash::Hash + Eq> Pipeline
         // This is a fallback - normally you'd construct with both ts and key
         // This exists to satisfy the trait, but keyed contexts should be created explicitly
         // via KeyedTimestamped::new() or by the keyed execution adaptors
-        KeyedTimestamped {
+        Self {
             ts: key,
             key: K::default(),
         }
@@ -390,7 +390,7 @@ impl<K> KeyedTimestamped<K> {
     /// Create a new keyed timestamped context.
     #[must_use]
     pub const fn new(ts: i64, key: K) -> Self {
-        KeyedTimestamped { ts, key }
+        Self { ts, key }
     }
 
     /// Get the timestamp (ordering key).
@@ -457,7 +457,7 @@ impl<C, T> PipelineItem<C, T> {
     /// Create a new pipeline item.
     #[must_use]
     pub const fn new(ctx: C, value: T) -> Self {
-        PipelineItem { ctx, value }
+        Self { ctx, value }
     }
 
     /// Extract just the value, discarding context.
@@ -598,7 +598,7 @@ pub type HybridItem<T> = PipelineItem<Hybrid, T>;
 
 impl<C: PipelineContext> PipelineContext for PipelineItem<C, ()> {
     fn from_ordering_key(key: i64) -> Self {
-        PipelineItem {
+        Self {
             ctx: C::from_ordering_key(key),
             value: (),
         }

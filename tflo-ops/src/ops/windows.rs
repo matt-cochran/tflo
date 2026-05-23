@@ -101,7 +101,7 @@ impl_reduce!(Rsi, RsiTimeWindow, RsiCountWindow, |w| w.rsi());
 ///
 /// Window sizes never exceed `2^53`, so the cast is exact in practice.
 #[allow(clippy::cast_precision_loss)]
-fn count_as_f64(n: usize) -> f64 {
+const fn count_as_f64(n: usize) -> f64 {
     n as f64
 }
 
@@ -152,7 +152,7 @@ impl Operator for Ema {
 /// RSI using Wilder's smoothing (count-based only).
 ///
 /// Uses an EMA with `alpha = 1/period` for gain/loss averaging, matching
-/// TradingView's RSI. This is a hand-written port of the legacy `tflo-core`
+/// `TradingView`'s RSI. This is a hand-written port of the legacy `tflo-core`
 /// `RsiWilderState` evaluation logic.
 #[derive(Serialize, Deserialize)]
 struct RsiWilder {
@@ -167,7 +167,7 @@ struct RsiWilder {
 }
 
 impl RsiWilder {
-    fn new(period: usize) -> Self {
+    const fn new(period: usize) -> Self {
         Self {
             period,
             prev: None,
@@ -300,101 +300,101 @@ pub trait WindowOps<R> {
 }
 
 impl<R: 'static> WindowOps<R> for Comp<R, f64> {
-    fn sma(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn sma(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Mean)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Mean)),
         })
     }
 
-    fn ema(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn ema(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Ema::Time(TimeEma::new(d))),
             Window::Count(n) => boxed(Ema::Count(CountEma::new(n))),
         })
     }
 
-    fn std(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn std(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Std)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Std)),
         })
     }
 
-    fn variance(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn variance(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Variance)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Variance)),
         })
     }
 
-    fn max(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn max(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Max)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Max)),
         })
     }
 
-    fn min(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn min(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Min)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Min)),
         })
     }
 
-    fn sum(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn sum(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Sum)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Sum)),
         })
     }
 
-    fn count(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn count(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Count)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Count)),
         })
     }
 
-    fn wma(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn wma(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(WmaTimeWindow::new(d), Wma)),
             Window::Count(n) => boxed(Windowed::new(WmaCountWindow::new(n), Wma)),
         })
     }
 
-    fn rsi(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn rsi(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(RsiTimeWindow::new(d), Rsi)),
             Window::Count(n) => boxed(Windowed::new(RsiCountWindow::new(n), Rsi)),
         })
     }
 
-    fn rsi_wilder_n(&self, n: usize) -> Comp<R, f64> {
-        Comp::custom_node1_dyn(self, move || boxed(RsiWilder::new(n)))
+    fn rsi_wilder_n(&self, n: usize) -> Self {
+        Self::custom_node1_dyn(self, move || boxed(RsiWilder::new(n)))
     }
 
-    fn median(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn median(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MedianTimeWindow::new(d), Median)),
             Window::Count(n) => boxed(Windowed::new(MedianCountWindow::new(n), Median)),
         })
     }
 
-    fn quantile(&self, window: impl Into<Window>, q: f64) -> Comp<R, f64> {
+    fn quantile(&self, window: impl Into<Window>, q: f64) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(QuantileOp::Time {
                 window: MedianTimeWindow::new(d),
                 q,
@@ -406,33 +406,33 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         })
     }
 
-    fn rank(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn rank(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MedianTimeWindow::new(d), Rank)),
             Window::Count(n) => boxed(Windowed::new(MedianCountWindow::new(n), Rank)),
         })
     }
 
-    fn skewness(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn skewness(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MomentsTimeWindow::new(d), Skewness)),
             Window::Count(n) => boxed(Windowed::new(MomentsCountWindow::new(n), Skewness)),
         })
     }
 
-    fn kurtosis(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn kurtosis(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node1_dyn(self, move || match w {
+        Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MomentsTimeWindow::new(d), Kurtosis)),
             Window::Count(n) => boxed(Windowed::new(MomentsCountWindow::new(n), Kurtosis)),
         })
     }
 
-    fn correlation(&self, other: &Comp<R, f64>, window: impl Into<Window>) -> Comp<R, f64> {
+    fn correlation(&self, other: &Self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node_dyn(self, &[other], move || match w {
+        Self::custom_node_dyn(self, &[other], move || match w {
             Window::Time(d) => boxed(BivariateWindowed::new(
                 CorrelationTimeWindow::new(d),
                 Correlation,
@@ -444,9 +444,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         })
     }
 
-    fn covariance(&self, other: &Comp<R, f64>, window: impl Into<Window>) -> Comp<R, f64> {
+    fn covariance(&self, other: &Self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
-        Comp::custom_node_dyn(self, &[other], move || match w {
+        Self::custom_node_dyn(self, &[other], move || match w {
             Window::Time(d) => boxed(BivariateWindowed::new(
                 CorrelationTimeWindow::new(d),
                 Covariance,

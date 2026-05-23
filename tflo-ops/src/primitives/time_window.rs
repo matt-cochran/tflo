@@ -44,7 +44,7 @@ pub struct TimeWindow {
 impl TimeWindow {
     /// Create a new time window with the specified duration.
     #[must_use]
-    pub fn new(window: Duration) -> Self {
+    pub const fn new(window: Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {
@@ -91,7 +91,7 @@ impl TimeWindow {
 
     /// Get the sum of all values in the window.
     #[must_use]
-    pub fn sum(&self) -> f64 {
+    pub const fn sum(&self) -> f64 {
         self.sum
     }
 

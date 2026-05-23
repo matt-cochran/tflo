@@ -1,7 +1,7 @@
 use tflo_core::prelude::*;
 use tflo_ops::prelude::*;
 
-/// A single reading from an IoT soil-moisture sensor.
+/// A single reading from an `IoT` soil-moisture sensor.
 #[derive(Clone, Debug)]
 struct SoilReading {
     /// Timestamp in milliseconds.
@@ -11,7 +11,7 @@ struct SoilReading {
 }
 
 impl SoilReading {
-    fn new(ts: i64, moisture_pct: f64) -> Self {
+    const fn new(ts: i64, moisture_pct: f64) -> Self {
         Self { ts, moisture_pct }
     }
 }
@@ -137,7 +137,7 @@ fn main() {
         .collect();
     for (ts, result) in sample_soil().iter().map(|t| t.ts).zip(&clean_validated) {
         if let Ok(val) = result {
-            println!("  ts={:>6} Ok({:.4})", ts, val);
+            println!("  ts={ts:>6} Ok({val:.4})");
         }
     }
 }

@@ -63,7 +63,7 @@ pub struct Signal<TMode, TPayload = ()> {
 impl<TMode, TPayload> Signal<TMode, TPayload> {
     /// Create a new event with mode and payload.
     #[must_use]
-    pub fn new(mode: TMode, payload: TPayload) -> Self {
+    pub const fn new(mode: TMode, payload: TPayload) -> Self {
         Self { mode, payload }
     }
 
@@ -112,13 +112,13 @@ impl<TMode, TPayload> Signal<TMode, TPayload> {
 
     /// Get a reference to the mode.
     #[must_use]
-    pub fn mode(&self) -> &TMode {
+    pub const fn mode(&self) -> &TMode {
         &self.mode
     }
 
     /// Get a reference to the payload.
     #[must_use]
-    pub fn payload(&self) -> &TPayload {
+    pub const fn payload(&self) -> &TPayload {
         &self.payload
     }
 }
@@ -134,7 +134,7 @@ impl<TMode> Signal<TMode, ()> {
     /// let cross = Signal::simple(ThresholdCrossEventMode::Rising);
     /// ```
     #[must_use]
-    pub fn simple(mode: TMode) -> Self {
+    pub const fn simple(mode: TMode) -> Self {
         Self { mode, payload: () }
     }
 }
@@ -188,7 +188,7 @@ impl ThresholdCrossEventMode {
 
 impl EventMode for ThresholdCrossEventMode {
     fn is_active(&self) -> bool {
-        !matches!(self, ThresholdCrossEventMode::None)
+        !matches!(self, Self::None)
     }
 }
 
@@ -210,7 +210,7 @@ pub enum ZoneEventMode {
 
 impl EventMode for ZoneEventMode {
     fn is_active(&self) -> bool {
-        !matches!(self, ZoneEventMode::Inside)
+        !matches!(self, Self::Inside)
     }
 }
 
@@ -257,7 +257,7 @@ pub enum PulseEventMode {
 
 impl EventMode for PulseEventMode {
     fn is_active(&self) -> bool {
-        matches!(self, PulseEventMode::Valid)
+        matches!(self, Self::Valid)
     }
 }
 
@@ -299,7 +299,7 @@ pub struct PulseMetadata {
 impl PulseMetadata {
     /// Create new pulse metadata.
     #[must_use]
-    pub fn new(width_ms: i64, peak: Option<f64>) -> Self {
+    pub const fn new(width_ms: i64, peak: Option<f64>) -> Self {
         Self { width_ms, peak }
     }
 

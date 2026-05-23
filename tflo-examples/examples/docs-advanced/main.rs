@@ -15,7 +15,7 @@ struct Detection {
 }
 
 impl Detection {
-    fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
+    const fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
         Self { ts, snr, freq_mhz }
     }
 }

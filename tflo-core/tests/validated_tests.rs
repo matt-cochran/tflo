@@ -10,7 +10,7 @@ struct Rec {
     value: f64,
 }
 
-fn rec(ts: i64, value: f64) -> Rec {
+const fn rec(ts: i64, value: f64) -> Rec {
     Rec { ts, value }
 }
 

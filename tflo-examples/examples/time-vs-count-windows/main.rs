@@ -12,7 +12,7 @@ struct Throughput {
 }
 
 impl Throughput {
-    fn new(ts: i64, mbps: f64) -> Self {
+    const fn new(ts: i64, mbps: f64) -> Self {
         Self { ts, mbps }
     }
 }

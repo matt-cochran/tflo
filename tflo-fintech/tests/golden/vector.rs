@@ -27,7 +27,7 @@ pub struct GoldenVector {
 /// Metadata about a golden vector.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VectorMetadata {
-    /// Indicator name (e.g., "rsi_tv_count", "ema_talib_count")
+    /// Indicator name (e.g., "`rsi_tv_count`", "`ema_talib_count`")
     pub indicator: String,
     /// Source of reference data ("tradingview", "talib", etc.)
     pub source: String,
@@ -43,7 +43,7 @@ impl GoldenVector {
     /// Load a golden vector from a JSON file.
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, super::GoldenError> {
         let content = std::fs::read_to_string(path)?;
-        let vector: GoldenVector = serde_json::from_str(&content)?;
+        let vector: Self = serde_json::from_str(&content)?;
         Ok(vector)
     }
 
@@ -54,7 +54,7 @@ impl GoldenVector {
         Ok(())
     }
 
-    /// Validate that input and expected_output have compatible lengths.
+    /// Validate that input and `expected_output` have compatible lengths.
     pub fn validate_structure(&self) -> Result<(), super::GoldenError> {
         // Allow empty expected_output during generation
         if let Some(arr) = self.expected_output.as_array() {
@@ -82,7 +82,7 @@ impl GoldenVector {
         Ok(())
     }
 
-    /// Get the length of expected_output (for single-output indicators).
+    /// Get the length of `expected_output` (for single-output indicators).
     pub fn expected_output_len(&self) -> Result<usize, super::GoldenError> {
         if let Some(arr) = self.expected_output.as_array() {
             // Check if it's a multi-output (array of arrays) or single-output (array of values)

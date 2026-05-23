@@ -202,7 +202,7 @@ pub struct MomentsTimeWindow {
 impl MomentsTimeWindow {
     /// Create a new time-based moments window.
     #[must_use]
-    pub fn new(window: Duration) -> Self {
+    pub const fn new(window: Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {
@@ -347,8 +347,7 @@ mod tests {
         let skew = window.skewness();
         assert!(
             skew.abs() < 0.1,
-            "Expected near-zero skewness, got {}",
-            skew
+            "Expected near-zero skewness, got {skew}"
         );
     }
 
@@ -362,7 +361,7 @@ mod tests {
         }
 
         let skew = window.skewness();
-        assert!(skew > 0.0, "Expected positive skewness, got {}", skew);
+        assert!(skew > 0.0, "Expected positive skewness, got {skew}");
     }
 
     #[test]
@@ -375,7 +374,7 @@ mod tests {
         }
 
         let skew = window.skewness();
-        assert!(skew < 0.0, "Expected negative skewness, got {}", skew);
+        assert!(skew < 0.0, "Expected negative skewness, got {skew}");
     }
 
     #[test]
@@ -391,8 +390,7 @@ mod tests {
         // Uniform distribution has excess kurtosis of -1.2
         assert!(
             kurt < 0.0,
-            "Expected negative excess kurtosis for uniform, got {}",
-            kurt
+            "Expected negative excess kurtosis for uniform, got {kurt}"
         );
     }
 

@@ -60,8 +60,8 @@ pub struct ValueStore {
 // EXTRACT OUTPUT - Trait for type-safe extraction
 // ============================================================================
 
-/// Macro to implement ExtractOutput for simple cloneable types.
-/// All these types use the same extraction pattern: get_cloned from first ID.
+/// Macro to implement `ExtractOutput` for simple cloneable types.
+/// All these types use the same extraction pattern: `get_cloned` from first ID.
 macro_rules! impl_extract_output {
     ($($t:ty),+ $(,)?) => {
         $(
@@ -88,8 +88,8 @@ impl_extract_output!(
 impl ExtractOutput for f64 {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         match store.values.get(ids.first()?)? {
-            NodeOutput::Computed(c) => Some(c.unwrap_or(f64::NAN)),
-            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied(),
+            NodeOutput::Computed(c) => Some(c.unwrap_or(Self::NAN)),
+            NodeOutput::Other(b) => b.downcast_ref::<Self>().copied(),
         }
     }
 
@@ -114,7 +114,7 @@ impl<T: ExtractOutput + Clone + 'static> ExtractOutput for Option<T> {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         let id = ids.first()?;
         // First try Option<T> (from filter/filter_map that store Option directly)
-        if let Some(opt) = store.get_cloned::<Option<T>>(id) {
+        if let Some(opt) = store.get_cloned::<Self>(id) {
             return Some(opt);
         }
         // Fall back to T's own extraction (for optional outputs, missing = None).
@@ -160,9 +160,9 @@ pub(crate) enum CompositionNodeKind {
 pub(crate) enum NodeState {
     /// No state needed.
     Stateless,
-    /// State for scan_f64.
+    /// State for `scan_f64`.
     ScanState(Box<dyn Any + Send + Sync>),
-    /// State for scan2_f64.
+    /// State for `scan2_f64`.
     Scan2State(Box<dyn Any + Send + Sync>),
     /// State for a plugin node.
     Plugin(BoxedOperator),

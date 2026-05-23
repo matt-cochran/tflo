@@ -14,8 +14,8 @@ use tflo_core::operator::WindowPrimitive;
 ///
 /// # Formula
 ///
-/// WMA = (n*x_n + (n-1)*x_{n-1} + ... + 1*x_1) / (n + (n-1) + ... + 1)
-///     = (n*x_n + (n-1)*x_{n-1} + ... + 1*x_1) / (n*(n+1)/2)
+/// WMA = (n*`x_n` + (n-1)*x_{n-1} + ... + 1*`x_1`) / (n + (n-1) + ... + 1)
+///     = (n*`x_n` + (n-1)*x_{n-1} + ... + 1*`x_1`) / (n*(n+1)/2)
 ///
 /// # Examples
 ///
@@ -112,7 +112,7 @@ pub struct WmaTimeWindow {
 impl WmaTimeWindow {
     /// Create a new time-based WMA window.
     #[must_use]
-    pub fn new(window: Duration) -> Self {
+    pub const fn new(window: Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {

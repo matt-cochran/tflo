@@ -34,7 +34,7 @@ fn eval_one(op: &mut dyn Operator, v: f64) -> tflo_core::compile::Computed {
     op.eval(&[Ok(v)], 0).as_computed().unwrap()
 }
 
-/// Feed an absent input (WarmingUp) into an operator at timestamp 0.
+/// Feed an absent input (`WarmingUp`) into an operator at timestamp 0.
 fn eval_absent(op: &mut dyn Operator) -> tflo_core::compile::Computed {
     op.eval(&[Err(Absent::WarmingUp)], 0).as_computed().unwrap()
 }

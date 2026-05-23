@@ -12,7 +12,7 @@ struct GridSample {
 }
 
 impl GridSample {
-    fn new(ts: i64, load_mw: f64) -> Self {
+    const fn new(ts: i64, load_mw: f64) -> Self {
         Self { ts, load_mw }
     }
 }

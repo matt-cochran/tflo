@@ -28,7 +28,7 @@ pub struct BivariateWindowed<W, R> {
 
 impl<W, R> BivariateWindowed<W, R> {
     /// Construct from a bivariate window primitive and a reduction.
-    pub fn new(window: W, reduce: R) -> Self {
+    pub const fn new(window: W, reduce: R) -> Self {
         Self { window, reduce }
     }
 }

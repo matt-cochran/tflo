@@ -80,7 +80,7 @@ struct CrossOp {
 }
 
 impl CrossOp {
-    fn new(mode: CrossMode) -> Self {
+    const fn new(mode: CrossMode) -> Self {
         Self {
             mode,
             detector: CrossDetector::new(),
@@ -152,7 +152,7 @@ impl Operator for CrossHysteresisOp {
 
 /// Map the `tflo-core` primitive's `ThresholdCrossEventMode` to the `tflo-ops`
 /// copy of that enum (see [`crate::events`]).
-fn to_event(mode: crate::primitives::ThresholdCrossEventMode) -> ThresholdCrossEventMode {
+const fn to_event(mode: crate::primitives::ThresholdCrossEventMode) -> ThresholdCrossEventMode {
     use crate::primitives::ThresholdCrossEventMode as Core;
     match mode {
         Core::Rising => ThresholdCrossEventMode::Rising,
@@ -179,7 +179,7 @@ struct GlitchOp {
 }
 
 impl GlitchOp {
-    fn new(detector: GlitchFilter) -> Self {
+    const fn new(detector: GlitchFilter) -> Self {
         Self { detector }
     }
 }
@@ -240,7 +240,7 @@ impl Operator for RuntOp {
 }
 
 /// Map the `tflo-core` primitive's `RuntResult` to the `tflo-ops` copy.
-fn to_runt(result: crate::primitives::RuntResult) -> RuntResult {
+const fn to_runt(result: crate::primitives::RuntResult) -> RuntResult {
     use crate::primitives::RuntResult as Core;
     match result {
         Core::Runt { peak } => RuntResult::Runt { peak },
@@ -279,7 +279,7 @@ impl Operator for PulseWidthOp {
 }
 
 /// Map the `tflo-core` primitive's `PulseWidthResult` to the `tflo-ops` copy.
-fn to_pulse_width(result: crate::primitives::PulseWidthResult) -> PulseWidthResult {
+const fn to_pulse_width(result: crate::primitives::PulseWidthResult) -> PulseWidthResult {
     use crate::primitives::PulseWidthResult as Core;
     match result {
         Core::TooShort { width_ms } => PulseWidthResult::TooShort { width_ms },
@@ -319,7 +319,7 @@ impl Operator for WindowDetectOp {
 }
 
 /// Map the `tflo-core` primitive's `WindowEvent` to the `tflo-ops` copy.
-fn to_window_event(event: crate::primitives::WindowEvent) -> WindowEvent {
+const fn to_window_event(event: crate::primitives::WindowEvent) -> WindowEvent {
     use crate::primitives::WindowEvent as Core;
     match event {
         Core::EnteredWindow => WindowEvent::EnteredWindow,
@@ -373,24 +373,24 @@ pub trait CrossOps<R> {
 }
 
 impl<R: 'static> CrossOps<R> for Comp<R, f64> {
-    fn cross(&self, other: &Comp<R, f64>) -> Comp<R, ThresholdCrossEventMode> {
-        Comp::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Both)))
+    fn cross(&self, other: &Self) -> Comp<R, ThresholdCrossEventMode> {
+        Self::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Both)))
     }
 
-    fn cross_above(&self, other: &Comp<R, f64>) -> Comp<R, ThresholdCrossEventMode> {
-        Comp::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Above)))
+    fn cross_above(&self, other: &Self) -> Comp<R, ThresholdCrossEventMode> {
+        Self::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Above)))
     }
 
-    fn cross_under(&self, other: &Comp<R, f64>) -> Comp<R, ThresholdCrossEventMode> {
-        Comp::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Under)))
+    fn cross_under(&self, other: &Self) -> Comp<R, ThresholdCrossEventMode> {
+        Self::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Under)))
     }
 
     fn cross_hysteresis(
         &self,
-        threshold: &Comp<R, f64>,
+        threshold: &Self,
         margin: f64,
     ) -> Comp<R, ThresholdCrossEventMode> {
-        Comp::custom_node_dyn(self, &[threshold], move || {
+        Self::custom_node_dyn(self, &[threshold], move || {
             boxed(CrossHysteresisOp {
                 detector: HysteresisCrossDetector::new(margin),
             })
@@ -400,19 +400,19 @@ impl<R: 'static> CrossOps<R> for Comp<R, f64> {
     // The comparisons are plain stateless closures — ported from the legacy
     // `NodeOp::Gt`/`Gte`/`Lt`/`Lte` eval arms, which emit `1.0` for true and
     // `0.0` for false. `map2_f64` already short-circuits an absent input.
-    fn gt(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
+    fn gt(&self, other: &Self) -> Self {
         self.map2_f64(other, |x, y| if x > y { 1.0 } else { 0.0 })
     }
 
-    fn gte(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
+    fn gte(&self, other: &Self) -> Self {
         self.map2_f64(other, |x, y| if x >= y { 1.0 } else { 0.0 })
     }
 
-    fn lt(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
+    fn lt(&self, other: &Self) -> Self {
         self.map2_f64(other, |x, y| if x < y { 1.0 } else { 0.0 })
     }
 
-    fn lte(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
+    fn lte(&self, other: &Self) -> Self {
         self.map2_f64(other, |x, y| if x <= y { 1.0 } else { 0.0 })
     }
 }
@@ -456,13 +456,13 @@ pub trait DetectorOps<R> {
 
 impl<R: 'static> DetectorOps<R> for Comp<R, f64> {
     fn glitch_filter(&self, threshold: f64, min_duration_ms: i64) -> Comp<R, GlitchResult> {
-        Comp::custom_node1_dyn(self, move || {
+        Self::custom_node1_dyn(self, move || {
             boxed(GlitchOp::new(GlitchFilter::new(threshold, min_duration_ms)))
         })
     }
 
     fn runt_detect(&self, low: f64, high: f64) -> Comp<R, Option<RuntResult>> {
-        Comp::custom_node1_dyn(self, move || {
+        Self::custom_node1_dyn(self, move || {
             boxed(RuntOp {
                 detector: RuntDetector::new(low, high),
             })
@@ -475,7 +475,7 @@ impl<R: 'static> DetectorOps<R> for Comp<R, f64> {
         min_width_ms: i64,
         max_width_ms: i64,
     ) -> Comp<R, Option<PulseWidthResult>> {
-        Comp::custom_node1_dyn(self, move || {
+        Self::custom_node1_dyn(self, move || {
             boxed(PulseWidthOp {
                 detector: PulseWidthDetector::new(threshold, min_width_ms, max_width_ms),
             })
@@ -483,7 +483,7 @@ impl<R: 'static> DetectorOps<R> for Comp<R, f64> {
     }
 
     fn window_detect(&self, low: f64, high: f64) -> Comp<R, Option<WindowEvent>> {
-        Comp::custom_node1_dyn(self, move || {
+        Self::custom_node1_dyn(self, move || {
             boxed(WindowDetectOp {
                 detector: WindowDetector::new(low, high),
             })

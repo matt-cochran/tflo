@@ -10,7 +10,7 @@ struct VibrationSample {
 }
 
 impl VibrationSample {
-    fn new(ts: i64, amplitude_g: f64) -> Self {
+    const fn new(ts: i64, amplitude_g: f64) -> Self {
         Self { ts, amplitude_g }
     }
 }
@@ -63,7 +63,7 @@ fn main() {
         .collect();
     for (ts, cross) in vibration.iter().map(|s| s.ts).zip(&crosses) {
         if *cross != ThresholdCrossEventMode::None {
-            println!("  ts={:>6} cross={:?}", ts, cross);
+            println!("  ts={ts:>6} cross={cross:?}");
         }
     }
 
@@ -83,10 +83,10 @@ fn main() {
         .collect();
     for (ts, (above, under)) in vibration.iter().map(|s| s.ts).zip(&cross_directional) {
         if *above == ThresholdCrossEventMode::Rising {
-            println!("  ts={:>6} → AMPLITUDE CROSSED ABOVE BASELINE", ts);
+            println!("  ts={ts:>6} → AMPLITUDE CROSSED ABOVE BASELINE");
         }
         if *under == ThresholdCrossEventMode::Falling {
-            println!("  ts={:>6} → AMPLITUDE CROSSED BELOW BASELINE", ts);
+            println!("  ts={ts:>6} → AMPLITUDE CROSSED BELOW BASELINE");
         }
     }
 
@@ -105,8 +105,7 @@ fn main() {
     for (ts, cross) in vibration.iter().map(|s| s.ts).zip(&hysteresis) {
         if *cross != ThresholdCrossEventMode::None {
             println!(
-                "  ts={:>6} cross with hysteresis (margin=1.0): {:?}",
-                ts, cross
+                "  ts={ts:>6} cross with hysteresis (margin=1.0): {cross:?}"
             );
         }
     }
@@ -153,10 +152,10 @@ fn main() {
         sample_motor_run().iter().map(|s| s.ts).zip(&rsi_crosses)
     {
         if *overstressed == ThresholdCrossEventMode::Rising {
-            println!("  ts={:>6} momentum={:.2} → OVERSTRESSED (>70)", ts, rsi);
+            println!("  ts={ts:>6} momentum={rsi:.2} → OVERSTRESSED (>70)");
         }
         if *settling == ThresholdCrossEventMode::Falling {
-            println!("  ts={:>6} momentum={:.2} → SETTLING (<30)", ts, rsi);
+            println!("  ts={ts:>6} momentum={rsi:.2} → SETTLING (<30)");
         }
     }
 }

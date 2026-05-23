@@ -44,7 +44,7 @@ pub struct RuleConfig {
     pub enabled: bool,
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
@@ -127,7 +127,7 @@ pub enum AlertPriorityConfig {
 impl AlertPriorityConfig {
     /// Convert to runtime priority.
     #[must_use]
-    pub fn into_priority(self) -> AlertPriority {
+    pub const fn into_priority(self) -> AlertPriority {
         match self {
             Self::Low => AlertPriority::Low,
             Self::Medium => AlertPriority::Medium,

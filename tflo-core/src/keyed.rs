@@ -43,9 +43,19 @@ pub struct SnapshotMetadata {
 /// codec without tflo-core depending on specific serialization libraries.
 pub trait SnapshotCodec: Send + Sync {
     /// Encode a state snapshot to bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the codec cannot serialize the snapshot
+    /// (unsupported value, allocation failure, schema mismatch, etc.).
     fn encode(&self, snapshot: &StateSnapshot) -> Result<Vec<u8>, String>;
 
     /// Decode bytes into a state snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when `data` is not a valid encoding produced
+    /// by this codec (truncated bytes, version mismatch, malformed payload).
     fn decode(&self, data: &[u8]) -> Result<StateSnapshot, String>;
 }
 
@@ -55,12 +65,27 @@ pub trait SnapshotCodec: Send + Sync {
 /// to integrate with their infrastructure.
 pub trait StateStore: Send + Sync {
     /// Save a snapshot for a given key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying backend cannot persist
+    /// the snapshot (I/O failure, network timeout, permission denied, etc.).
     fn save(&self, key: &[u8], snapshot: &StateSnapshot) -> Result<(), String>;
 
     /// Load the most recent snapshot for a given key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying backend cannot be queried.
+    /// A missing snapshot is reported as `Ok(None)`, not an error.
     fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String>;
 
     /// List all keys that have snapshots.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying backend cannot be
+    /// enumerated.
     fn list_keys(&self) -> Result<Vec<Vec<u8>>, String>;
 }
 
@@ -130,7 +155,7 @@ where
     O: ExtractOutput,
 {
     /// Create a new keyed graph state.
-    pub fn new(graph: CompiledGraph<R, O, KeyedTimestamped<K>>, policy: OutOfOrderPolicy) -> Self {
+    pub const fn new(graph: CompiledGraph<R, O, KeyedTimestamped<K>>, policy: OutOfOrderPolicy) -> Self {
         Self {
             graph,
             last_ts: None,
@@ -181,6 +206,13 @@ where
     /// Returns every record this step *releases* — usually zero or one, but a
     /// [`Buffer`](OutOfOrderPolicy::Buffer) step can release several at once
     /// when an advancing watermark unblocks earlier buffered records.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ComputeError::InvalidInput`] when the policy is
+    /// [`OutOfOrderPolicy::Error`] and `ts` precedes the most recently
+    /// released timestamp. Propagates any [`ComputeError`] raised by the
+    /// underlying graph step.
     pub fn step(
         &mut self,
         record: R,
@@ -226,6 +258,11 @@ where
     /// Call this once at end-of-stream so [`Buffer`](OutOfOrderPolicy::Buffer)
     /// records still inside the lateness window are not silently lost. It is a
     /// no-op for the `Error` and `Drop` policies (their buffers stay empty).
+    ///
+    /// # Errors
+    ///
+    /// Propagates any [`ComputeError`] raised while draining buffered
+    /// records through the underlying graph step.
     pub fn flush(
         &mut self,
         key: K,
@@ -289,7 +326,7 @@ where
                     return None;
                 }
                 self.flushed = true;
-                for (key, graph_state) in self.graphs.iter_mut() {
+                for (key, graph_state) in &mut self.graphs {
                     match graph_state.flush(key.clone()) {
                         Ok(items) => self.ready_queue.extend(items.into_iter().map(Ok)),
                         Err(e) => {

@@ -1,7 +1,7 @@
 //! Validation helpers for scalar values.
 //!
 //! This module provides helper functions for validating scalar values,
-//! including require_finite checks using the Scalar trait.
+//! including `require_finite` checks using the Scalar trait.
 
 use crate::error::ComputeError;
 use crate::error::ComputeResult;

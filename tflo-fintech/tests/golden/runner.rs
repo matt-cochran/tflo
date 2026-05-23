@@ -26,7 +26,7 @@ struct TFloRecord {
 fn get_period(params: &serde_json::Value) -> Result<usize, super::GoldenError> {
     params
         .get("period")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .map(|n| n as usize)
         .ok_or_else(|| super::GoldenError::Validation("Missing 'period' parameter".to_string()))
 }
@@ -34,12 +34,12 @@ fn get_period(params: &serde_json::Value) -> Result<usize, super::GoldenError> {
 fn param(params: &serde_json::Value, name: &str) -> Result<usize, super::GoldenError> {
     params
         .get(name)
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .map(|n| n as usize)
         .ok_or_else(|| super::GoldenError::Validation(format!("Missing '{name}' parameter")))
 }
 
-/// Build TFloRecords from a golden vector's input.
+/// Build `TFloRecords` from a golden vector's input.
 fn build_records(vector: &GoldenVector) -> Vec<TFloRecord> {
     vector
         .input
@@ -108,7 +108,7 @@ where
 
 /// Find the index of the first `Some` value in a slice of optional f64s.
 fn first_non_null(values: &[Option<f64>]) -> Option<usize> {
-    values.iter().position(|v| v.is_some())
+    values.iter().position(std::option::Option::is_some)
 }
 
 /// Align raw single-output `.tflo()` values with the expected output
@@ -409,7 +409,7 @@ impl GoldenRunner {
                 let period = get_period(params)?;
                 let nbdev = params
                     .get("nbdev")
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| super::GoldenError::Validation("Missing 'nbdev'".to_string()))?;
                 // deviation_band returns (middle, upper, lower)
                 // Fixture order: [upper, middle, lower]

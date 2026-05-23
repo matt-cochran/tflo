@@ -12,7 +12,7 @@
 //!
 //! Note on `std` warm-up: the underlying `CountWindow::variance()` returns
 //! `NaN` when the window has fewer than 2 values, so `std` and any output
-//! that depends on it (zscore, deviation_band upper/lower) is NaN for the
+//! that depends on it (zscore, `deviation_band` upper/lower) is NaN for the
 //! first record.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

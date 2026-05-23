@@ -41,7 +41,7 @@ use std::time::Duration;
 /// // First tick at ts=1000 should match news at ts=900 and ts=1500
 /// assert_eq!(joined[0].1.len(), 2);
 /// ```
-pub fn window_join<L, R, LI, RI, LK, RK, LT, RT>(
+pub const fn window_join<L, R, LI, RI, LK, RK, LT, RT>(
     left: LI,
     right: RI,
     left_key: LK,

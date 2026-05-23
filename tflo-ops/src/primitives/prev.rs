@@ -24,7 +24,7 @@ pub struct PrevTracker {
 impl PrevTracker {
     /// Create a new previous value tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { prev: None }
     }
 
@@ -40,7 +40,7 @@ impl PrevTracker {
 
     /// Get the current previous value without updating.
     #[must_use]
-    pub fn get(&self) -> Option<f64> {
+    pub const fn get(&self) -> Option<f64> {
         self.prev
     }
 
@@ -53,7 +53,7 @@ impl PrevTracker {
 
     /// Check if there's a previous value.
     #[must_use]
-    pub fn has_prev(&self) -> bool {
+    pub const fn has_prev(&self) -> bool {
         self.prev.is_some()
     }
 
@@ -75,7 +75,7 @@ pub struct TimestampedPrevTracker {
 impl TimestampedPrevTracker {
     /// Create a new timestamped previous value tracker.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { prev: None }
     }
 
@@ -88,7 +88,7 @@ impl TimestampedPrevTracker {
 
     /// Get the current previous value and timestamp without updating.
     #[must_use]
-    pub fn get(&self) -> Option<(i64, f64)> {
+    pub const fn get(&self) -> Option<(i64, f64)> {
         self.prev
     }
 

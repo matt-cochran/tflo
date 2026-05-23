@@ -1,4 +1,10 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// `#[wasm_bindgen]` impl blocks require the explicit struct name in return
+// types and field initializers — `Self` confuses the macro's name-resolution
+// for the generated JS class binding. Constructors marked
+// `#[wasm_bindgen(constructor)]` likewise cannot be `const fn` because the
+// macro expansion is not const-eval-compatible.
+#![allow(clippy::use_self, clippy::missing_const_for_fn)]
 //! WebAssembly bindings for tflo.
 //!
 //! This crate provides `#[wasm_bindgen]` exports that bridge between
@@ -53,7 +59,7 @@ struct Tick {
 // ── Internal helpers ──────────────────────────────────────────────────
 
 /// Convert a threshold-cross event mode to a stable string for JS.
-fn cross_mode_str(mode: ThresholdCrossEventMode) -> &'static str {
+const fn cross_mode_str(mode: ThresholdCrossEventMode) -> &'static str {
     match mode {
         ThresholdCrossEventMode::Rising => "rising",
         ThresholdCrossEventMode::Falling => "falling",
@@ -174,7 +180,7 @@ pub fn compute_bollinger(input_json: &str, config_json: &str) -> String {
         multiplier: f64,
     }
 
-    fn default_multiplier() -> f64 {
+    const fn default_multiplier() -> f64 {
         2.0
     }
 

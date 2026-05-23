@@ -27,7 +27,7 @@ pub struct StatefulTracker<S, Step> {
 
 impl<S, Step> StatefulTracker<S, Step> {
     /// Construct from initial tracker state and a step.
-    pub fn new(state: S, step: Step) -> Self {
+    pub const fn new(state: S, step: Step) -> Self {
         Self { state, step }
     }
 }

@@ -11,7 +11,7 @@ struct Metric {
 }
 
 impl Metric {
-    fn new(ts: i64, views: f64) -> Self {
+    const fn new(ts: i64, views: f64) -> Self {
         Self { ts, views }
     }
 }

@@ -31,16 +31,21 @@ coverage.
 Counts are workspace-wide warning totals observed at the start of the
 hardening pass; they shrink as code changes.
 
+Batches 1–3 are **complete** as of the hardening-pass branch; each lint is
+now denied in `[workspace.lints.clippy]`. The remaining batches (4–5) are
+deferred until after the Phase 1 breaking-change release — see
+`/home/mc/.claude/plans/yes-we-want-it-parsed-quilt.md`.
+
 | Batch | Lint | Group | ~Count | Notes |
 |------:|------|-------|-------:|-------|
-| 1 | `uninlined_format_args` | pedantic | 22 | `cargo clippy --fix` clean |
-| 1 | `redundant_closure_for_method_calls` | pedantic | 17 | mostly `--fix` clean |
-| 1 | `explicit_iter_loop` / misc style | pedantic | — | `--fix` clean |
-| 2 | `doc_markdown` (missing backticks) | pedantic | 216 | `--fix` handles most; review prose |
-| 2 | `missing_errors_doc` | pedantic | 39 | add `# Errors` sections by hand |
-| 2 | `missing_panics_doc` | pedantic | 5 | add `# Panics` sections by hand |
-| 3 | `use_self` | pedantic | 251 | `--fix` clean but large diff — own PR |
-| 3 | `missing_const_for_fn` | nursery | 135 | `--fix` clean; verify no MSRV regressions |
+| 1 ✅ | `uninlined_format_args` | pedantic | 22 | `cargo clippy --fix` clean → `deny` |
+| 1 ✅ | `redundant_closure_for_method_calls` | pedantic | 17 | mostly `--fix` clean → `deny` |
+| 1 ✅ | `explicit_iter_loop` / misc style | pedantic | — | `--fix` clean → `deny` |
+| 2 ✅ | `doc_markdown` (missing backticks) | pedantic | 216 | `--fix` + prose review → `deny` |
+| 2 ✅ | `missing_errors_doc` | pedantic | 39 | hand-written `# Errors` sections → `deny` |
+| 2 ✅ | `missing_panics_doc` | pedantic | 5 | absorbed by `--fix` → `deny` |
+| 3 ✅ | `use_self` | pedantic | 251 | `--fix` clean → `deny`; `#[wasm_bindgen]` impls in `tflo-wasm/src/lib.rs` carry a module-level `allow` because the macro expansion needs the explicit struct name |
+| 3 ✅ | `missing_const_for_fn` | nursery | 135 | `--fix` + three manual const-fns → `deny`; same `tflo-wasm` `allow` for `#[wasm_bindgen(constructor)]` impls |
 | 4 | `type_complexity` | clippy::all | 14 | factor the `Arc<dyn Fn(...)>` node-closure types into `type` aliases — or keep permanently allowed, as boxed closures are intrinsic to the engine design |
 | 4 | `trivially_copy_pass_by_ref` | pedantic | 24 | small API-shape changes |
 | 4 | `needless_collect` | nursery | 26 | review each — some are intentional |

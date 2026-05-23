@@ -14,7 +14,7 @@ struct CpuSample {
 }
 
 impl CpuSample {
-    fn new(ts: i64, cpu_pct: f64) -> Self {
+    const fn new(ts: i64, cpu_pct: f64) -> Self {
         Self { ts, cpu_pct }
     }
 }

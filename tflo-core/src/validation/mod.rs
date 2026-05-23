@@ -37,9 +37,9 @@ pub struct ValidationOptions {
     pub reject_nan: bool,
     /// Whether to reject infinite input values.
     pub reject_inf: bool,
-    /// Whether to return errors for NaN values (stronger than reject_nan).
+    /// Whether to return errors for NaN values (stronger than `reject_nan`).
     pub error_on_nan: bool,
-    /// Whether to return errors for infinite values (stronger than reject_inf).
+    /// Whether to return errors for infinite values (stronger than `reject_inf`).
     pub error_on_inf: bool,
     /// Whether to return errors for negative values in operations that don't allow them.
     pub error_on_negative: bool,
@@ -176,7 +176,7 @@ impl TimestampValidator {
 
     /// Get the number of out-of-order violations.
     #[must_use]
-    pub fn violations(&self) -> usize {
+    pub const fn violations(&self) -> usize {
         self.violations
     }
 
@@ -218,7 +218,7 @@ impl WarmupTracker {
 
     /// Check if globally warmed up.
     #[must_use]
-    pub fn is_warmed_up(&self) -> bool {
+    pub const fn is_warmed_up(&self) -> bool {
         self.records_seen >= self.min_required
     }
 
@@ -232,7 +232,7 @@ impl WarmupTracker {
 
     /// Get the number of records seen.
     #[must_use]
-    pub fn records_seen(&self) -> usize {
+    pub const fn records_seen(&self) -> usize {
         self.records_seen
     }
 
@@ -254,7 +254,7 @@ pub struct ValueValidator {
 impl ValueValidator {
     /// Create a new value validator with the given options.
     #[must_use]
-    pub fn new(options: ValidationOptions) -> Self {
+    pub const fn new(options: ValidationOptions) -> Self {
         Self {
             options,
             nan_count: 0,
@@ -322,13 +322,13 @@ impl ValueValidator {
 
     /// Get the count of NaN values seen.
     #[must_use]
-    pub fn nan_count(&self) -> usize {
+    pub const fn nan_count(&self) -> usize {
         self.nan_count
     }
 
     /// Get the count of infinite values seen.
     #[must_use]
-    pub fn inf_count(&self) -> usize {
+    pub const fn inf_count(&self) -> usize {
         self.inf_count
     }
 

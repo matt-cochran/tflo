@@ -121,7 +121,7 @@ impl<R: 'static> Composites<R> for Comp<R, f64> {
         &self,
         window: impl Into<Window>,
         k: f64,
-    ) -> (Comp<R, f64>, Comp<R, f64>, Comp<R, f64>) {
+    ) -> (Self, Self, Self) {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);
@@ -131,19 +131,19 @@ impl<R: 'static> Composites<R> for Comp<R, f64> {
         (middle, upper, lower)
     }
 
-    fn zscore(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn zscore(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
         let mean = self.sma(w);
         let std = self.std(w);
         (self - &mean) / &std
     }
 
-    fn peak_decline(&self) -> Comp<R, f64> {
+    fn peak_decline(&self) -> Self {
         let peak = self.cummax();
         (self - &peak) / &peak
     }
 
-    fn momentum(&self, period: usize) -> Comp<R, f64> {
+    fn momentum(&self, period: usize) -> Self {
         let mut prev = self.clone();
         for _ in 0..period {
             prev = prev.prev();
@@ -151,7 +151,7 @@ impl<R: 'static> Composites<R> for Comp<R, f64> {
         self - &prev
     }
 
-    fn rate_of_change(&self, period: usize) -> Comp<R, f64> {
+    fn rate_of_change(&self, period: usize) -> Self {
         let mut prev = self.clone();
         for _ in 0..period {
             prev = prev.prev();
@@ -159,17 +159,17 @@ impl<R: 'static> Composites<R> for Comp<R, f64> {
         ((self - &prev) / &prev) * 100.0
     }
 
-    fn dc_remove(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn dc_remove(&self, window: impl Into<Window>) -> Self {
         let mean = self.sma(window);
         self - &mean
     }
 
-    fn baseline_correct(&self, window: impl Into<Window>, percentile: f64) -> Comp<R, f64> {
+    fn baseline_correct(&self, window: impl Into<Window>, percentile: f64) -> Self {
         let baseline = self.quantile(window, percentile);
         self - &baseline
     }
 
-    fn normalize_range(&self, window: impl Into<Window>) -> Comp<R, f64> {
+    fn normalize_range(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
         let min = self.min(w);
         let max = self.max(w);
@@ -177,7 +177,7 @@ impl<R: 'static> Composites<R> for Comp<R, f64> {
         (self - &min) / &range
     }
 
-    fn calibrate(&self, gain: f64, offset: f64) -> Comp<R, f64> {
+    fn calibrate(&self, gain: f64, offset: f64) -> Self {
         self * gain + offset
     }
 }

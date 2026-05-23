@@ -2,7 +2,7 @@
 //! S3-compatible object store backend for tflo checkpoints.
 //!
 //! This crate provides a `StateStore` implementation that persists
-//! state snapshots to S3-compatible object stores (AWS S3, MinIO, etc.).
+//! state snapshots to S3-compatible object stores (AWS S3, `MinIO`, etc.).
 //!
 //! # Example
 //!
@@ -59,7 +59,7 @@ impl<C: S3Client> S3StateStore<C> {
     /// * `bucket`: S3 bucket name
     /// * `prefix`: Prefix for object keys (e.g., "checkpoints/")
     #[must_use]
-    pub fn new(client: C, bucket: String, prefix: String) -> Self {
+    pub const fn new(client: C, bucket: String, prefix: String) -> Self {
         Self {
             client,
             bucket,

@@ -1,6 +1,6 @@
 //! File-based checkpoint/restore round-trip.
 //!
-//! Demonstrates: snapshot(), restore(), FileStateStore save/load.
+//! Demonstrates: `snapshot()`, `restore()`, `FileStateStore` save/load.
 //!
 //! Run: cargo run --example docs-file-checkpoint
 
@@ -22,7 +22,7 @@ struct MachineSample {
 }
 
 impl MachineSample {
-    fn new(ts: i64, spindle_rpm: f64) -> Self {
+    const fn new(ts: i64, spindle_rpm: f64) -> Self {
         Self { ts, spindle_rpm }
     }
 }

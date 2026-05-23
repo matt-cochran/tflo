@@ -28,19 +28,19 @@ pub trait FintechAliases<R> {
 }
 
 impl<R: 'static> FintechAliases<R> for Comp<R, f64> {
-    fn bollinger_bands(&self, window: impl Into<Window>, k: f64) -> (Comp<R>, Comp<R>, Comp<R>) {
+    fn bollinger_bands(&self, window: impl Into<Window>, k: f64) -> (Self, Self, Self) {
         self.deviation_band(window, k)
     }
 
-    fn drawdown(&self) -> Comp<R> {
+    fn drawdown(&self) -> Self {
         self.peak_decline()
     }
 
-    fn mom_n(&self, period: usize) -> Comp<R> {
+    fn mom_n(&self, period: usize) -> Self {
         self.momentum(period)
     }
 
-    fn roc_n(&self, period: usize) -> Comp<R> {
+    fn roc_n(&self, period: usize) -> Self {
         self.rate_of_change(period)
     }
 }

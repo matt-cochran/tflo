@@ -284,13 +284,13 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
 
     /// Get the number of records processed.
     #[must_use]
-    pub fn records_seen(&self) -> usize {
+    pub const fn records_seen(&self) -> usize {
         self.records_seen
     }
 
     /// Check if the graph is warmed up (has seen minimum required records).
     #[must_use]
-    pub fn is_warmed_up(&self) -> bool {
+    pub const fn is_warmed_up(&self) -> bool {
         self.records_seen >= self.min_warmup
     }
 

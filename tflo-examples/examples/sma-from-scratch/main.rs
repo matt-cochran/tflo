@@ -5,7 +5,7 @@ use tflo_core::prelude::*;
 use tflo_examples::*;
 use tflo_ops::prelude::*;
 
-/// A single outdoor temperature reading from an IoT sensor.
+/// A single outdoor temperature reading from an `IoT` sensor.
 #[derive(Clone, Debug)]
 struct Reading {
     /// Timestamp in milliseconds.
@@ -15,7 +15,7 @@ struct Reading {
 }
 
 impl Reading {
-    fn new(ts: i64, celsius: f64) -> Self {
+    const fn new(ts: i64, celsius: f64) -> Self {
         Self { ts, celsius }
     }
 }

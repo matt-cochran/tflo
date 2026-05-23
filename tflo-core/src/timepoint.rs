@@ -38,7 +38,7 @@ impl TimePoint for u64 {
     }
 
     fn from_millis(ms: i64) -> Self {
-        ms as u64
+        ms as Self
     }
 }
 
@@ -48,7 +48,7 @@ impl TimePoint for i32 {
     }
 
     fn from_millis(ms: i64) -> Self {
-        ms as i32
+        ms as Self
     }
 }
 
@@ -58,6 +58,6 @@ impl TimePoint for u32 {
     }
 
     fn from_millis(ms: i64) -> Self {
-        ms as u32
+        ms as Self
     }
 }

@@ -40,7 +40,7 @@ impl<R: 'static> Comp<R, f64> {
     /// price.map_f64(|x| x.ln() * 2.0).named("log_scaled_price")
     /// ```
     #[must_use]
-    pub fn map_f64<F>(&self, f: F) -> Comp<R>
+    pub fn map_f64<F>(&self, f: F) -> Self
     where
         F: Fn(f64) -> f64 + Send + Sync + 'static,
     {
@@ -61,7 +61,7 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// The closure receives two `f64` values `(self, other)` and returns one `f64`.
     #[must_use]
-    pub fn map2_f64<F>(&self, other: &Comp<R>, f: F) -> Comp<R>
+    pub fn map2_f64<F>(&self, other: &Self, f: F) -> Self
     where
         F: Fn(f64, f64) -> f64 + Send + Sync + 'static,
     {
@@ -83,7 +83,7 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// Suppressed values do not appear in the output stream.
     #[must_use]
-    pub fn filter_f64<F>(&self, f: F) -> Comp<R>
+    pub fn filter_f64<F>(&self, f: F) -> Self
     where
         F: Fn(f64) -> bool + Send + Sync + 'static,
     {
@@ -104,7 +104,7 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// Returns `Some(value)` to emit, `None` to suppress.
     #[must_use]
-    pub fn filter_map_f64<F>(&self, f: F) -> Comp<R>
+    pub fn filter_map_f64<F>(&self, f: F) -> Self
     where
         F: Fn(f64) -> Option<f64> + Send + Sync + 'static,
     {
@@ -133,7 +133,7 @@ impl<R: 'static> Comp<R, f64> {
     ///     .named("ema_custom")
     /// ```
     #[must_use]
-    pub fn scan_f64<S, Init, Step>(&self, init: Init, step: Step) -> Comp<R>
+    pub fn scan_f64<S, Init, Step>(&self, init: Init, step: Step) -> Self
     where
         S: Send + Sync + 'static,
         Init: Fn() -> S + Send + Sync + 'static,
@@ -168,7 +168,7 @@ impl<R: 'static> Comp<R, f64> {
     /// `init` produces fresh state when the graph is compiled.
     /// `step` receives `(&mut S, f64, f64)` and returns one `f64` per record.
     #[must_use]
-    pub fn scan2_f64<S, Init, Step>(&self, other: &Comp<R>, init: Init, step: Step) -> Comp<R>
+    pub fn scan2_f64<S, Init, Step>(&self, other: &Self, init: Init, step: Step) -> Self
     where
         S: Send + Sync + 'static,
         Init: Fn() -> S + Send + Sync + 'static,

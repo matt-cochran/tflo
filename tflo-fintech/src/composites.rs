@@ -105,7 +105,7 @@ pub trait FintechIndicators<R> {
 }
 
 impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
-    fn macd_n(&self, fast: usize, slow: usize, signal: usize) -> (Comp<R>, Comp<R>, Comp<R>) {
+    fn macd_n(&self, fast: usize, slow: usize, signal: usize) -> (Self, Self, Self) {
         let line = self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             macd_last(data, fast, slow, signal, 0)
@@ -121,7 +121,7 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         (line, sig, hist)
     }
 
-    fn stochastic_k(&self, window: impl Into<Window>) -> Comp<R> {
+    fn stochastic_k(&self, window: impl Into<Window>) -> Self {
         let w: Window = window.into();
         let highest = self.max(w);
         let lowest = self.min(w);
@@ -129,7 +129,7 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         ((self - &lowest) / &range) * 100.0
     }
 
-    fn stochastic_n(&self, k_period: usize, d_period: usize) -> (Comp<R>, Comp<R>) {
+    fn stochastic_n(&self, k_period: usize, d_period: usize) -> (Self, Self) {
         let k = self.stochastic_k(k_period);
         let d = k.sma(d_period);
         (k, d)
@@ -137,11 +137,11 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
 
     fn stochastic_ohlc_n(
         &self,
-        high: &Comp<R>,
-        low: &Comp<R>,
+        high: &Self,
+        low: &Self,
         k_period: usize,
         d_period: usize,
-    ) -> (Comp<R>, Comp<R>) {
+    ) -> (Self, Self) {
         let highest = high.max(k_period);
         let lowest = low.min(k_period);
         let range = &highest - &lowest;
@@ -151,21 +151,21 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         (slow_k, slow_d)
     }
 
-    fn williams_r_n(&self, n: usize) -> Comp<R> {
+    fn williams_r_n(&self, n: usize) -> Self {
         let highest = self.max(n);
         let lowest = self.min(n);
         let range = &highest - &lowest;
         ((&highest - self) / &range) * -100.0
     }
 
-    fn williams_r_ohlc_n(&self, high: &Comp<R>, low: &Comp<R>, n: usize) -> Comp<R> {
+    fn williams_r_ohlc_n(&self, high: &Self, low: &Self, n: usize) -> Self {
         let highest = high.max(n);
         let lowest = low.min(n);
         let range = &highest - &lowest;
         ((&highest - self) / &range) * -100.0
     }
 
-    fn cci_n(&self, n: usize) -> Comp<R> {
+    fn cci_n(&self, n: usize) -> Self {
         self.scan_f64(
             move || VecDeque::<f64>::with_capacity(n),
             move |window, value| {
@@ -188,81 +188,81 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         )
     }
 
-    fn true_range(&self, high: &Comp<R>, low: &Comp<R>) -> Comp<R> {
+    fn true_range(&self, high: &Self, low: &Self) -> Self {
         let prev_close = self.prev();
         let hl = high - low;
         let hpc = (high - &prev_close).abs();
         let lpc = (low - &prev_close).abs();
-        let max_gap = hpc.map2_f64(&lpc, |a, b| a.max(b));
-        hl.map2_f64(&max_gap, |a, b| a.max(b))
+        let max_gap = hpc.map2_f64(&lpc, f64::max);
+        hl.map2_f64(&max_gap, f64::max)
     }
 
-    fn atr_n(&self, high: &Comp<R>, low: &Comp<R>, n: usize) -> Comp<R> {
+    fn atr_n(&self, high: &Self, low: &Self, n: usize) -> Self {
         self.true_range(high, low).ema(n)
     }
 
-    fn atr_wilder_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(self, &[high, low], move || AtrNode::new(period))
+    fn atr_wilder_n(&self, high: &Self, low: &Self, period: usize) -> Self {
+        Self::custom_node(self, &[high, low], move || AtrNode::new(period))
     }
 
-    fn trima(&self, period: usize) -> Comp<R> {
+    fn trima(&self, period: usize) -> Self {
         self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             trima_last(data, period)
         })
     }
 
-    fn dema_n(&self, period: usize) -> Comp<R> {
+    fn dema_n(&self, period: usize) -> Self {
         self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             dema_last(data, period)
         })
     }
 
-    fn tema_n(&self, period: usize) -> Comp<R> {
+    fn tema_n(&self, period: usize) -> Self {
         self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             tema_last(data, period)
         })
     }
 
-    fn typical_price(&self, high: &Comp<R>, low: &Comp<R>) -> Comp<R> {
+    fn typical_price(&self, high: &Self, low: &Self) -> Self {
         let sum = high + low;
         (&sum + self) / 3.0
     }
 
-    fn vwap(&self, volume: &Comp<R>) -> Comp<R> {
+    fn vwap(&self, volume: &Self) -> Self {
         let pv = self * volume;
         let pv_sum = pv.cumsum();
         let vol_sum = volume.cumsum();
         &pv_sum / &vol_sum
     }
 
-    fn obv(&self, volume: &Comp<R>) -> Comp<R> {
+    fn obv(&self, volume: &Self) -> Self {
         self.scan2_f64(volume, ObvState::default, obv_step)
     }
 
-    fn mfi_n(&self, volume: &Comp<R>, n: usize) -> Comp<R> {
+    fn mfi_n(&self, volume: &Self, n: usize) -> Self {
         self.scan2_f64(volume, move || MfiState::new(n), mfi_step)
     }
 
-    fn adx_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(self, &[high, low], move || AdxNode::new(period))
+    fn adx_n(&self, high: &Self, low: &Self, period: usize) -> Self {
+        Self::custom_node(self, &[high, low], move || AdxNode::new(period))
     }
 
-    fn plus_di_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(self, &[high, low], move || PlusDiNode::new(period))
+    fn plus_di_n(&self, high: &Self, low: &Self, period: usize) -> Self {
+        Self::custom_node(self, &[high, low], move || PlusDiNode::new(period))
     }
 
-    fn minus_di_n(&self, high: &Comp<R>, low: &Comp<R>, period: usize) -> Comp<R> {
-        Comp::custom_node(self, &[high, low], move || MinusDiNode::new(period))
+    fn minus_di_n(&self, high: &Self, low: &Self, period: usize) -> Self {
+        Self::custom_node(self, &[high, low], move || MinusDiNode::new(period))
     }
 
-    fn kama_n(&self, period: usize) -> Comp<R> {
+    fn kama_n(&self, period: usize) -> Self {
         self.custom_node1(move || KamaNode::new(period))
     }
 
-    fn cmo_n(&self, period: usize) -> Comp<R> {
+    fn cmo_n(&self, period: usize) -> Self {
         #[derive(Default)]
         struct CmoState {
             prev: Option<f64>,
@@ -311,7 +311,7 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         })
     }
 
-    fn linearreg_slope_n(&self, period: usize) -> Comp<R> {
+    fn linearreg_slope_n(&self, period: usize) -> Self {
         self.scan_f64(
             move || VecDeque::<f64>::with_capacity(period),
             move |buf, val| {
@@ -346,21 +346,21 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         )
     }
 
-    fn ppo_n(&self, fast: usize, slow: usize) -> Comp<R> {
+    fn ppo_n(&self, fast: usize, slow: usize) -> Self {
         self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             ppo_last(data, fast, slow)
         })
     }
 
-    fn trix_n(&self, period: usize) -> Comp<R> {
+    fn trix_n(&self, period: usize) -> Self {
         self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             trix_last(data, period)
         })
     }
 
-    fn stochrsi_n(&self, rsi_period: usize, fastk: usize, fastd: usize) -> (Comp<R>, Comp<R>) {
+    fn stochrsi_n(&self, rsi_period: usize, fastk: usize, fastd: usize) -> (Self, Self) {
         let k = self.scan_f64(Vec::<f64>::new, move |data, value| {
             data.push(value);
             stochrsi_last(data, rsi_period, fastk, fastd, 0)

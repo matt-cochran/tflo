@@ -47,6 +47,12 @@ impl ScriptEngine {
     }
 
     /// Compile and cache a script.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::CompileError`](crate::error::RhaiError::CompileError)
+    /// when `script` is not valid Rhai source.
     pub fn compile(&mut self, name: &str, script: &str) -> RhaiResult<()> {
         let ast = self
             .engine
@@ -60,12 +66,25 @@ impl ScriptEngine {
     }
 
     /// Load and compile a script from a file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RhaiError::IoError`](crate::error::RhaiError::IoError) when
+    /// `path` cannot be read, plus any error from
+    /// [`compile`](Self::compile).
     pub fn load_file<P: AsRef<Path>>(&mut self, name: &str, path: P) -> RhaiResult<()> {
         let content = fs::read_to_string(path)?;
         self.compile(name, &content)
     }
 
     /// Load all scripts from a directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RhaiError::IoError`](crate::error::RhaiError::IoError) when
+    /// `path` cannot be read or entries cannot be enumerated, plus any
+    /// error from [`load_file`](Self::load_file) for each `.rhai` file
+    /// found.
     pub fn load_directory<P: AsRef<Path>>(&mut self, path: P) -> RhaiResult<usize> {
         let mut count = 0;
         for entry in fs::read_dir(path)? {
@@ -82,6 +101,14 @@ impl ScriptEngine {
     }
 
     /// Evaluate a cached script.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::ScriptError`](crate::error::RhaiError::ScriptError)
+    /// when `script_name` has not been compiled, and
+    /// [`RhaiError::EvaluationError`](crate::error::RhaiError::EvaluationError)
+    /// when execution fails (type mismatch, runtime error, etc.).
     pub fn eval<T: IntoRhaiScope, R: Clone + 'static>(
         &self,
         script_name: &str,
@@ -104,6 +131,14 @@ impl ScriptEngine {
     }
 
     /// Evaluate a cached script and return Dynamic.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::ScriptError`](crate::error::RhaiError::ScriptError)
+    /// when `script_name` has not been compiled, and
+    /// [`RhaiError::EvaluationError`](crate::error::RhaiError::EvaluationError)
+    /// when execution fails.
     pub fn eval_dynamic<T: IntoRhaiScope>(
         &self,
         script_name: &str,
@@ -126,6 +161,13 @@ impl ScriptEngine {
     }
 
     /// Evaluate an expression directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::EvaluationError`](crate::error::RhaiError::EvaluationError)
+    /// when `expr` fails to compile or execute (type mismatch, runtime
+    /// error, etc.).
     pub fn eval_expression<T: IntoRhaiScope, R: Clone + 'static>(
         &self,
         expr: &str,

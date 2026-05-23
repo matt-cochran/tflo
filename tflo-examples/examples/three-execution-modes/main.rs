@@ -12,7 +12,7 @@ struct Telemetry {
 }
 
 impl Telemetry {
-    fn new(ts: i64, altitude_ft: f64, aircraft_id: &'static str) -> Self {
+    const fn new(ts: i64, altitude_ft: f64, aircraft_id: &'static str) -> Self {
         Self {
             ts,
             altitude_ft,
@@ -85,7 +85,7 @@ fn main() {
         })
         .collect();
     for (ts, (sma, ema)) in telemetry.iter().map(|x| x.ts).zip(&multi) {
-        println!("  ts={:>6} sma={:.4} ema={:.4}", ts, sma, ema);
+        println!("  ts={ts:>6} sma={sma:.4} ema={ema:.4}");
     }
 
     // ---- Explicit error handling with tflo_try() ----
@@ -102,7 +102,7 @@ fn main() {
     for (ts, result) in telemetry.iter().map(|x| x.ts).zip(&try_results) {
         match result {
             Ok(item) => println!("  ts={} → Ready: {:.4}", ts, item.value),
-            Err(e) => println!("  ts={} → Error: {e}", ts),
+            Err(e) => println!("  ts={ts} → Error: {e}"),
         }
     }
 
@@ -120,8 +120,8 @@ fn main() {
         .collect();
     for (ts, result) in telemetry.iter().map(|x| x.ts).zip(&validated) {
         match result {
-            Ok(val) => println!("  ts={} → Ok({:.4})", ts, val),
-            Err(e) => println!("  ts={} → Err({e})", ts),
+            Ok(val) => println!("  ts={ts} → Ok({val:.4})"),
+            Err(e) => println!("  ts={ts} → Err({e})"),
         }
     }
 

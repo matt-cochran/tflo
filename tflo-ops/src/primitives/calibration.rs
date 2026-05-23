@@ -94,7 +94,7 @@ impl TimeDcRemover {
     ///
     /// * `window` - Duration of the rolling window for DC estimation
     #[must_use]
-    pub fn new(window: std::time::Duration) -> Self {
+    pub const fn new(window: std::time::Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {
@@ -321,7 +321,7 @@ impl RangeNormalizer {
 
     /// Get the current observed range (min, max).
     #[must_use]
-    pub fn range(&self) -> (f64, f64) {
+    pub const fn range(&self) -> (f64, f64) {
         (self.current_min, self.current_max)
     }
 

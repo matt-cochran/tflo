@@ -2,7 +2,7 @@
 //!
 //! Provides rolling median and quantile calculations using a sorted buffer approach.
 //! For count-based windows, uses insertion sort for O(n) per update.
-//! For time-based windows, uses a VecDeque with sorting on access.
+//! For time-based windows, uses a `VecDeque` with sorting on access.
 
 use std::collections::VecDeque;
 use std::time::Duration;
@@ -182,7 +182,7 @@ pub struct MedianTimeWindow {
 impl MedianTimeWindow {
     /// Create a new time-based median window with the specified duration.
     #[must_use]
-    pub fn new(window: Duration) -> Self {
+    pub const fn new(window: Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {
@@ -241,7 +241,7 @@ impl MedianTimeWindow {
 
         // Collect and sort values
         let mut values: Vec<f64> = self.buffer.iter().map(|(_, v)| *v).collect();
-        values.sort_by(|a, b| a.total_cmp(b));
+        values.sort_by(f64::total_cmp);
 
         let n = values.len();
         if n == 1 {

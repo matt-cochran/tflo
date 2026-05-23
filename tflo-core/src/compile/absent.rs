@@ -40,15 +40,15 @@ pub enum Absent {
 impl Absent {
     /// A short, human-readable label for diagnostics and graph-plan output.
     #[must_use]
-    pub fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
-            Absent::WarmingUp => "warming up",
-            Absent::InvalidConfig => "invalid configuration",
-            Absent::DivideByZero => "divide by zero",
-            Absent::DomainError => "math domain error",
-            Absent::ZeroTimeDelta => "zero time delta",
-            Absent::FilteredOut => "filtered out",
-            Absent::UpstreamAbsent => "upstream absent",
+            Self::WarmingUp => "warming up",
+            Self::InvalidConfig => "invalid configuration",
+            Self::DivideByZero => "divide by zero",
+            Self::DomainError => "math domain error",
+            Self::ZeroTimeDelta => "zero time delta",
+            Self::FilteredOut => "filtered out",
+            Self::UpstreamAbsent => "upstream absent",
         }
     }
 }
@@ -76,8 +76,13 @@ pub type Computed = Result<f64, Absent>;
 /// single seam that converts that sentinel into a typed reason: a finite value
 /// passes through as `Ok`, anything else (`NaN`, `±inf`) becomes
 /// `Err(Absent::WarmingUp)`.
+///
+/// # Errors
+///
+/// Returns `Err(Absent::WarmingUp)` when `x` is not finite (`NaN` or
+/// `±inf`) — the "no value yet" sentinel for warming windows.
 #[inline]
-pub fn finite_or_warming(x: f64) -> Computed {
+pub const fn finite_or_warming(x: f64) -> Computed {
     if x.is_finite() {
         Ok(x)
     } else {

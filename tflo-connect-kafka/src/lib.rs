@@ -312,7 +312,7 @@ pub fn create_checkpoint<C: Cursor>(state: StateSnapshot, cursor: &C) -> Checkpo
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as i64;
-    let checkpoint_id = format!("checkpoint_{}", timestamp_ms);
+    let checkpoint_id = format!("checkpoint_{timestamp_ms}");
     Checkpoint::new(checkpoint_id, state, cursor, timestamp_ms)
 }
 

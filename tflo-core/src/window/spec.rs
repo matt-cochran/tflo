@@ -83,7 +83,7 @@ pub struct WindowSpec<C> {
 
 impl<C> WindowSpec<C> {
     /// Create a new window specification.
-    pub(crate) fn new(window: Window, comp: C) -> Self {
+    pub(crate) const fn new(window: Window, comp: C) -> Self {
         Self { window, comp }
     }
 }

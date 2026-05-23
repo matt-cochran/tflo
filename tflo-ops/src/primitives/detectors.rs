@@ -98,7 +98,7 @@ impl Default for CrossDetector {
 impl CrossDetector {
     /// Create a new cross detector.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             prev_value: None,
             prev_threshold: None,
@@ -164,19 +164,19 @@ impl CrossDetector {
 
     /// Check if the detector has been initialized with at least one observation.
     #[must_use]
-    pub fn is_initialized(&self) -> bool {
+    pub const fn is_initialized(&self) -> bool {
         self.prev_value.is_some()
     }
 
     /// Get the previous value.
     #[must_use]
-    pub fn prev_value(&self) -> Option<f64> {
+    pub const fn prev_value(&self) -> Option<f64> {
         self.prev_value
     }
 
     /// Get the previous threshold.
     #[must_use]
-    pub fn prev_threshold(&self) -> Option<f64> {
+    pub const fn prev_threshold(&self) -> Option<f64> {
         self.prev_threshold
     }
 }
@@ -190,7 +190,7 @@ impl HysteresisCrossDetector {
     ///   Must be positive. Larger values provide more noise immunity but may
     ///   miss smaller legitimate signals.
     #[must_use]
-    pub fn new(hysteresis: f64) -> Self {
+    pub const fn new(hysteresis: f64) -> Self {
         Self {
             hysteresis,
             state: HysteresisState::Unknown,
@@ -249,7 +249,7 @@ impl HysteresisCrossDetector {
 
     /// Get the hysteresis value.
     #[must_use]
-    pub fn hysteresis(&self) -> f64 {
+    pub const fn hysteresis(&self) -> f64 {
         self.hysteresis
     }
 

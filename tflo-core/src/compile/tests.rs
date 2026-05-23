@@ -35,9 +35,9 @@ fn make_graph_double() -> CompiledGraph<TestRecord, f64, Timestamped> {
 // ========================================================================
 
 /// When two graphs are zipped,
-/// CompiledGraph shall offset the second graph's node IDs,
+/// `CompiledGraph` shall offset the second graph's node IDs,
 /// So that there are no ID collisions,
-/// And the combined output_ids correctly reference both outputs.
+/// And the combined `output_ids` correctly reference both outputs.
 #[test]
 fn test_fm6_zip_id_offset() {
     let g1 = make_graph_passthrough();
@@ -55,8 +55,8 @@ fn test_fm6_zip_id_offset() {
 }
 
 /// When a graph is mapped,
-/// CompiledGraph shall create a new composition node with a new ID,
-/// So that the output_ids correctly reference the mapped output,
+/// `CompiledGraph` shall create a new composition node with a new ID,
+/// So that the `output_ids` correctly reference the mapped output,
 /// And the original nodes remain unchanged.
 #[test]
 fn test_fm6_map_id_tracking() {
@@ -76,7 +76,7 @@ fn test_fm6_map_id_tracking() {
 }
 
 /// When a zipped graph is reduced,
-/// CompiledGraph shall correctly track the new single output ID,
+/// `CompiledGraph` shall correctly track the new single output ID,
 /// So that extraction works correctly after reduction.
 #[test]
 fn test_fm6_reduce_id_tracking() {
@@ -100,8 +100,8 @@ fn test_fm6_reduce_id_tracking() {
 // PIPELINE CONTEXT AND ITEM TESTS
 // ========================================================================
 
-/// When step() is called,
-/// CompiledGraph shall return a PipelineItem with correct context,
+/// When `step()` is called,
+/// `CompiledGraph` shall return a `PipelineItem` with correct context,
 /// So that timestamp information flows through the pipeline.
 #[test]
 fn test_step_returns_pipeline_item() {
@@ -120,8 +120,8 @@ fn test_step_returns_pipeline_item() {
     assert_eq!(item.value, 50.0); // Raw value passed through
 }
 
-/// When step_value() is called,
-/// CompiledGraph shall return just the value without context,
+/// When `step_value()` is called,
+/// `CompiledGraph` shall return just the value without context,
 /// So that users who don't need context can get values directly.
 #[test]
 fn test_step_value_returns_raw_value() {
@@ -136,8 +136,8 @@ fn test_step_value_returns_raw_value() {
     assert_eq!(result, Some(50.0));
 }
 
-/// When with_context() is called,
-/// CompiledGraph shall change the context type,
+/// When `with_context()` is called,
+/// `CompiledGraph` shall change the context type,
 /// So that pipelines can switch between time-based and sequence-based.
 #[test]
 fn test_with_context_changes_type() {
@@ -162,7 +162,7 @@ fn test_with_context_changes_type() {
 // ========================================================================
 
 /// When map is applied,
-/// CompiledGraph shall transform outputs while preserving context,
+/// `CompiledGraph` shall transform outputs while preserving context,
 /// So that timestamps flow through transformations.
 #[test]
 fn test_map_preserves_context() {
@@ -183,7 +183,7 @@ fn test_map_preserves_context() {
 }
 
 /// When filter is applied with passing predicate,
-/// CompiledGraph shall return Some(value),
+/// `CompiledGraph` shall return Some(value),
 /// So that matching values are preserved.
 #[test]
 fn test_filter_passes() {
@@ -201,7 +201,7 @@ fn test_filter_passes() {
 }
 
 /// When filter is applied with failing predicate,
-/// CompiledGraph shall return Some(None),
+/// `CompiledGraph` shall return Some(None),
 /// So that non-matching values are filtered but context is preserved.
 #[test]
 fn test_filter_rejects() {
@@ -219,7 +219,7 @@ fn test_filter_rejects() {
 }
 
 /// When fold is applied,
-/// CompiledGraph shall accumulate values with preserved context,
+/// `CompiledGraph` shall accumulate values with preserved context,
 /// So that running totals can be computed.
 #[test]
 fn test_fold_accumulates() {
@@ -253,7 +253,7 @@ fn test_fold_accumulates() {
 }
 
 /// When zip is applied to two graphs,
-/// CompiledGraph shall combine their outputs into a tuple,
+/// `CompiledGraph` shall combine their outputs into a tuple,
 /// So that multiple computations can be performed in parallel.
 #[test]
 fn test_zip_combines_outputs() {
@@ -275,7 +275,7 @@ fn test_zip_combines_outputs() {
 }
 
 /// When reduce is applied to a zipped graph,
-/// CompiledGraph shall collapse the tuple to a single value,
+/// `CompiledGraph` shall collapse the tuple to a single value,
 /// So that combined computations can produce scalar results.
 #[test]
 fn test_reduce_collapses_tuple() {

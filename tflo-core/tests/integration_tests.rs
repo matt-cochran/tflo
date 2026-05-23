@@ -52,8 +52,8 @@ fn sample_ticks() -> Vec<Tick> {
     ]
 }
 
-/// When temporal_with is used,
-/// the system shall return tuples of (original_record, computed_value),
+/// When `temporal_with` is used,
+/// the system shall return tuples of (`original_record`, `computed_value`),
 /// So that users can access both the input and output,
 /// And the original record will be unmodified.
 #[test]
@@ -77,7 +77,7 @@ fn test_temporal_with_preserves_record() {
 }
 
 /// When arithmetic operations are applied to computations,
-/// the system shall correctly combine values via map2_f64,
+/// the system shall correctly combine values via `map2_f64`,
 /// So that derived metrics can be computed using closure ops,
 /// And the result will be numerically correct.
 #[test]
@@ -100,7 +100,7 @@ fn test_arithmetic_composition() {
     assert!((results[0] - 150_000.0).abs() < 0.001);
 }
 
-/// When merge_by_timestamp combines streams,
+/// When `merge_by_timestamp` combines streams,
 /// the system shall output items in timestamp order,
 /// So that users can process interleaved data correctly,
 /// And all items from all streams will be included.
@@ -152,7 +152,7 @@ fn test_merge_streams() {
     );
 }
 
-/// When batch_by_time is applied,
+/// When `batch_by_time` is applied,
 /// the system shall group records by time intervals,
 /// So that users can process time-bucketed data,
 /// And each batch will contain only records from that interval.
@@ -169,7 +169,7 @@ fn test_batch_by_time() {
     assert!(!batches.is_empty());
 }
 
-/// When dedupe_by_key is applied,
+/// When `dedupe_by_key` is applied,
 /// the system shall remove duplicates within the window,
 /// So that only the first occurrence is kept,
 /// And duplicates outside the window will be preserved.
@@ -216,10 +216,10 @@ fn test_dedupe() {
     assert_eq!(deduped[2].symbol, "AAPL"); // After window expired
 }
 
-/// When rate_limit is applied,
+/// When `rate_limit` is applied,
 /// the system shall drop items that arrive too quickly,
 /// So that output rate is controlled,
-/// And at least min_interval passes between outputs.
+/// And at least `min_interval` passes between outputs.
 #[test]
 fn test_rate_limit() {
     let ticks = sample_ticks();
@@ -247,7 +247,7 @@ fn test_partition() {
     assert!(others.iter().all(|t| t.symbol == "GOOG"));
 }
 
-/// When validation is enabled with assert_sorted,
+/// When validation is enabled with `assert_sorted`,
 /// the system shall detect out-of-order timestamps,
 /// So that data quality issues are caught early,
 /// And an error will be returned for violations.

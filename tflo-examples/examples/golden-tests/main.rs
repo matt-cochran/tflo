@@ -29,7 +29,7 @@ fn main() {
 
     println!("RSI(14) output ({} values):", rsi_values.len());
     for (i, val) in rsi_values.iter().enumerate() {
-        println!("  [{i:>2}] = {:.10}", val);
+        println!("  [{i:>2}] = {val:.10}");
     }
 
     // ---- What a golden vector looks like ----
@@ -45,7 +45,7 @@ fn main() {
     println!("  \"input\": {:?},", sample_rsi_prices());
     println!("  \"expected\": [");
     for val in &rsi_values {
-        println!("    {:.10},", val);
+        println!("    {val:.10},");
     }
     println!("  ]");
     println!("}}");

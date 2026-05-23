@@ -53,7 +53,7 @@ impl<K: Hash + Eq + Clone> PrevByTracker<K> {
     /// Create a new tracker with a maximum number of tracked keys.
     ///
     /// When the limit is exceeded, the oldest keys may be evicted
-    /// (note: HashMap doesn't preserve order, so eviction is arbitrary).
+    /// (note: `HashMap` doesn't preserve order, so eviction is arbitrary).
     #[must_use]
     pub fn with_max_keys(max_keys: usize) -> Self {
         Self {

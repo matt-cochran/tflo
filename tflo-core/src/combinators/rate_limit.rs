@@ -30,7 +30,7 @@ use std::time::Duration;
 /// assert_eq!(limited[0].1, "event1");
 /// assert_eq!(limited[1].1, "event4");
 /// ```
-pub fn rate_limit<I, T, F, K>(iter: I, ts_fn: F, min_interval: Duration) -> RateLimit<I, T, F>
+pub const fn rate_limit<I, T, F, K>(iter: I, ts_fn: F, min_interval: Duration) -> RateLimit<I, T, F>
 where
     I: Iterator<Item = T>,
     F: Fn(&T) -> K,
@@ -102,7 +102,7 @@ where
 
 /// Rate limiter that keeps the most recent item within each window.
 #[allow(dead_code)]
-pub fn rate_limit_keep_last<I, T, F, K>(
+pub const fn rate_limit_keep_last<I, T, F, K>(
     iter: I,
     ts_fn: F,
     interval: Duration,

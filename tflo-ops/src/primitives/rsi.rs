@@ -184,7 +184,7 @@ pub struct RsiTimeWindow {
 impl RsiTimeWindow {
     /// Create a new time-based RSI calculator.
     #[must_use]
-    pub fn new(window: Duration) -> Self {
+    pub const fn new(window: Duration) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {
@@ -304,8 +304,7 @@ mod tests {
         let value = rsi.rsi();
         assert!(
             (0.0..=100.0).contains(&value),
-            "RSI {} out of bounds",
-            value
+            "RSI {value} out of bounds"
         );
     }
 

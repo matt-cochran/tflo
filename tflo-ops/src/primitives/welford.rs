@@ -17,7 +17,7 @@
 /// For each new value x:
 /// 1. Update count: n = n + 1
 /// 2. Update mean: mean = mean + (x - mean) / n
-/// 3. Update M2: M2 = M2 + (x - mean_old) * (x - mean_new)
+/// 3. Update M2: M2 = M2 + (x - `mean_old`) * (x - `mean_new`)
 ///
 /// Variance = M2 / n (population) or M2 / (n-1) (sample)
 ///
@@ -57,7 +57,7 @@ impl Default for WelfordAccumulator {
 impl WelfordAccumulator {
     /// Create a new Welford accumulator.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             count: 0,
             mean: 0.0,
@@ -104,13 +104,13 @@ impl WelfordAccumulator {
 
     /// Get the number of values.
     #[must_use]
-    pub fn count(&self) -> u64 {
+    pub const fn count(&self) -> u64 {
         self.count
     }
 
     /// Check if the accumulator is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.count == 0
     }
 
@@ -118,7 +118,7 @@ impl WelfordAccumulator {
     ///
     /// Returns `f64::NAN` if empty.
     #[must_use]
-    pub fn mean(&self) -> f64 {
+    pub const fn mean(&self) -> f64 {
         if self.count == 0 { f64::NAN } else { self.mean }
     }
 
@@ -212,7 +212,7 @@ pub struct WelfordWindow {
 impl WelfordWindow {
     /// Create a new Welford-based time window.
     #[must_use]
-    pub fn new(window: std::time::Duration) -> Self {
+    pub const fn new(window: std::time::Duration) -> Self {
         Self::with_recompute_interval(window, 1000)
     }
 
@@ -221,7 +221,7 @@ impl WelfordWindow {
     /// Recomputing periodically helps avoid numerical drift from many
     /// add/remove operations.
     #[must_use]
-    pub fn with_recompute_interval(window: std::time::Duration, interval: usize) -> Self {
+    pub const fn with_recompute_interval(window: std::time::Duration, interval: usize) -> Self {
         #[allow(clippy::cast_possible_wrap)]
         let window_ms = window.as_millis() as i64;
         Self {
@@ -273,7 +273,7 @@ impl WelfordWindow {
 
     /// Get the mean.
     #[must_use]
-    pub fn mean(&self) -> f64 {
+    pub const fn mean(&self) -> f64 {
         self.accumulator.mean()
     }
 

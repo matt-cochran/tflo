@@ -31,7 +31,7 @@ use std::time::Duration;
 /// assert_eq!(batches[1].len(), 1); // 2500
 /// assert_eq!(batches[2].len(), 1); // 3500
 /// ```
-pub fn batch_by_time<I, T, F, K>(iter: I, key_fn: F, interval: Duration) -> BatchByTime<I, T, F>
+pub const fn batch_by_time<I, T, F, K>(iter: I, key_fn: F, interval: Duration) -> BatchByTime<I, T, F>
 where
     I: Iterator<Item = T>,
     F: Fn(&T) -> K,

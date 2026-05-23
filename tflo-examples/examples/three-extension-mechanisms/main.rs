@@ -10,7 +10,7 @@ struct ScoreFilter {
 }
 
 impl ScoreFilter {
-    fn new(threshold: f64) -> Self {
+    const fn new(threshold: f64) -> Self {
         Self { threshold }
     }
 }
@@ -41,7 +41,7 @@ struct Alert {
 }
 
 impl Alert {
-    fn new(ts: i64, score: f64) -> Self {
+    const fn new(ts: i64, score: f64) -> Self {
         Self { ts, score }
     }
 }

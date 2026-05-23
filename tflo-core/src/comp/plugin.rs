@@ -47,10 +47,10 @@ impl<R: 'static> Comp<R, f64> {
     /// ```
     #[must_use]
     pub fn custom_node<F, N>(
-        first: &Comp<R, f64>,
-        rest: &[&Comp<R, f64>],
+        first: &Self,
+        rest: &[&Self],
         factory: F,
-    ) -> Comp<R, f64>
+    ) -> Self
     where
         F: Fn() -> N + Send + Sync + 'static,
         N: Operator,
@@ -78,7 +78,7 @@ impl<R: 'static> Comp<R, f64> {
     /// Convenience wrapper around [`custom_node`](Self::custom_node) for operators
     /// that consume only `self`.
     #[must_use]
-    pub fn custom_node1<F, N>(&self, factory: F) -> Comp<R, f64>
+    pub fn custom_node1<F, N>(&self, factory: F) -> Self
     where
         F: Fn() -> N + Send + Sync + 'static,
         N: Operator,
@@ -110,8 +110,8 @@ impl<R: 'static> Comp<R, f64> {
     /// return context.
     #[must_use]
     pub fn custom_node_dyn<F, O>(
-        first: &Comp<R, f64>,
-        rest: &[&Comp<R, f64>],
+        first: &Self,
+        rest: &[&Self],
         factory: F,
     ) -> Comp<R, O>
     where
@@ -162,7 +162,7 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// [`TFlowBuilder::prop`]: crate::builder::TFlowBuilder::prop
     #[must_use]
-    pub fn prop_from_record<F>(&self, extract: F) -> Comp<R, f64>
+    pub fn prop_from_record<F>(&self, extract: F) -> Self
     where
         F: Fn(&R) -> f64 + Send + Sync + 'static,
     {

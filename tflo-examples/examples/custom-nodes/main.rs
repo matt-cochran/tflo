@@ -57,7 +57,7 @@ struct SnrGate {
 }
 
 impl SnrGate {
-    fn new(threshold_db: f64) -> Self {
+    const fn new(threshold_db: f64) -> Self {
         Self { threshold_db }
     }
 }
@@ -88,7 +88,7 @@ struct Detection {
 }
 
 impl Detection {
-    fn new(ts: i64, snr_db: f64) -> Self {
+    const fn new(ts: i64, snr_db: f64) -> Self {
         Self { ts, snr_db }
     }
 }

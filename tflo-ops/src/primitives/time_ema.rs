@@ -45,7 +45,7 @@ impl TimeEma {
     /// The halflife determines how quickly old values decay. After one halflife,
     /// the weight of old values is reduced by 50%.
     #[must_use]
-    pub fn new(halflife: Duration) -> Self {
+    pub const fn new(halflife: Duration) -> Self {
         Self {
             halflife_ms: halflife.as_millis() as f64,
             last_ts: None,
@@ -86,7 +86,7 @@ impl TimeEma {
     ///
     /// Returns `f64::NAN` if no values have been pushed.
     #[must_use]
-    pub fn get(&self) -> f64 {
+    pub const fn get(&self) -> f64 {
         if self.initialized {
             self.value
         } else {
@@ -96,13 +96,13 @@ impl TimeEma {
 
     /// Check if the EMA has been initialized with at least one value.
     #[must_use]
-    pub fn is_initialized(&self) -> bool {
+    pub const fn is_initialized(&self) -> bool {
         self.initialized
     }
 
     /// Get the timestamp of the last update.
     #[must_use]
-    pub fn last_timestamp(&self) -> Option<i64> {
+    pub const fn last_timestamp(&self) -> Option<i64> {
         self.last_ts
     }
 
@@ -115,7 +115,7 @@ impl TimeEma {
 
     /// Get the configured halflife in milliseconds.
     #[must_use]
-    pub fn halflife_ms(&self) -> f64 {
+    pub const fn halflife_ms(&self) -> f64 {
         self.halflife_ms
     }
 }
@@ -153,7 +153,7 @@ impl CountEma {
 
     /// Create a new count-based EMA with an explicit alpha.
     #[must_use]
-    pub fn with_alpha(alpha: f64) -> Self {
+    pub const fn with_alpha(alpha: f64) -> Self {
         Self {
             alpha: alpha.clamp(0.0, 1.0),
             period: 1,
@@ -188,7 +188,7 @@ impl CountEma {
     ///
     /// Returns `f64::NAN` if no values have been pushed.
     #[must_use]
-    pub fn get(&self) -> f64 {
+    pub const fn get(&self) -> f64 {
         if self.initialized {
             self.value
         } else {
@@ -198,7 +198,7 @@ impl CountEma {
 
     /// Check if the EMA has been initialized with at least one value.
     #[must_use]
-    pub fn is_initialized(&self) -> bool {
+    pub const fn is_initialized(&self) -> bool {
         self.initialized
     }
 

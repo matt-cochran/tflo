@@ -112,7 +112,7 @@ where
     /// let pipeline = stage1.pipe(stage2);
     /// ```
     #[must_use]
-    pub fn pipe<O2>(
+    pub const fn pipe<O2>(
         self,
         next: CompiledGraph<PipelineItem<C, O>, O2, C>,
     ) -> PipelinedGraph<R, O, O2, C>

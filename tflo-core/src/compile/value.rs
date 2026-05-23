@@ -28,26 +28,26 @@ impl NodeOutput {
     #[must_use]
     pub fn as_any(&self) -> &(dyn Any + Send + Sync) {
         match self {
-            NodeOutput::Computed(c) => c,
-            NodeOutput::Other(b) => b.as_ref(),
+            Self::Computed(c) => c,
+            Self::Other(b) => b.as_ref(),
         }
     }
 
     /// View the output as a [`Computed`], or `None` if it is an `Other` typed value.
     #[inline]
     #[must_use]
-    pub fn as_computed(&self) -> Option<Computed> {
+    pub const fn as_computed(&self) -> Option<Computed> {
         match self {
-            NodeOutput::Computed(c) => Some(*c),
-            NodeOutput::Other(_) => None,
+            Self::Computed(c) => Some(*c),
+            Self::Other(_) => None,
         }
     }
 
     /// Wrap a computed `f64`-or-absent result.
     #[inline]
     #[must_use]
-    pub fn computed(c: Computed) -> Self {
-        NodeOutput::Computed(c)
+    pub const fn computed(c: Computed) -> Self {
+        Self::Computed(c)
     }
 
     /// Wrap any other typed value (an event enum, a `map`/`fold` output).
@@ -57,15 +57,15 @@ impl NodeOutput {
     #[inline]
     #[must_use]
     pub fn other<T: std::any::Any + Send + Sync>(value: T) -> Self {
-        NodeOutput::Other(Box::new(value))
+        Self::Other(Box::new(value))
     }
 }
 
 impl std::fmt::Debug for NodeOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NodeOutput::Computed(c) => write!(f, "Computed({c:?})"),
-            NodeOutput::Other(_) => write!(f, "Other(<dyn Any>)"),
+            Self::Computed(c) => write!(f, "Computed({c:?})"),
+            Self::Other(_) => write!(f, "Other(<dyn Any>)"),
         }
     }
 }
@@ -75,13 +75,13 @@ impl From<f64> for NodeOutput {
     /// produce one directly.
     #[inline]
     fn from(v: f64) -> Self {
-        NodeOutput::Computed(Ok(v))
+        Self::Computed(Ok(v))
     }
 }
 
 impl From<Computed> for NodeOutput {
     #[inline]
     fn from(c: Computed) -> Self {
-        NodeOutput::Computed(c)
+        Self::Computed(c)
     }
 }

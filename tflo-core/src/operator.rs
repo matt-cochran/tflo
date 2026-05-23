@@ -17,6 +17,11 @@ use crate::compile::{Absent, Computed, NodeOutput};
 /// Read input `idx` from an [`Operator::eval`] input slice.
 ///
 /// An out-of-range index is reported as `Err(`[`Absent::WarmingUp`]`)`.
+///
+/// # Errors
+///
+/// Returns `Err(Absent::WarmingUp)` when `idx` is out of bounds for
+/// `inputs`, or when the input slot at `idx` is itself absent.
 pub fn require(inputs: &[Computed], idx: usize) -> Computed {
     inputs.get(idx).copied().unwrap_or(Err(Absent::WarmingUp))
 }
@@ -50,6 +55,12 @@ pub trait Operator: Send + Sync + 'static {
     }
 
     /// Restore state from `save()` bytes. Default errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OperatorLoadError`] when the operator does not support
+    /// checkpoint restore (the default impl) or when the supplied bytes
+    /// cannot be decoded by an override impl.
     fn load(&mut self, _bytes: &[u8]) -> Result<(), OperatorLoadError> {
         Err(OperatorLoadError::new(
             "operator does not support checkpoint restore",

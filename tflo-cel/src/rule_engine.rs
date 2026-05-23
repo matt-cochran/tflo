@@ -28,6 +28,11 @@ pub struct CompiledRule {
 
 impl CompiledRule {
     /// Create a new compiled rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// when `condition` is not a valid CEL expression.
     pub fn new(name: &str, condition: &str, action: Action) -> CelResult<Self> {
         let program = Program::compile(condition).map_err(|e| CelError::CompileError {
             expression: condition.to_string(),
@@ -53,7 +58,7 @@ impl CompiledRule {
 
     /// Set the priority.
     #[must_use]
-    pub fn with_priority(mut self, priority: i32) -> Self {
+    pub const fn with_priority(mut self, priority: i32) -> Self {
         self.priority = Some(priority);
         self
     }
@@ -137,11 +142,18 @@ impl Default for RuleEngine {
 impl RuleEngine {
     /// Create a new empty rule engine.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { rules: Vec::new() }
     }
 
     /// Load rules from a YAML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::ConfigError`](crate::error::CelError::ConfigError)
+    /// when `yaml` cannot be deserialized into a [`RulesConfig`], and
+    /// [`CelError::CompileError`](crate::error::CelError::CompileError) when
+    /// any rule's condition is not a valid CEL expression.
     pub fn from_yaml(yaml: &str) -> CelResult<Self> {
         let config: RulesConfig =
             serde_yaml::from_str(yaml).map_err(|e| CelError::ConfigError {
@@ -151,6 +163,13 @@ impl RuleEngine {
     }
 
     /// Load rules from a JSON string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::ConfigError`](crate::error::CelError::ConfigError)
+    /// when `json` cannot be deserialized into a [`RulesConfig`], and
+    /// [`CelError::CompileError`](crate::error::CelError::CompileError) when
+    /// any rule's condition is not a valid CEL expression.
     pub fn from_json(json: &str) -> CelResult<Self> {
         let config: RulesConfig =
             serde_json::from_str(json).map_err(|e| CelError::ConfigError {
@@ -163,6 +182,13 @@ impl RuleEngine {
     ///
     /// Not available on wasm32 targets — use [`from_str()`](Self::from_str)
     /// with file contents loaded from JavaScript.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::IoError`](crate::error::CelError::IoError) when
+    /// `path` cannot be read, plus any error from
+    /// [`from_yaml`](Self::from_yaml) /
+    /// [`from_json`](Self::from_json) for parsing.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn from_file<P: AsRef<Path>>(path: P) -> CelResult<Self> {
         let content = fs::read_to_string(path.as_ref())?;
@@ -202,6 +228,13 @@ impl RuleEngine {
     /// let engine = RuleEngine::from_str(yaml, "yaml").expect("valid yaml");
     /// assert_eq!(engine.rule_count(), 1);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::ConfigError`](crate::error::CelError::ConfigError)
+    /// when `format` is not `"yaml"`/`"yml"`/`"json"`, plus any error from
+    /// [`from_yaml`](Self::from_yaml) /
+    /// [`from_json`](Self::from_json) for parsing.
     pub fn from_str(content: &str, format: &str) -> CelResult<Self> {
         match format {
             "yaml" | "yml" => Self::from_yaml(content),
@@ -213,6 +246,12 @@ impl RuleEngine {
     }
 
     /// Create from a config struct.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// when any rule in `config` has a condition that is not a valid CEL
+    /// expression.
     pub fn from_config(config: RulesConfig) -> CelResult<Self> {
         let mut rules = Vec::with_capacity(config.rules.len());
 
@@ -278,6 +317,11 @@ impl RuleEngine {
     /// Reload rules from a file.
     ///
     /// Not available on wasm32 targets.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`from_file`](Self::from_file). The current
+    /// rule set is left unchanged when reloading fails.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<P: AsRef<Path>>(&mut self, path: P) -> CelResult<()> {
         let new_engine = Self::from_file(path)?;

@@ -28,7 +28,7 @@ pub struct Windowed<W, R> {
 
 impl<W, R> Windowed<W, R> {
     /// Construct from a window primitive and a reduction.
-    pub fn new(window: W, reduce: R) -> Self {
+    pub const fn new(window: W, reduce: R) -> Self {
         Self { window, reduce }
     }
 }

@@ -34,6 +34,11 @@ where
     ///
     /// Unlike `cel_filter`, this returns a `Result` for each item,
     /// allowing the caller to handle evaluation errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// when `expr` fails to compile as a CEL program.
     fn cel_filter_result(self, expr: &str) -> CelResult<CelFilterResult<Self, T>> {
         CelFilterResult::new(self, expr)
     }

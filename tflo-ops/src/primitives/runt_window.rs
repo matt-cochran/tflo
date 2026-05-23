@@ -111,8 +111,8 @@ pub(crate) enum RuntState {
 ///
 /// # Triggering Modes
 ///
-/// - **EnteringWindow**: Triggers when signal transitions from outside to inside
-/// - **ExitingWindow**: Triggers when signal transitions from inside to outside
+/// - **`EnteringWindow`**: Triggers when signal transitions from outside to inside
+/// - **`ExitingWindow`**: Triggers when signal transitions from inside to outside
 /// - **Both**: Triggers on any transition
 ///
 /// # Examples
@@ -354,7 +354,7 @@ impl WindowDetector {
 
     /// Check if the signal is currently outside the window.
     #[must_use]
-    pub fn is_outside(&self) -> bool {
+    pub const fn is_outside(&self) -> bool {
         matches!(
             self.state,
             WindowState::BelowWindow | WindowState::AboveWindow
@@ -375,7 +375,7 @@ impl WindowDetector {
 
     /// Get the window thresholds.
     #[must_use]
-    pub fn thresholds(&self) -> (f64, f64) {
+    pub const fn thresholds(&self) -> (f64, f64) {
         (self.low_threshold, self.high_threshold)
     }
 

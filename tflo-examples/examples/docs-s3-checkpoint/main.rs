@@ -2,7 +2,7 @@
 //! S3-based checkpoint / restore — real API usage with an in-process mock client.
 //!
 //! `S3StateStore<C: S3Client>` is generic over any S3-compatible client.
-//! In production you plug in `aws-sdk-s3`, MinIO, etc.  Here we use a
+//! In production you plug in `aws-sdk-s3`, `MinIO`, etc.  Here we use a
 //! simple in-memory mock so the example compiles and runs without AWS
 //! credentials or a live bucket.
 //!
@@ -30,7 +30,7 @@ struct Txn {
 }
 
 impl Txn {
-    fn new(ts: i64, amount: f64) -> Self {
+    const fn new(ts: i64, amount: f64) -> Self {
         Self { ts, amount }
     }
 }

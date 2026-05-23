@@ -27,6 +27,12 @@ where
     }
 
     /// Filter items using a Rhai expression, returning errors.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::CompileError`](crate::error::RhaiError::CompileError)
+    /// when `expr` fails to compile as a Rhai expression.
     fn rhai_filter_result(self, expr: &str) -> RhaiResult<RhaiFilterResult<Self, T>> {
         RhaiFilterResult::new(self, expr)
     }

@@ -29,7 +29,7 @@ pub struct AdxNode {
 impl AdxNode {
     /// Create an ADX node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -89,7 +89,7 @@ pub struct PlusDiNode {
 impl PlusDiNode {
     /// Create a +DI node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -149,7 +149,7 @@ pub struct MinusDiNode {
 impl MinusDiNode {
     /// Create a -DI node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -211,7 +211,7 @@ pub struct AtrNode {
 impl AtrNode {
     /// Create an ATR node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -290,7 +290,7 @@ pub struct KamaNode {
 impl KamaNode {
     /// Create a KAMA node with the given efficiency-ratio period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             values: Vec::new(),
             period,
