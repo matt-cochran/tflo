@@ -10,6 +10,9 @@ members = [
     "tflo-state-files",
     "tflo-state-s3",
     "tflo-connect-kafka",
+    "tflo-connect-mqtt",
+    "tflo-sink-influx",
+    "tflo-arrow",
     "tflo-examples",
     "tflo-wasm",
 ]
@@ -33,6 +36,9 @@ tflo-rego = { path = "tflo-rego" }
 tflo-state-files = { path = "tflo-state-files" }
 tflo-state-s3 = { path = "tflo-state-s3" }
 tflo-connect-kafka = { path = "tflo-connect-kafka" }
+tflo-connect-mqtt = { path = "tflo-connect-mqtt" }
+tflo-sink-influx = { path = "tflo-sink-influx" }
+tflo-arrow = { path = "tflo-arrow" }
 
 # Async runtime
 tokio = { version = "1.41", default-features = false }
