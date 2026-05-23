@@ -31,6 +31,14 @@ use crate::adapter::{CheckpointPolicy, Cursor};
 use crate::keyed::StateSnapshot;
 use std::time::Duration;
 
+// ── Arc forwarding blanket impls ─────────────────────────────────────
+//
+// `Arc<dyn Trait>` does not automatically implement `Trait`; provide
+// blanket forwarding impls so callers can pass `Arc<dyn AsyncStateStore>`
+// (and the cursor companion) into generic constructors without manual
+// wrapper types. This is a small ergonomic add that downstream crates
+// (`tflo-connect-kafka`, the IoT portal example) lean on.
+
 /// Async, runtime-agnostic state-store interface.
 ///
 /// This is the Phase 1 replacement for the sync [`StateStore`](crate::keyed::StateStore).
@@ -92,6 +100,25 @@ pub trait AsyncStateStore: Send + Sync {
     }
 }
 
+#[async_trait::async_trait]
+impl<T: AsyncStateStore + ?Sized> AsyncStateStore for std::sync::Arc<T> {
+    async fn save(&self, key: &[u8], snapshot: &StateSnapshot) -> Result<(), String> {
+        (**self).save(key, snapshot).await
+    }
+    async fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String> {
+        (**self).load(key).await
+    }
+    async fn list_keys(&self) -> Result<Vec<Vec<u8>>, String> {
+        (**self).list_keys().await
+    }
+    async fn save_batch(&self, items: &[(Vec<u8>, StateSnapshot)]) -> Result<(), String> {
+        (**self).save_batch(items).await
+    }
+    async fn delete(&self, key: &[u8]) -> Result<(), String> {
+        (**self).delete(key).await
+    }
+}
+
 /// Async cursor store — the cursor-side companion to [`AsyncStateStore`].
 ///
 /// Cursors are the second half of the checkpoint protocol: state-snapshot
@@ -114,6 +141,16 @@ pub trait AsyncCursorStore<C: Cursor>: Send + Sync {
     /// Returns an error string when the backend cannot be queried. A
     /// missing cursor is `Ok(None)`.
     async fn load_cursor(&self, key: &[u8]) -> Result<Option<C>, String>;
+}
+
+#[async_trait::async_trait]
+impl<C: Cursor, T: AsyncCursorStore<C> + ?Sized> AsyncCursorStore<C> for std::sync::Arc<T> {
+    async fn save_cursor(&self, key: &[u8], cursor: &C) -> Result<(), String> {
+        (**self).save_cursor(key, cursor).await
+    }
+    async fn load_cursor(&self, key: &[u8]) -> Result<Option<C>, String> {
+        (**self).load_cursor(key).await
+    }
 }
 
 /// Why a checkpoint failed.

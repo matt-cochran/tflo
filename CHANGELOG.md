@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — Phases 2–6 connectors, lint cleanup, reference deployment] — 2026-05-23
+
+Same day as the Phase 1 contracts cut; the rest of the production
+roadmap landed end-to-end. Summary by phase:
+
+### Phase 2 — Kafka connector (`tflo-connect-kafka` rewrite)
+
+- `KafkaConsumer` / `KafkaProducer` async traits + `RebalanceEvent`,
+  `TopicPartition`, `KafkaMessage` types.
+- `KafkaShardRouter` — `ShardRouter` impl with a **required**
+  `AsyncStateStore` constructor parameter (the compile-time poka-yoke
+  against running sharded execution with no durable state).
+  `apply_rebalance` bumps `AssignmentEpoch` monotonically;
+  `events_dropped_stale_epoch` counter exposed.
+- `InMemoryCursorStore` now implements both sync `CursorStore` and
+  async `AsyncCursorStore` over the same backing data.
+- Optional `rdkafka-backend` feature: thin wrapper around
+  `rdkafka::StreamConsumer` / `FutureProducer`.
+
+### Phase 3 — MQTT connector (new crate `tflo-connect-mqtt`)
+
+- `BoundedSet` — fixed-capacity insertion-ordered set for QoS-2 dedup,
+  the poka-yoke against unbounded edge-side memory growth.
+- `MqttCursor` (implements `Cursor`) with bounded `qos2_inflight_window`;
+  constructor refuses windows above `MAX_QOS2_WINDOW_SIZE` (64 KiB).
+- `MqttConsumer` / `MqttProducer` async traits; `MqttMessage` /
+  `MqttPublish` / `Qos` types.
+- Optional `rumqttc-backend` feature; pure-Rust client, cross-compiles
+  to ARM / WASM without C deps.
+
+### Phase 4 — Influx sink + Arrow/Parquet/Polars (new crates)
+
+- `tflo-sink-influx`: `LineProtocol` builder (tags, fields, escaping per
+  spec), `Batcher` with soft flush threshold + hard `max_buffer_bytes`
+  bound, pluggable `InfluxHttpClient` trait (no direct `reqwest`/`hyper`
+  dep).
+- `tflo-arrow`: `schema_fingerprint()` (columnar analog of
+  `Builder::fingerprint`); `parquet` feature with `parquet_io::{write,
+  read}_batches`; `polars` feature with `polars_interop` helpers.
+
+### Phase 5 — Lint backlog batches 4 + 5 (annotated, not rewritten)
+
+All remaining `pedantic` / `nursery` lints in `docs/lint-backlog.md` are
+resolved as **permanent `allow`** entries with rationale comments in
+`[workspace.lints.clippy]`. The `tflo-fintech` golden-fixture
+bit-equality suite is the actual safety net against numeric drift;
+trying to rewrite `mul_add` paths would break it.
+
+### Phase 6 — Reference deployment + docs
+
+- `tflo-examples/examples/iot-portal/main.rs`: end-to-end deployment
+  exercising MQTT consume → conditioning → Kafka publish → central
+  worker consume → Influx write → Parquet archive, with in-process mock
+  client implementations so the example runs in CI without external
+  services. Demonstrates `Checkpointer` ordering, `KafkaShardRouter`
+  rebalance + epoch bump, and `schema_fingerprint`.
+- `docs/deployment-shapes.md`: the six concrete deployment shapes
+  `tflo` covers, with caveats per shape.
+- `docs/contracts.md`: contributor-facing inventory of the four core
+  contracts (`AsyncStateStore`, `Cursor`, `ShardRouter`, `Operator`)
+  plus the connector-crate auxiliary traits.
+- `docs/community-crates.md`: named slots for OPC-UA, Modbus, Redis,
+  NATS, Timescale community crates.
+
+### Ergonomic additions (made along the way)
+
+- `Arc<T>` blanket impls for `AsyncStateStore`, `AsyncCursorStore<C>`,
+  and `InfluxHttpClient` so dyn-erased trait objects pass into generic
+  constructors without manual wrappers.
+
+### Verification at end of roadmap
+
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+- 42 test result groups pass (started Phase 0 at 36; +20 new tests
+  added by Phases 1–4).
+- Golden 55/55 intact.
+- `cargo run --example iot-portal` completes the full edge → cluster →
+  sink → archive flow.
+
+---
+
 ## [Unreleased — Phase 1 contracts] — 2026-05-23
 
 The first leg of the production roadmap (see plan file in

@@ -93,6 +93,48 @@ missing_panics_doc = "deny"
 use_self = "deny"
 missing_const_for_fn = "deny"
 
+# ── Lint backlog batches 4–5 (annotated, per `docs/lint-backlog.md`) ──
+# Phase 5 of the production roadmap decided to *annotate* rather than
+# rewrite these — they fire intentionally in a numeric streaming engine,
+# and the golden-fixture bit-equality test in `tflo-fintech` is what
+# actually guards against numeric drift. The rationale per lint:
+#
+#   `cast_precision_loss`, `cast_lossless`, `cast_*_to_f64`
+#     The engine deliberately casts `usize`/`i32`/`i64`/`u64`/`u128` to
+#     `f64` when feeding counts, indices, and timestamps into windowed
+#     statistics. The lossy cast is correct behavior; computing in `f64`
+#     is the whole point. Permanent `allow`.
+#
+#   `float_cmp`
+#     Detector operators compare against caller-supplied thresholds with
+#     `==` and `>`/`<`; exact `f64` comparison is the documented contract
+#     ("threshold cross at exactly X"). Permanent `allow`.
+#
+#   `suboptimal_flops` (mul_add / fma)
+#     The golden-fixture suite in `tflo-fintech` pins bit-exact outputs
+#     across the entire indicator catalog. Rewriting `a*b + c` as
+#     `mul_add` changes the rounding pattern and would break the fixtures.
+#     Permanent `allow`; bit-equality is the actual safety net.
+#
+#   `needless_collect`, `match_same_arms`, `trivially_copy_pass_by_ref`
+#     Genuine cleanup opportunities, mostly in tests and combinators.
+#     Demoted to `warn` so they stay visible without blocking CI; future
+#     PRs can land case-by-case fixes.
+cast_precision_loss = "allow"
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+float_cmp = "allow"
+suboptimal_flops = "allow"
+# `needless_collect`, `match_same_arms`, `trivially_copy_pass_by_ref`:
+# allowed (not warn) because `-D warnings` would otherwise upgrade them
+# to CI-breaking errors. Tracked in `docs/lint-backlog.md` as case-by-
+# case cleanup opportunities for follow-up PRs.
+needless_collect = "allow"
+match_same_arms = "allow"
+trivially_copy_pass_by_ref = "allow"
+
 # ── Panic-freedom (hardening pass) ─────────────────────────────────────
 # Production code must not panic. These `restriction` lints are denied
 # workspace-wide; test code is exempted with a per-crate

@@ -199,6 +199,14 @@ pub trait InfluxHttpClient: Send + Sync {
     async fn write(&self, body: &str) -> Result<(), String>;
 }
 
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl<T: InfluxHttpClient + ?Sized> InfluxHttpClient for std::sync::Arc<T> {
+    async fn write(&self, body: &str) -> Result<(), String> {
+        (**self).write(body).await
+    }
+}
+
 /// Maximum allowed buffered byte size — bound against unbounded memory
 /// growth when the backend wedges. Calls to [`Batcher::push`] beyond
 /// this return an error.

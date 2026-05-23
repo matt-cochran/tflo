@@ -22,6 +22,16 @@ tflo-rego = { workspace = true }
 tflo-state-files = { workspace = true, features = ["async"] }
 tflo-state-s3 = { workspace = true, features = ["async"] }
 
+# Phase 2/3/4 connectors and sinks — used by the iot-portal example.
+tflo-connect-kafka = { workspace = true, features = ["async"] }
+tflo-connect-mqtt = { workspace = true, features = ["async"] }
+tflo-sink-influx = { workspace = true, features = ["async"] }
+tflo-arrow = { workspace = true, features = ["parquet"] }
+
+# Arrow types used in the iot-portal example.
+arrow = { version = "53", default-features = false }
+arrow-schema = { version = "53", default-features = false }
+
 # Scripting crate re-exports (needed to implement context traits)
 cel-interpreter = "0.8"
 rhai = "1.19"
