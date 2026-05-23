@@ -1,4 +1,14 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// Numeric streaming-engine intent-allows (see tflo-core for rationale).
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::float_cmp,
+    clippy::suboptimal_flops
+)]
 //! Arrow / Parquet / Polars interop for tflo (Phase 4).
 //!
 //! # Features

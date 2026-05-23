@@ -190,6 +190,20 @@
 // Test code may freely `unwrap`/`expect`/`panic!` — the panic-freedom lints
 // only police production code paths.
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// ── Phase 5 intent-allows for the numeric streaming engine ─────────────
+// `tflo-core` is the engine: timestamps cross between `i64` and `usize`
+// constantly, window arithmetic moves integer counts into `f64`, and
+// the typed-absence model compares `f64` exactly against the warming
+// sentinel. These lints fire intentionally here.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::float_cmp,
+    clippy::suboptimal_flops
+)]
 
 pub mod adapter;
 pub mod builder;

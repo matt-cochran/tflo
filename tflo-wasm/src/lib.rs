@@ -5,6 +5,16 @@
 // `#[wasm_bindgen(constructor)]` likewise cannot be `const fn` because the
 // macro expansion is not const-eval-compatible.
 #![allow(clippy::use_self, clippy::missing_const_for_fn)]
+// Numeric streaming-engine intent-allows (see tflo-core for full rationale).
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::float_cmp,
+    clippy::suboptimal_flops
+)]
 //! WebAssembly bindings for tflo.
 //!
 //! This crate provides `#[wasm_bindgen]` exports that bridge between

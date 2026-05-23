@@ -1,4 +1,18 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+// ── Phase 5 intent-allows for the numeric streaming engine ─────────────
+// `tflo-fintech` is the canonical numeric domain plugin. Bit-exact
+// outputs are pinned by the golden-fixture suite; `mul_add` rewriting
+// is the most dangerous change. Integer→f64 casts and exact-compare
+// against thresholds are part of the indicator contract.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::float_cmp,
+    clippy::suboptimal_flops
+)]
 //! Financial technical-analysis indicators for the `tflo` temporal event processing engine.
 //!
 //! `tflo-fintech` is the finance domain plugin for [`tflo-core`]. It layers
