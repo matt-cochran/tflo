@@ -18,9 +18,9 @@ tflo-cel = { workspace = true }
 tflo-rhai = { workspace = true }
 tflo-rego = { workspace = true }
 
-# State-store backends
-tflo-state-files = { workspace = true }
-tflo-state-s3 = { workspace = true }
+# State-store backends — Phase 1 examples use the async path on both.
+tflo-state-files = { workspace = true, features = ["async"] }
+tflo-state-s3 = { workspace = true, features = ["async"] }
 
 # Scripting crate re-exports (needed to implement context traits)
 cel-interpreter = "0.8"

@@ -11,7 +11,13 @@ categories = ["data-structures", "algorithms"]
 
 [features]
 default = []
-async = ["dep:tokio", "dep:tokio-stream", "dep:futures", "dep:pin-project"]
+async = [
+    "dep:tokio",
+    "dep:tokio-stream",
+    "dep:futures",
+    "dep:pin-project",
+    "dep:futures-timer",
+]
 full = ["async"]
 
 [dependencies]
@@ -19,6 +25,9 @@ full = ["async"]
 serde = { workspace = true }
 serde_json = { workspace = true }
 postcard = { workspace = true }
+# Async-trait + portable timer for Checkpointer deadlines (runtime-agnostic).
+async-trait = "0.1"
+futures-timer = { version = "3.0", optional = true }
 # Async support (optional)
 tokio = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }

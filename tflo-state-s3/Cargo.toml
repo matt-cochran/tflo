@@ -9,6 +9,11 @@ repository.workspace = true
 keywords = ["state", "checkpoint", "s3", "object-store"]
 categories = ["data-structures"]
 
+[features]
+default = []
+# Phase 1 path: implements tflo-core's AsyncStateStore directly, no block_on.
+async = ["tflo-core/async", "dep:tokio"]
+
 [dependencies]
 tflo-core = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -16,10 +21,6 @@ serde_json = { workspace = true }
 async-trait = "0.1"
 hex = { workspace = true }
 tokio = { workspace = true, features = ["rt"], optional = true }
-
-[features]
-default = []
-async = ["dep:tokio"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

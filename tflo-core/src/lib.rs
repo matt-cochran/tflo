@@ -205,6 +205,9 @@ pub mod operator;
 pub use operator::{BivariateWindow, WindowPrimitive};
 pub mod pipeline;
 pub mod scalar;
+pub mod shard;
+#[cfg(feature = "async")]
+pub mod state;
 /// Time point trait for generic time type abstraction.
 pub mod timepoint;
 pub mod validation;
@@ -242,6 +245,11 @@ pub mod prelude {
         SequencedItem, Timestamped, TimestampedItem,
     };
     pub use crate::scalar::Scalar;
+    pub use crate::shard::{AssignmentEpoch, DropReason, LocalShard, ShardRouter};
+    #[cfg(feature = "async")]
+    pub use crate::state::{
+        AsyncCursorStore, AsyncStateStore, CheckpointError, Checkpointer,
+    };
     pub use crate::timepoint::TimePoint;
     pub use crate::validation::ValidationOptions;
     pub use crate::validation::{

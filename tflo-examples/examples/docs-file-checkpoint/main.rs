@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
-use tflo_core::keyed::{SnapshotMetadata, StateSnapshot, StateStore};
+use tflo_core::keyed::{SnapshotMetadata, StateSnapshot};
 use tflo_core::prelude::*;
 use tflo_examples::*;
 use tflo_ops::prelude::*;
@@ -73,15 +73,20 @@ fn main() -> Result<(), String> {
     );
 
     // ---- Persist to disk via FileStateStore ----
+    //
+    // Phase 1 added an `AsyncStateStore` impl alongside the legacy sync
+    // `StateStore`; the example still uses the sync path to keep the
+    // demo single-threaded. Disambiguate explicitly because both traits
+    // are now in scope.
     let tmp_dir = std::env::temp_dir().join("tflo-checkpoint-demo");
     let store = FileStateStore::new(&tmp_dir)?;
-    store.save(b"spindle-graph", &snapshot)?;
+    <FileStateStore as tflo_core::keyed::StateStore>::save(&store, b"spindle-graph", &snapshot)?;
     println!("Saved snapshot to {}", tmp_dir.display());
 
     // ---- Load it back ----
-    let loaded = store
-        .load(b"spindle-graph")?
-        .ok_or("snapshot not found after save")?;
+    let loaded =
+        <FileStateStore as tflo_core::keyed::StateStore>::load(&store, b"spindle-graph")?
+            .ok_or("snapshot not found after save")?;
     println!(
         "Loaded snapshot: {} bytes, version={}",
         loaded.data.len(),
@@ -110,11 +115,12 @@ fn main() -> Result<(), String> {
             key: Some(b"spindle-graph".to_vec()),
             timestamp_ms: 0,
             version: 1,
+            topology_fingerprint: None,
         },
     };
 
     // ---- List persisted keys ----
-    let keys = store.list_keys()?;
+    let keys = <FileStateStore as tflo_core::keyed::StateStore>::list_keys(&store)?;
     println!("Keys in store: {}", keys.len());
     assert!(!keys.is_empty());
 

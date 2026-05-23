@@ -66,7 +66,36 @@ pub trait Operator: Send + Sync + 'static {
             "operator does not support checkpoint restore",
         ))
     }
+
+    /// Snapshot schema-version contribution for `Builder::fingerprint`.
+    ///
+    /// Stateful operators **should override this** and bump the returned
+    /// `u32` whenever the `save()` byte format changes incompatibly.
+    /// The default returns `0`, which is safe for stateless operators
+    /// (their state is empty so the bytes never change) and pragmatically
+    /// safe for stateful operators that have not yet adopted versioning —
+    /// at worst the engine misses a version-skew detection it could have
+    /// caught. The active poka-yoke is at the builder level
+    /// ([`crate::builder::TFlowBuilder::fingerprint`]); operator-level
+    /// versioning is the second line of defense.
+    ///
+    /// Returns the operator's own concept of its current version. The
+    /// `&self` receiver lets the value depend on configuration (different
+    /// constructor args → different version).
+    fn type_id_version(&self) -> u32 {
+        0
+    }
 }
+
+/// Marker for operators with no checkpointable state.
+///
+/// Implementing `StatelessOperator` is a *declaration of intent*: "this
+/// operator's correctness does not depend on durable state across
+/// restarts." The blanket impl below provides no automatic save/load
+/// behavior — the marker is the documentation contract. See the Phase 1
+/// roadmap (`docs/lint-backlog.md` / production roadmap) for the
+/// fingerprint-based safety net that complements this marker.
+pub trait StatelessOperator: Operator {}
 
 /// Error returned by [`Operator::load`] when checkpoint bytes cannot be
 /// applied to an operator.

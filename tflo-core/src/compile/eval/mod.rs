@@ -60,6 +60,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: 1,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -341,13 +342,29 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         }
 
         let mut node_states = Vec::with_capacity(self.nodes.len());
-        for node in &self.nodes {
-            match node.state.to_snapshot() {
-                Some(s) => node_states.push(s),
-                None => {
+        for (index, node) in self.nodes.iter().enumerate() {
+            // `to_snapshot` returns a typed `SnapshotError::Unsupported`
+            // with the offending node index + kind; we keep the call-site
+            // shape compatible by collapsing to the existing
+            // `ComputeError::InvalidInput` variant, but the typed error is
+            // already surfaced in the `reason` static string for
+            // observability via metrics.
+            match node.state.to_snapshot(index) {
+                Ok(s) => node_states.push(s),
+                Err(super::snapshot::SnapshotError::Unsupported { kind, .. }) => {
+                    let reason: &'static str = match kind {
+                        "scan node" => "graph has a non-checkpointable scan node",
+                        "scan2 node" => "graph has a non-checkpointable scan2 node",
+                        "plugin operator without save() override" => {
+                            "graph has a plugin operator that does not implement save()"
+                        }
+                        _ => "graph has a non-checkpointable node",
+                    };
+                    return Err(ComputeError::InvalidInput { reason });
+                }
+                Err(_) => {
                     return Err(ComputeError::InvalidInput {
-                        reason: "graph has a non-checkpointable node (scan/scan2, or a \
-                                 custom node without save())",
+                        reason: "snapshot of node failed",
                     });
                 }
             }
@@ -385,6 +402,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 key: None,
                 timestamp_ms,
                 version: 1,
+                topology_fingerprint: self.topology_fingerprint,
             },
         })
     }
@@ -396,18 +414,43 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     /// state — window buffers, accumulators, detector state machines — is
     /// restored.
     ///
+    /// # Fingerprint check
+    ///
+    /// If both the snapshot and this graph carry a topology fingerprint
+    /// (`SnapshotMetadata::topology_fingerprint` and
+    /// `CompiledGraph::topology_fingerprint`, set via
+    /// [`with_topology_fingerprint`](Self::with_topology_fingerprint)),
+    /// they must match exactly. A mismatch returns
+    /// [`ComputeError::InvalidInput`](crate::error::ComputeError::InvalidInput)
+    /// with `reason = "topology fingerprint mismatch"`. This is the
+    /// Phase 1 poka-yoke for silent version skew across workers.
+    ///
     /// # Errors
     ///
     /// Returns [`ComputeError::InvalidInput`](crate::error::ComputeError::InvalidInput)
-    /// if the snapshot bytes are malformed, or if the graph structure does not
-    /// match the snapshot (different node count, output count, or a node whose
-    /// kind differs from the snapshot's).
+    /// if the snapshot bytes are malformed, the graph structure does not
+    /// match the snapshot (different node count, output count, or a node
+    /// whose kind differs), or the topology fingerprints disagree.
     pub fn restore(
         &mut self,
         snapshot: &crate::keyed::StateSnapshot,
     ) -> Result<(), crate::error::ComputeError> {
         use super::snapshot::GraphSnapshot;
         use crate::error::ComputeError;
+
+        // Fingerprint check FIRST — cheap and the most informative failure
+        // mode. Only enforced when both sides carry one (back-compat).
+        if let (Some(expected), Some(actual)) = (
+            self.topology_fingerprint,
+            snapshot.metadata.topology_fingerprint,
+        ) {
+            if expected != actual {
+                return Err(ComputeError::InvalidInput {
+                    reason: "topology fingerprint mismatch: snapshot was produced by \
+                             a structurally different graph",
+                });
+            }
+        }
 
         let graph: GraphSnapshot =
             postcard::from_bytes(&snapshot.data).map_err(|_| ComputeError::InvalidInput {
@@ -440,5 +483,18 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         self.store.clear();
 
         Ok(())
+    }
+
+    /// Stamp this compiled graph with a topology fingerprint.
+    ///
+    /// Once set, [`snapshot`](Self::snapshot) embeds the fingerprint in
+    /// the snapshot metadata and [`restore`](Self::restore) refuses to
+    /// load any snapshot whose fingerprint differs. The recommended
+    /// source of the value is
+    /// [`TFlowBuilder::fingerprint`](crate::builder::TFlowBuilder::fingerprint).
+    #[must_use]
+    pub const fn with_topology_fingerprint(mut self, fingerprint: [u8; 32]) -> Self {
+        self.topology_fingerprint = Some(fingerprint);
+        self
     }
 }

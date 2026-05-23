@@ -17,13 +17,9 @@ use serde::{Deserialize, Serialize};
 
 use super::NodeState;
 
-/// Why a restored snapshot could not be applied to a live graph.
-///
-/// The *non-checkpointable node* case (a `scan`/`scan2` node, or a custom node
-/// without `save()`) is detected on the snapshot side via
-/// [`NodeState::to_snapshot`] returning `None`, so it never reaches this type.
+/// Why a snapshot could not be produced from or applied to a graph.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SnapshotError {
+pub enum SnapshotError {
     /// A restored node-state variant does not match the live graph's node at
     /// that position: the graph topology has changed since the snapshot.
     VariantMismatch {
@@ -35,7 +31,42 @@ pub(crate) enum SnapshotError {
         /// Position of the offending node.
         index: usize,
     },
+    /// A node in the graph is not snapshottable. Produced eagerly on the
+    /// snapshot side rather than written as a partial checkpoint.
+    ///
+    /// Today this fires for `scan`/`scan2` nodes (opaque closure state) and
+    /// for [`Operator`](crate::operator::Operator) plugins that do not
+    /// override [`save`](crate::operator::Operator::save). Pre Phase 1 this
+    /// was reported as a silent `None`; the typed variant is the
+    /// hardening-pass fix.
+    Unsupported {
+        /// Position of the offending node.
+        index: usize,
+        /// A short name for the node kind, for diagnostics.
+        kind: &'static str,
+    },
 }
+
+impl std::fmt::Display for SnapshotError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::VariantMismatch { index } => write!(
+                f,
+                "snapshot variant does not match live node at index {index} \
+                 (graph topology changed since snapshot)"
+            ),
+            Self::Decode { index } => {
+                write!(f, "custom node at index {index} rejected its checkpoint bytes")
+            }
+            Self::Unsupported { index, kind } => write!(
+                f,
+                "node at index {index} ({kind}) does not support checkpointing"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SnapshotError {}
 
 /// Serializable mirror of a single node's [`NodeState`].
 ///
@@ -68,16 +99,31 @@ pub(crate) struct GraphSnapshot {
 impl NodeState {
     /// Capture this node's state as a serializable [`NodeStateSnapshot`].
     ///
-    /// Returns `None` if the node is not checkpointable: a `scan`/`scan2`
-    /// node, or a custom node whose `save()` returns `None`.
-    pub(crate) fn to_snapshot(&self) -> Option<NodeStateSnapshot> {
-        Some(match self {
-            Self::Stateless => NodeStateSnapshot::Stateless,
+    /// Returns a typed [`SnapshotError::Unsupported`] when the node is not
+    /// snapshottable (a `scan`/`scan2` node, or a plugin whose
+    /// [`save`](crate::operator::Operator::save) returns `None`). `index`
+    /// is the node's position in the graph and is used only for error
+    /// reporting.
+    pub(crate) fn to_snapshot(&self, index: usize) -> Result<NodeStateSnapshot, SnapshotError> {
+        match self {
+            Self::Stateless => Ok(NodeStateSnapshot::Stateless),
             // A plugin operator is checkpointable only if it overrides `save()`.
-            Self::Plugin(op) => return op.save().map(NodeStateSnapshot::Plugin),
+            Self::Plugin(op) => op.save().map(NodeStateSnapshot::Plugin).ok_or(
+                SnapshotError::Unsupported {
+                    index,
+                    kind: "plugin operator without save() override",
+                },
+            ),
             // `scan`/`scan2` hold opaque closure state — not checkpointable.
-            Self::ScanState(_) | Self::Scan2State(_) => return None,
-        })
+            Self::ScanState(_) => Err(SnapshotError::Unsupported {
+                index,
+                kind: "scan node",
+            }),
+            Self::Scan2State(_) => Err(SnapshotError::Unsupported {
+                index,
+                kind: "scan2 node",
+            }),
+        }
     }
 }
 

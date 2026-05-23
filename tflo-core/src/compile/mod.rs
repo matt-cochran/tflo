@@ -138,6 +138,12 @@ pub struct CompiledGraph<R, O, C: PipelineContext = Timestamped> {
     pub(crate) store: ValueStore,
     pub(crate) records_seen: usize,
     pub(crate) min_warmup: usize,
+    /// Optional topology fingerprint (see
+    /// [`TFlowBuilder::fingerprint`](crate::builder::TFlowBuilder::fingerprint)).
+    /// Stamped into snapshot metadata and verified on restore. `None` when
+    /// the caller did not set one — keeps back-compat for code paths that
+    /// haven't adopted the Phase 1 contract.
+    pub(crate) topology_fingerprint: Option<[u8; 32]>,
     pub(crate) _phantom: PhantomData<(O, C)>,
 }
 
@@ -264,6 +270,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup.max(other.min_warmup),
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -308,6 +315,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -406,6 +414,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -431,6 +440,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }

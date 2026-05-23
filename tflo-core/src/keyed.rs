@@ -26,7 +26,7 @@ pub struct StateSnapshot {
 }
 
 /// Metadata associated with a state snapshot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SnapshotMetadata {
     /// The key this snapshot belongs to (if keyed execution).
     pub key: Option<Vec<u8>>,
@@ -34,6 +34,15 @@ pub struct SnapshotMetadata {
     pub timestamp_ms: i64,
     /// Version identifier for snapshot format compatibility.
     pub version: u32,
+    /// Topology fingerprint of the builder that produced this snapshot.
+    ///
+    /// `None` for snapshots produced by callers that didn't supply one
+    /// (back-compat). `Some(_)` for new snapshots produced via the
+    /// [`Checkpointer`](crate::state::Checkpointer) Phase 1 path. On
+    /// restore, mismatched fingerprints **must** be rejected — see
+    /// [`TFlowBuilder::fingerprint`](crate::builder::TFlowBuilder::fingerprint).
+    #[serde(default)]
+    pub topology_fingerprint: Option<[u8; 32]>,
 }
 
 /// Trait for encoding/decoding state snapshots.

@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — Phase 1 contracts] — 2026-05-23
+
+The first leg of the production roadmap (see plan file in
+`/home/mc/.claude/plans/`). Adds the load-bearing contracts that downstream
+phases (Kafka connector, MQTT connector, distributed state) depend on.
+**Additive** — existing `Operator` impls and the sync `StateStore` trait
+continue to work unchanged.
+
+### Added — `tflo-core`
+
+- **`tflo_core::state` module (feature `async`)** — new async-first state
+  store and crash-safe checkpoint orchestrator.
+  - `AsyncStateStore` trait — `async fn save / load / list_keys / save_batch /
+    delete`. The recommended path for new backends (S3, Redis, network
+    stores). `save_batch` has a sequential-loop default; cost-sensitive
+    backends should override to use multi-object batched APIs.
+  - `AsyncCursorStore<C: Cursor>` trait — cursor-side companion.
+  - `Checkpointer<C, S, X>` — orchestrator that writes **snapshot first,
+    cursor last** (the crash-safe order). Mandatory per-stage deadline,
+    consecutive-failure circuit breaker. Atomic counters expose
+    `commits_total` / `failures_total` / `timeouts_total` for scraping.
+  - `CheckpointError` enum: `Timeout`, `StateStore`, `CursorStore`,
+    `SnapshotCapture`, `CircuitOpen`.
+- **`tflo_core::shard` module** — pluggable key→shard ownership.
+  - `ShardRouter<K>` trait — `owns(&K) -> bool` + `assignment_epoch() -> u64`.
+    Lifecycle hooks (`on_assign`/`on_revoke`) intentionally live in
+    connector crates — they are runtime-coupled.
+  - `LocalShard` — default impl that owns every key (preserves single-process
+    behavior).
+  - `AssignmentEpoch` — monotonic counter for fencing stale events through
+    rebalance windows.
+- **`Builder::fingerprint() -> [u8; 32]`** — topology hash of the
+  computation graph (node count + per-node kind/name). Stamped into
+  snapshot metadata when set; on restore a mismatch is rejected with
+  `ComputeError::InvalidInput`. Poka-yoke for silent version skew across
+  workers.
+- **`Operator::type_id_version() -> u32`** — opt-in versioning for stateful
+  operators. Default `0` keeps all ~30 existing impls compiling.
+- **`StatelessOperator` marker trait** — declaration of intent for operators
+  with no checkpointable state.
+- **`CompiledGraph::with_topology_fingerprint(&self, [u8; 32]) -> Self`** —
+  setter; `snapshot()` automatically embeds the fingerprint and `restore()`
+  verifies it.
+- **`SnapshotError::Unsupported { index, kind }`** — typed error instead of
+  silent `None` for non-snapshottable nodes (`scan`/`scan2`/plugin without
+  `save()`). Surfaced via `NodeState::to_snapshot(index)`.
+
+### Added — `tflo-state-files`
+
+- New feature flag `async` adds an `AsyncStateStore` impl that runs file I/O
+  on `tokio::task::spawn_blocking`. Both sync `StateStore` and async paths
+  coexist.
+
+### Changed — `tflo-state-s3` (breaking, behind feature)
+
+- **Rewritten** as a direct `AsyncStateStore` implementation. The
+  `tokio::runtime::Handle::try_current().block_on(...)` hack is **gone**.
+- `S3Client` trait gains a `delete_object` method (with a no-op default for
+  back-compat).
+- The synchronous `StateStore` impl is **removed** from `S3StateStore`.
+  Callers that used the sync path must switch to the async API (see the
+  `docs-s3-checkpoint` example) or pin `tflo-state-s3 = "0.1"`.
+
+### Changed — `SnapshotMetadata`
+
+- New optional field `topology_fingerprint: Option<[u8; 32]>`.
+  `#[serde(default)]` makes existing on-disk snapshots load fine. Struct
+  constructors must supply the field (or `..Default::default()`).
+- `SnapshotMetadata` now derives `Default`.
+
+### Deliberately deferred from the original Phase 1 plan
+
+- **Time feature flags (`time-tokio`/`time-embassy`/`time-wasm`)** —
+  deferred because `tflo-core` does not actually take a time source today.
+- **`Runtime` trait** — `tflo-core` does not spawn or schedule; the cost of
+  abstracting it is not yet earned.
+- **`Source` / `Sink` traits in core** — `futures::Stream` and
+  `futures::Sink` already cover this surface.
+- **Removing default `Operator::save`/`load`** — would break ~30 existing
+  impls. The fingerprint poka-yoke at the builder level provides the actual
+  safety net.
+
 ## [Unreleased — 2026-05-22] — tflo-ops split
 
 tflo is pre-1.0 and has not been published to crates.io; the API is unstable.

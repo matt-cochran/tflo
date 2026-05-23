@@ -16,7 +16,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use tflo_core::keyed::{StateSnapshot, StateStore};
+use tflo_core::keyed::StateSnapshot;
+use tflo_core::state::AsyncStateStore;
 use tflo_state_s3::{S3Client, S3StateStore};
 
 // ---- Domain type -------------------------------------------------------
@@ -66,6 +67,11 @@ impl S3Client for MemS3Client {
             .collect();
         Ok(keys)
     }
+
+    async fn delete_object(&self, _bucket: &str, key: &str) -> Result<(), String> {
+        self.objects.lock().unwrap().remove(key);
+        Ok(())
+    }
 }
 
 // ---- Main ---------------------------------------------------------------
@@ -95,24 +101,19 @@ async fn main() -> Result<(), String> {
             key: Some(b"fraud-detector".to_vec()),
             timestamp_ms: txns.last().map(|t| t.ts).unwrap_or(0),
             version: 1,
+            topology_fingerprint: None,
         },
     };
 
-    // Persist via the S3-backed store.
-    // NOTE: S3StateStore::save() bridges the async S3Client into the
-    // synchronous StateStore trait by calling block_on internally
-    // (requires the "async" feature on tflo-state-s3).
-    // When that feature is absent the call returns a clear error message
-    // rather than silently dropping the snapshot.
-    match store.save(b"fraud-detector", &snapshot) {
+    // Persist via the S3-backed store using the Phase 1 AsyncStateStore
+    // trait — no block_on hack, the boundary is async-native end-to-end.
+    match store.save(b"fraud-detector", &snapshot).await {
         Ok(()) => println!("save: OK"),
-        Err(e) => {
-            println!("save: {e}  (enable tflo-state-s3 'async' feature for full S3 round-trip)")
-        }
+        Err(e) => println!("save: {e}"),
     }
 
     // Load it back.
-    match store.load(b"fraud-detector") {
+    match store.load(b"fraud-detector").await {
         Ok(Some(loaded)) => {
             println!(
                 "load: OK  ({} bytes, version={})",
@@ -125,7 +126,7 @@ async fn main() -> Result<(), String> {
     }
 
     // List keys stored under the prefix.
-    match store.list_keys() {
+    match store.list_keys().await {
         Ok(keys) => println!("list_keys: {} key(s)", keys.len()),
         Err(e) => println!("list_keys: {e}"),
     }
