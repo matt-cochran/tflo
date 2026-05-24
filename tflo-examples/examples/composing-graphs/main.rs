@@ -88,15 +88,7 @@ fn main() {
 
     // ---- Map: transform output ----
     println!("\n=== Map: categorize SMA ===");
-    fn build_sma_for_map() -> CompiledGraph<RequestStat, f64> {
-        let mut builder = TFlowBuilder::new();
-        builder.timestamp(|x: &RequestStat| x.ts);
-        let error_rate = builder.prop(|x: &RequestStat| x.error_rate);
-        let sma = error_rate.sma(3usize);
-        let nodes = builder.into_nodes();
-        CompiledGraph::compile(Arc::new(|x: &RequestStat| x.ts), nodes, sma.output_ids())
-    }
-    let mut mapped = build_sma_for_map().map(|value| {
+    let mut mapped = build_sma_graph().map(|value| {
         if value > 103.0 {
             "ABOVE".to_string()
         } else {
@@ -112,15 +104,7 @@ fn main() {
 
     // ---- Filter: suppress unwanted outputs ----
     println!("\n=== Filter: keep only values above threshold ===");
-    fn build_sma_for_filter() -> CompiledGraph<RequestStat, f64> {
-        let mut builder = TFlowBuilder::new();
-        builder.timestamp(|x: &RequestStat| x.ts);
-        let error_rate = builder.prop(|x: &RequestStat| x.error_rate);
-        let sma = error_rate.sma(3usize);
-        let nodes = builder.into_nodes();
-        CompiledGraph::compile(Arc::new(|x: &RequestStat| x.ts), nodes, sma.output_ids())
-    }
-    let mut filtered = build_sma_for_filter().filter(|value| *value > 102.0);
+    let mut filtered = build_sma_graph().filter(|value| *value > 102.0);
     println!("SMA(3) > 102.0:");
     for record in &stats {
         if let Some(item) = filtered.step(record) {
@@ -130,16 +114,8 @@ fn main() {
 
     // ---- Fold: count consecutive valid signals ----
     println!("\n=== Fold: count consecutive above-threshold SMAs ===");
-    fn build_sma_for_fold() -> CompiledGraph<RequestStat, f64> {
-        let mut builder = TFlowBuilder::new();
-        builder.timestamp(|x: &RequestStat| x.ts);
-        let error_rate = builder.prop(|x: &RequestStat| x.error_rate);
-        let sma = error_rate.sma(3usize);
-        let nodes = builder.into_nodes();
-        CompiledGraph::compile(Arc::new(|x: &RequestStat| x.ts), nodes, sma.output_ids())
-    }
     let mut folded =
-        build_sma_for_fold()
+        build_sma_graph()
             .filter(|value| *value > 102.0)
             .fold(
                 0u64,

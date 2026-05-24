@@ -12,7 +12,6 @@
 //! Every method is exposed on `Comp<R, f64>` through the single [`WindowOps`]
 //! extension trait so call sites read naturally — e.g. `price.sma(20)`.
 
-use crate::checkpoint;
 use crate::ops::stats::{Correlation, Covariance, Kurtosis, Median, QuantileOp, Rank, Skewness};
 use crate::primitives::{
     CorrelationCountWindow, CorrelationTimeWindow, CountEma, CountWindow, MedianCountWindow,
@@ -20,11 +19,15 @@ use crate::primitives::{
     TimeEma, TimeWindow, WmaCountWindow, WmaTimeWindow,
 };
 use crate::shapes::{BivariateWindowed, Reduce, Windowed};
-use serde::{Deserialize, Serialize};
 use tflo_core::comp::Comp;
-use tflo_core::compile::{Computed, NodeOutput, finite_or_warming};
-use tflo_core::operator::{BoxedOperator, Operator, OperatorLoadError, require};
+use tflo_core::operator::{BoxedOperator, Operator};
 use tflo_core::window::Window;
+
+mod ema;
+mod rsi_wilder;
+
+use ema::Ema;
+use rsi_wilder::RsiWilder;
 
 // ============================================================================
 // Basic reductions
@@ -108,142 +111,6 @@ const fn count_as_f64(n: usize) -> f64 {
 // ============================================================================
 // Hand-written operators
 // ============================================================================
-
-/// Exponential moving average over a time- or count-based window.
-///
-/// EMA keeps a single recursively smoothed value rather than a sliding buffer,
-/// so it is not a [`Windowed`] reduction. It wraps the [`TimeEma`]/[`CountEma`]
-/// primitives — the same primitives the legacy `tflo-core` catalog used — so
-/// results are bit-identical.
-#[derive(Serialize, Deserialize)]
-enum Ema {
-    /// Time-decayed EMA (halflife-based).
-    Time(TimeEma),
-    /// Count-based EMA (period-based smoothing factor).
-    Count(CountEma),
-}
-
-impl Operator for Ema {
-    fn eval(&mut self, inputs: &[Computed], ts: i64) -> NodeOutput {
-        let v = match require(inputs, 0) {
-            Ok(v) => v,
-            Err(e) => return NodeOutput::computed(Err(e)), // absent input: skip the push
-        };
-        let out = match self {
-            Self::Time(e) => e.push(ts, v),
-            Self::Count(e) => e.push(v),
-        };
-        NodeOutput::computed(finite_or_warming(out))
-    }
-
-    fn name(&self) -> &str {
-        "ema"
-    }
-
-    fn save(&self) -> Option<Vec<u8>> {
-        checkpoint::save(self)
-    }
-
-    fn load(&mut self, bytes: &[u8]) -> Result<(), OperatorLoadError> {
-        checkpoint::load(self, bytes)
-    }
-}
-
-/// RSI using Wilder's smoothing (count-based only).
-///
-/// Uses an EMA with `alpha = 1/period` for gain/loss averaging, matching
-/// `TradingView`'s RSI. This is a hand-written port of the legacy `tflo-core`
-/// `RsiWilderState` evaluation logic.
-#[derive(Serialize, Deserialize)]
-struct RsiWilder {
-    period: usize,
-    prev: Option<f64>,
-    count: usize,
-    sum_gain: f64,
-    sum_loss: f64,
-    avg_gain: f64,
-    avg_loss: f64,
-    initialized: bool,
-}
-
-impl RsiWilder {
-    const fn new(period: usize) -> Self {
-        Self {
-            period,
-            prev: None,
-            count: 0,
-            sum_gain: 0.0,
-            sum_loss: 0.0,
-            avg_gain: 0.0,
-            avg_loss: 0.0,
-            initialized: false,
-        }
-    }
-
-    /// Fold one value into the Wilder-smoothed RSI state.
-    ///
-    /// Ported verbatim from `tflo-core`'s `compute_rsi_wilder`; returns `NaN`
-    /// while warming up so the caller routes it through [`finite_or_warming`].
-    #[allow(clippy::cast_precision_loss)]
-    fn update(&mut self, value: f64) -> f64 {
-        if self.period == 0 {
-            return f64::NAN;
-        }
-
-        let Some(prev) = self.prev else {
-            self.prev = Some(value);
-            return f64::NAN;
-        };
-
-        let change = value - prev;
-        let gain = if change > 0.0 { change } else { 0.0 };
-        let loss = if change < 0.0 { -change } else { 0.0 };
-        self.prev = Some(value);
-
-        if !self.initialized {
-            self.count += 1;
-            self.sum_gain += gain;
-            self.sum_loss += loss;
-            if self.count < self.period {
-                return f64::NAN;
-            }
-            self.avg_gain = self.sum_gain / self.period as f64;
-            self.avg_loss = self.sum_loss / self.period as f64;
-            self.initialized = true;
-        } else {
-            self.avg_gain = (self.avg_gain * (self.period - 1) as f64 + gain) / self.period as f64;
-            self.avg_loss = (self.avg_loss * (self.period - 1) as f64 + loss) / self.period as f64;
-        }
-
-        if self.avg_loss == 0.0 {
-            if self.avg_gain == 0.0 { 50.0 } else { 100.0 }
-        } else {
-            100.0 - 100.0 / (1.0 + self.avg_gain / self.avg_loss)
-        }
-    }
-}
-
-impl Operator for RsiWilder {
-    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
-        let v = match require(inputs, 0) {
-            Ok(v) => v,
-            Err(e) => return NodeOutput::computed(Err(e)), // absent input: skip the push
-        };
-        NodeOutput::computed(finite_or_warming(self.update(v)))
-    }
-
-    fn name(&self) -> &str {
-        "rsi_wilder"
-    }
-
-    fn save(&self) -> Option<Vec<u8>> {
-        checkpoint::save(self)
-    }
-
-    fn load(&mut self, bytes: &[u8]) -> Result<(), OperatorLoadError> {
-        checkpoint::load(self, bytes)
-    }
-}
 
 // ============================================================================
 // WindowOps extension trait
