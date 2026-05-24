@@ -219,6 +219,12 @@ pub mod operator;
 pub use operator::{BivariateWindow, WindowPrimitive};
 pub mod pipeline;
 pub mod scalar;
+/// Behavioral contracts and guarantees provided by the computation graph
+/// execution layer. **Recovered orphan** — this module was written for
+/// the initial commit and never wired in; resurfaced here so the docs
+/// are actually visible. See the file's `# Audit (post-Phase-1)` block
+/// for sections that need refresh against current code.
+pub mod semantics;
 pub mod shard;
 #[cfg(feature = "async")]
 pub mod state;
