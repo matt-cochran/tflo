@@ -1,5 +1,30 @@
 "use client";
 
+/**
+ * LOST-NOT-DEAD: orphaned React component, never wired into any page.
+ *
+ * 327-line indicator-knobs control panel: 4 indicators (SMA, RSI,
+ * Bollinger, Cross) with per-indicator enable + parameter controls,
+ * a feed-source selector (sine / step / noisy / sawtooth), and a
+ * play/pause state. Emits a `KnobParams` object on every change.
+ * Written in the initial commit (single git history entry,
+ * `b0b3516 init`) but no page or other component imports it.
+ *
+ * Probable original intent: the control surface for an interactive
+ * playground page paired with `CelRulesEditor.tsx` (also orphan) —
+ * the user would toggle indicators and tune parameters live while
+ * the chart re-renders.
+ *
+ * Recovery: most natural fit is a new `/playground/knobs` page that
+ * wires this to `PlaygroundChart.tsx` (which already exists and is
+ * wired into `/playground`). The current playground passes static
+ * config; this would let users tune it live.
+ *
+ * Discovered via StructureOS SOS025 on 2026-05-24 cleanup pass; left
+ * in tree per "lost-not-dead" policy. See `tflo-core/src/semantics.rs`
+ * for the parallel Rust case.
+ */
+
 import React, { useState, useCallback } from "react";
 
 interface IndicatorSma {

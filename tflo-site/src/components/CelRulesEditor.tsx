@@ -1,5 +1,28 @@
 "use client";
 
+/**
+ * LOST-NOT-DEAD: orphaned React component, never wired into any page.
+ *
+ * 192-line Monaco-editor-backed CEL rules editor with JSON validation,
+ * an `onEvaluate` callback, and a read-only toggle. Written in the
+ * initial commit (single git history entry, `b0b3516 init`) but no
+ * page or other component imports it.
+ *
+ * Probable original intent: paired with `KnobPanel.tsx` (also orphan)
+ * for an interactive "build-your-own-pipeline" playground page that
+ * was started but never finished. The simpler `DemoChart` /
+ * `PlaygroundChart` approach shipped instead.
+ *
+ * Recovery options:
+ *  1. Wire into a new `/playground/cel-rules` page paired with the
+ *     tflo-rego or tflo-cel wasm bindings.
+ *  2. Use as the editor surface in a future docs page about CEL rules.
+ *
+ * Discovered via StructureOS SOS025 on 2026-05-24 cleanup pass; left
+ * in tree per "lost-not-dead" policy. See `tflo-core/src/semantics.rs`
+ * for the parallel Rust case.
+ */
+
 import React, { useState, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 
