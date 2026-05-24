@@ -6,6 +6,20 @@
       "env": {
         "STRUCTUREOS_WORKSPACE_ROOT": "/home/mc/working/tflo"
       }
+    },
+    "frontrails": {
+      "command": "/home/mc/.cargo/bin/frontrails-mcp",
+      "args": [],
+      "env": {
+        "FRONTRAILS_WORKSPACE_ROOT": "/home/mc/working/tflo"
+      }
+    },
+    "intentos": {
+      "command": "/home/mc/.cargo/bin/intentos-mcp",
+      "args": [],
+      "env": {
+        "INTENTOS_WORKSPACE_ROOT": "/home/mc/working/tflo"
+      }
     }
   }
 }
