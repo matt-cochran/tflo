@@ -34,15 +34,19 @@
 #![warn(missing_debug_implementations)]
 #![deny(unsafe_code)]
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use tflo_core::adapter::{Cursor, CursorStore};
+use tflo_core::adapter::Cursor;
+#[cfg(feature = "async")]
+pub use crate::consumer::KafkaConsumer;
 #[cfg(feature = "async")]
 pub use crate::shard::KafkaShardRouter;
 
 #[cfg(feature = "rdkafka-backend")]
 pub mod rdkafka_backend;
+pub mod cursor_store;
 pub mod shard;
+pub mod consumer;
+
+pub use crate::cursor_store::InMemoryCursorStore;
 
 // ── KafkaOffset (Cursor impl) ─────────────────────────────────────────
 
@@ -100,63 +104,6 @@ impl<'de> serde::Deserialize<'de> for KafkaOffset {
 
 // ── In-memory cursor store (back-compat + async) ──────────────────────
 
-/// In-memory cursor store. Implements the sync `CursorStore` trait; when
-/// the `async` feature is on it also implements
-/// [`tflo_core::state::AsyncCursorStore`] over the same backing store so
-/// the same instance can serve both APIs in tests / single-process apps.
-#[derive(Debug, Clone, Default)]
-pub struct InMemoryCursorStore {
-    cursors: Arc<Mutex<HashMap<Vec<u8>, KafkaOffset>>>,
-}
-
-impl InMemoryCursorStore {
-    /// Construct.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl CursorStore for InMemoryCursorStore {
-    type Cursor = KafkaOffset;
-
-    fn save_cursor(&self, key: &[u8], cursor: &Self::Cursor) -> Result<(), String> {
-        let mut guard = self
-            .cursors
-            .lock()
-            .map_err(|_| "cursor store mutex poisoned".to_string())?;
-        guard.insert(key.to_vec(), cursor.clone());
-        Ok(())
-    }
-
-    fn load_cursor(&self, key: &[u8]) -> Result<Option<Self::Cursor>, String> {
-        let guard = self
-            .cursors
-            .lock()
-            .map_err(|_| "cursor store mutex poisoned".to_string())?;
-        Ok(guard.get(key).cloned())
-    }
-
-    fn list_cursor_keys(&self) -> Result<Vec<Vec<u8>>, String> {
-        let guard = self
-            .cursors
-            .lock()
-            .map_err(|_| "cursor store mutex poisoned".to_string())?;
-        Ok(guard.keys().cloned().collect())
-    }
-}
-
-#[cfg(feature = "async")]
-#[async_trait::async_trait]
-impl tflo_core::state::AsyncCursorStore<KafkaOffset> for InMemoryCursorStore {
-    async fn save_cursor(&self, key: &[u8], cursor: &KafkaOffset) -> Result<(), String> {
-        <Self as CursorStore>::save_cursor(self, key, cursor)
-    }
-    async fn load_cursor(&self, key: &[u8]) -> Result<Option<KafkaOffset>, String> {
-        <Self as CursorStore>::load_cursor(self, key)
-    }
-}
-
 // ── KafkaConsumer / KafkaProducer trait surface ────────────────────────
 
 /// A consumed Kafka record, as surfaced by [`KafkaConsumer::poll`].
@@ -194,46 +141,6 @@ pub struct TopicPartition {
     pub partition: i32,
 }
 
-/// Minimal async Kafka consumer trait. A concrete `rdkafka` impl lives
-/// under [`rdkafka_backend`] (feature `rdkafka-backend`); test code
-/// uses [`MockKafkaConsumer`].
-#[cfg(feature = "async")]
-#[async_trait::async_trait]
-pub trait KafkaConsumer: Send + Sync {
-    /// Subscribe to topics. Idempotent.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error string when the underlying client cannot subscribe.
-    async fn subscribe(&self, topics: &[String]) -> Result<(), String>;
-
-    /// Poll for the next message; `None` indicates the consumer has been
-    /// shut down or no more messages will arrive.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error string on consumer or network failure.
-    async fn poll(&self) -> Result<Option<KafkaMessage>, String>;
-
-    /// Poll for the next rebalance event; `None` indicates none pending.
-    /// Concrete impls may surface this through a separate channel rather
-    /// than poll — that is a backend-specific detail.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error string on consumer failure.
-    async fn poll_rebalance(&self) -> Result<Option<RebalanceEvent>, String>;
-
-    /// Commit a single `(topic, partition, offset)` as the next-to-read
-    /// position. Typically called via the [`tflo_core::state::Checkpointer`]
-    /// cursor write.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error string when the broker rejects the commit.
-    async fn commit_offset(&self, offset: &KafkaOffset) -> Result<(), String>;
-}
-
 /// Minimal async Kafka producer trait.
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
@@ -259,6 +166,7 @@ pub trait KafkaProducer: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tflo_core::adapter::CursorStore;
 
     #[test]
     fn kafka_offset_round_trip() {

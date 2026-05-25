@@ -1,7 +1,9 @@
 //! `KafkaShardRouter` — `ShardRouter` impl driven by Kafka consumer-group
 //! rebalance callbacks. Extracted from `lib.rs` via structureos `move`.
 
+#[cfg(feature = "async")]
 use crate::{RebalanceEvent, TopicPartition};
+#[cfg(feature = "async")]
 use std::sync::{Arc, Mutex};
 
 /// `ShardRouter` impl driven by Kafka consumer-group rebalance callbacks.
