@@ -1,28 +1,7 @@
-//! Signal system for tflo - extensible and composable with combinators.
-//!
-//! This module provides the core signal abstraction `Signal<TMode, TPayload>`
-//! that enables domain-specific signal types while maintaining composability
-//! with stream combinators.
-//!
-//! # Note on `ThresholdCrossEventMode` duplication
-//!
-//! [`ThresholdCrossEventMode`] is defined here **and** in
-//! `tflo_ops::events::ThresholdCrossEventMode`. They are distinct types.
-//!
-//! The copy here is kept because:
-//!
-//! 1. It is the `TMode` parameter for [`Signal`] and the [`EdgeSignal`] type
-//!    alias — both are part of `tflo-core`'s public API surface.
-//! 2. [`wasm.rs`](crate::wasm) references it directly for the WASM bridge's
-//!    `CompiledGraph<_, ThresholdCrossEventMode, _>` output extraction.
-//! 3. Removing it would be a breaking change to any downstream crate that
-//!    uses `tflo_core::event::ThresholdCrossEventMode` as an `EventMode`
-//!    type parameter with `Signal`.
-//!
-//! The `tflo-ops` copy is used exclusively by the detector operators in
-//! `tflo_ops::ops::detectors` and is the type returned by `.cross()` /
-//! `.cross_above()` / `.cross_below()`. The two copies have the same repr
-//! and semantics but are not interchangeable without a `From` conversion.
+//! `Signal` carrier type, the four built-in `EventMode` variants
+//! (`ThresholdCrossEventMode`, `ZoneEventMode`, `PulseEventMode`), and
+//! `PulseMetadata`. The parent `event` module re-exports these and adds
+//! the `EdgeSignal`/`ZoneSignal`/`PulseSignal` type aliases.
 
 /// Core signal wrapper - composable with combinators.
 ///
@@ -59,6 +38,82 @@ pub struct Signal<TMode, TPayload = ()> {
     /// Optional payload data associated with this event
     pub payload: TPayload,
 }
+
+/// Marker trait for event modes.
+///
+/// This trait can be implemented by custom event modes to enable
+/// common operations like checking if an event is "active".
+pub trait EventMode: Clone + Send + Sync + 'static {
+    /// Check if this event mode represents an active/triggered state.
+    ///
+    /// For example, `ThresholdCross::Rising` and `ThresholdCross::Falling` are active,
+    /// while `ThresholdCross::None` is not.
+    fn is_active(&self) -> bool;
+}
+
+/// Threshold crossing detection modes.
+///
+/// Represents the direction of a threshold crossing event when a value
+/// transitions from one side of a threshold to the other.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
+pub enum ThresholdCrossEventMode {
+    /// Value crossed threshold in positive direction (from below to above).
+    Rising,
+    /// Value crossed threshold in negative direction (from above to below).
+    Falling,
+    /// No threshold crossing occurred.
+    #[default]
+    None,
+}
+
+/// Built-in zone detection modes.
+///
+/// Used for window detection operations (when a signal enters/exits amplitude bounds).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
+pub enum ZoneEventMode {
+    /// Signal entered the target zone.
+    Entered,
+    /// Signal exited below the low threshold.
+    ExitedLow,
+    /// Signal exited above the high threshold.
+    ExitedHigh,
+    /// Signal is inside the zone (no transition).
+    #[default]
+    Inside,
+}
+
+/// Built-in pulse validation modes.
+///
+/// Used for pulse width and glitch detection operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PulseEventMode {
+    /// Pulse is valid (within duration bounds).
+    Valid,
+    /// Pulse is too short (glitch).
+    TooShort,
+    /// Pulse is too long.
+    TooLong,
+    /// Pulse is a runt (incomplete amplitude transition).
+    Runt,
+}
+
+/// Metadata for pulse events.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PulseMetadata {
+    /// Pulse width in milliseconds.
+    pub width_ms: i64,
+    /// Peak amplitude (if available).
+    pub peak: Option<f64>,
+}
+
+/// Threshold crossing signal (no payload).
+pub type EdgeSignal = Signal<ThresholdCrossEventMode>;
+
+/// Zone signal with optional payload.
+pub type ZoneSignal<P = ()> = Signal<ZoneEventMode, P>;
+
+/// Pulse signal with metadata payload.
+pub type PulseSignal = Signal<PulseEventMode, PulseMetadata>;
 
 impl<TMode, TPayload> Signal<TMode, TPayload> {
     /// Create a new event with mode and payload.
@@ -139,33 +194,6 @@ impl<TMode> Signal<TMode, ()> {
     }
 }
 
-/// Marker trait for event modes.
-///
-/// This trait can be implemented by custom event modes to enable
-/// common operations like checking if an event is "active".
-pub trait EventMode: Clone + Send + Sync + 'static {
-    /// Check if this event mode represents an active/triggered state.
-    ///
-    /// For example, `ThresholdCross::Rising` and `ThresholdCross::Falling` are active,
-    /// while `ThresholdCross::None` is not.
-    fn is_active(&self) -> bool;
-}
-
-/// Threshold crossing detection modes.
-///
-/// Represents the direction of a threshold crossing event when a value
-/// transitions from one side of a threshold to the other.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
-pub enum ThresholdCrossEventMode {
-    /// Value crossed threshold in positive direction (from below to above).
-    Rising,
-    /// Value crossed threshold in negative direction (from above to below).
-    Falling,
-    /// No threshold crossing occurred.
-    #[default]
-    None,
-}
-
 impl ThresholdCrossEventMode {
     /// Check if this is a rising threshold cross (from below to above).
     #[must_use]
@@ -190,22 +218,6 @@ impl EventMode for ThresholdCrossEventMode {
     fn is_active(&self) -> bool {
         !matches!(self, Self::None)
     }
-}
-
-/// Built-in zone detection modes.
-///
-/// Used for window detection operations (when a signal enters/exits amplitude bounds).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
-pub enum ZoneEventMode {
-    /// Signal entered the target zone.
-    Entered,
-    /// Signal exited below the low threshold.
-    ExitedLow,
-    /// Signal exited above the high threshold.
-    ExitedHigh,
-    /// Signal is inside the zone (no transition).
-    #[default]
-    Inside,
 }
 
 impl EventMode for ZoneEventMode {
@@ -240,21 +252,6 @@ impl ZoneEventMode {
     }
 }
 
-/// Built-in pulse validation modes.
-///
-/// Used for pulse width and glitch detection operations.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PulseEventMode {
-    /// Pulse is valid (within duration bounds).
-    Valid,
-    /// Pulse is too short (glitch).
-    TooShort,
-    /// Pulse is too long.
-    TooLong,
-    /// Pulse is a runt (incomplete amplitude transition).
-    Runt,
-}
-
 impl EventMode for PulseEventMode {
     fn is_active(&self) -> bool {
         matches!(self, Self::Valid)
@@ -287,15 +284,6 @@ impl PulseEventMode {
     }
 }
 
-/// Metadata for pulse events.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PulseMetadata {
-    /// Pulse width in milliseconds.
-    pub width_ms: i64,
-    /// Peak amplitude (if available).
-    pub peak: Option<f64>,
-}
-
 impl PulseMetadata {
     /// Create new pulse metadata.
     #[must_use]
@@ -315,19 +303,6 @@ impl PulseMetadata {
         self.peak
     }
 }
-
-// Type aliases for common patterns
-/// Threshold crossing signal (no payload).
-///
-/// A convenience type alias for `Signal<ThresholdCrossEventMode>` representing
-/// a threshold crossing signal without additional payload data.
-pub type EdgeSignal = Signal<ThresholdCrossEventMode>;
-
-/// Zone signal with optional payload.
-pub type ZoneSignal<P = ()> = Signal<ZoneEventMode, P>;
-
-/// Pulse signal with metadata payload.
-pub type PulseSignal = Signal<PulseEventMode, PulseMetadata>;
 
 #[cfg(test)]
 mod tests {

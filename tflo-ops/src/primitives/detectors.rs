@@ -1,13 +1,5 @@
 use super::cross::CrossDetector;
 use super::event_mode::ThresholdCrossEventMode;
-pub use super::glitch_pulse::{GlitchFilter, PulseWidthDetector};
-#[allow(unused_imports)]
-pub(crate) use super::glitch_pulse::{GlitchState, PulseWidthState};
-#[allow(unused_imports)]
-use super::results::{PulseWidthResult, RuntResult, WindowEvent};
-pub use super::runt_window::{RuntDetector, WindowDetector};
-#[allow(unused_imports)]
-pub(crate) use super::runt_window::{RuntState, WindowState};
 
 /// Cross detector with hysteresis to prevent signal chatter.
 ///

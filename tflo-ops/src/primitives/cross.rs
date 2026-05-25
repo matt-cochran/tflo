@@ -115,13 +115,6 @@
 //!            in bounds               in bounds
 //! ```
 
-#[allow(unused_imports)]
-pub use super::detectors::{
-    GlitchFilter, HysteresisCrossDetector, PulseWidthDetector, RuntDetector, WindowDetector,
-};
-#[allow(unused_imports)]
-pub use super::results::{GlitchResult, PulseWidthResult, RuntResult, WindowEvent};
-
 // ============================================================================
 // BASIC EDGE TRIGGER
 // ============================================================================
@@ -192,7 +185,10 @@ pub struct CrossDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::primitives::ThresholdCrossEventMode;
+    use crate::primitives::{
+        GlitchFilter, HysteresisCrossDetector, PulseWidthDetector, PulseWidthResult, RuntDetector,
+        RuntResult, ThresholdCrossEventMode, WindowDetector, WindowEvent,
+    };
 
     // --- CrossDetector Tests ---
 

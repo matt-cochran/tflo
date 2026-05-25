@@ -149,7 +149,6 @@
 //!                                (gain=0.25, offset=0)
 //! ```
 
-pub use super::calibration::{GainOffsetCalibrator, LinearRegressor};
 use std::collections::VecDeque;
 
 // ============================================================================
@@ -436,6 +435,7 @@ pub struct ZScoreNormalizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::primitives::{GainOffsetCalibrator, LinearRegressor};
 
     // --- DcRemover Tests ---
 

@@ -50,9 +50,9 @@ pub use rsi::{RsiCountWindow, RsiTimeWindow};
 pub use time_ema::{CountEma, TimeEma};
 
 // signal detection
+pub use calibration::{GainOffsetCalibrator, LinearRegressor};
 pub use conditioning::{
-    BaselineCorrector, DcRemover, GainOffsetCalibrator, LinearRegressor, RangeNormalizer,
-    TimeDcRemover, ZScoreNormalizer,
+    BaselineCorrector, DcRemover, RangeNormalizer, TimeDcRemover, ZScoreNormalizer,
 };
 pub use cross::CrossDetector;
 pub use detectors::HysteresisCrossDetector;
