@@ -47,7 +47,9 @@ pub mod context;
 pub mod error;
 pub mod filter;
 pub mod policy;
+pub mod policy_loader;
 pub mod traits;
+pub mod value_codec;
 
 /// Prelude for convenient imports
 pub mod prelude {

@@ -36,6 +36,7 @@ pub mod filter;
 pub mod script;
 pub mod traits;
 pub mod transform;
+pub mod script_exec;
 
 /// Prelude for convenient imports
 pub mod prelude {

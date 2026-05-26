@@ -53,6 +53,7 @@ pub mod error;
 pub mod filter;
 pub mod router;
 pub mod rule_engine;
+pub mod rule_loader;
 pub mod traits;
 
 /// WebAssembly bridge (only compiled for wasm32 targets).
