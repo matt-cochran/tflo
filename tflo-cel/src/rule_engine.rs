@@ -1,8 +1,8 @@
 //! CEL rule engine with hot reload support.
 
 use crate::config::RulesConfig;
-use crate::context::IntoCelContext;
 use crate::error::{CelError, CelResult};
+use crate::traits::IntoCelContext;
 use cel_interpreter::Program;
 #[cfg(not(target_arch = "wasm32"))]
 use std::fs;

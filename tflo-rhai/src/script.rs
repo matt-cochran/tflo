@@ -1,7 +1,7 @@
 //! Rhai script engine with caching.
 
-use crate::context::IntoRhaiScope;
 use crate::error::{RhaiError, RhaiResult};
+use crate::traits::IntoRhaiScope;
 use rhai::{AST, Dynamic, Engine};
 use std::collections::HashMap;
 use std::fs;

@@ -47,11 +47,12 @@ pub mod context;
 pub mod error;
 pub mod filter;
 pub mod policy;
+pub mod traits;
 
 /// Prelude for convenient imports
 pub mod prelude {
-    pub use crate::context::IntoRegoInput;
     pub use crate::error::{RegoError, RegoResult};
     pub use crate::filter::RegoFilterExt;
     pub use crate::policy::PolicyEngine;
+    pub use crate::traits::IntoRegoInput;
 }

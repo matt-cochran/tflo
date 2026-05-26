@@ -1,7 +1,7 @@
 //! CEL-based filtering for iterators.
 
-use crate::context::IntoCelContext;
 use crate::error::{CelError, CelResult};
+use crate::traits::IntoCelContext;
 use cel_interpreter::Program;
 
 /// Extension trait for CEL-based filtering on iterators.

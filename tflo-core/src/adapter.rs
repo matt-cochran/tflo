@@ -180,6 +180,14 @@ impl Checkpoint {
 /// Adapters can implement this trait to emit metrics about keyed execution
 /// (graph count, warmup status, checkpoint latency, etc.) to their monitoring
 /// system (Prometheus, `StatsD`, etc.).
+///
+/// # Status: defined, not yet wired
+///
+/// The trait's contract is stable, but the keyed runtime
+/// ([`crate::keyed`]) and the [`crate::state::Checkpointer`] do not yet
+/// call these methods at their lifecycle points. A `MetricsSink` carrier
+/// plus the wire-up at graph-create, graph-remove, commit, and restore
+/// is a follow-up. Implementors should expect no traffic until then.
 pub trait KeyedMetrics: Send + Sync {
     /// Record that a new graph was created for a key.
     fn record_graph_created(&self, key: &[u8]);
@@ -201,6 +209,24 @@ pub trait KeyedMetrics: Send + Sync {
 }
 
 /// No-op metrics implementation for when metrics are not needed.
+///
+/// # Status
+///
+/// The [`KeyedMetrics`] surface is defined but **not yet wired into the
+/// keyed runtime** — `record_*` methods are documented integration
+/// points, not active callbacks. A future Phase-1.5 task will thread
+/// the trait through [`crate::keyed`] checkpoint and lifecycle hooks.
+/// Until then, supplying a real implementation has no effect.
+///
+/// # Example
+///
+/// ```
+/// use tflo_core::adapter::{KeyedMetrics, NoopMetrics};
+///
+/// let metrics = NoopMetrics;
+/// metrics.record_graph_created(b"sensor-1");
+/// metrics.record_checkpoint_duration(b"sensor-1", 42);
+/// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoopMetrics;
 

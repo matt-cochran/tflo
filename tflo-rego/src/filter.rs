@@ -1,8 +1,8 @@
 //! Rego-based filtering for iterators.
 
-use crate::context::IntoRegoInput;
 use crate::error::RegoResult;
 use crate::policy::PolicyEngine;
+use crate::traits::IntoRegoInput;
 use std::sync::{Arc, Mutex};
 
 /// Extension trait for Rego-based filtering on iterators.

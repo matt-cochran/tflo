@@ -1,7 +1,7 @@
 //! Rhai-based transformation for iterators.
 
-use crate::context::IntoRhaiScope;
 use crate::error::{RhaiError, RhaiResult};
+use crate::traits::IntoRhaiScope;
 use rhai::{AST, Dynamic, Engine};
 use std::sync::Arc;
 

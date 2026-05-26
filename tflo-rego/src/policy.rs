@@ -1,7 +1,7 @@
 //! Rego policy engine.
 
-use crate::context::IntoRegoInput;
 use crate::error::{RegoError, RegoResult};
+use crate::traits::IntoRegoInput;
 use regorus::Engine;
 use std::fs;
 use std::path::Path;

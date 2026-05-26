@@ -53,6 +53,7 @@ pub mod error;
 pub mod filter;
 pub mod router;
 pub mod rule_engine;
+pub mod traits;
 
 /// WebAssembly bridge (only compiled for wasm32 targets).
 #[cfg(target_arch = "wasm32")]
@@ -60,9 +61,9 @@ pub mod wasm;
 
 /// Prelude for convenient imports
 pub mod prelude {
-    pub use crate::context::IntoCelContext;
     pub use crate::error::{CelError, CelResult};
     pub use crate::filter::CelFilterExt;
     pub use crate::router::CelRouterExt;
     pub use crate::rule_engine::{Action, CompiledRule, RuleEngine};
+    pub use crate::traits::IntoCelContext;
 }

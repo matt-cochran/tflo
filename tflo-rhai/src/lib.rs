@@ -34,13 +34,14 @@ pub mod context;
 pub mod error;
 pub mod filter;
 pub mod script;
+pub mod traits;
 pub mod transform;
 
 /// Prelude for convenient imports
 pub mod prelude {
-    pub use crate::context::IntoRhaiScope;
     pub use crate::error::{RhaiError, RhaiResult};
     pub use crate::filter::RhaiFilterExt;
     pub use crate::script::ScriptEngine;
+    pub use crate::traits::IntoRhaiScope;
     pub use crate::transform::RhaiMapExt;
 }

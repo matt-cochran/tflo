@@ -5,6 +5,7 @@
 # ── FrontRails / StructureOS / IntentOS scratch state ──────────────────
 # MCP tools store per-workspace caches, backups, and llm context here.
 /.frontrails/
+/.structureos/
 
 # ── tflo-site ──────────────────────────────────────────────────────────
 /tflo-site/public/wasm/

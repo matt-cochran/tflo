@@ -1,7 +1,7 @@
 //! Rhai-based filtering for iterators.
 
-use crate::context::IntoRhaiScope;
 use crate::error::{RhaiError, RhaiResult};
+use crate::traits::IntoRhaiScope;
 use rhai::{AST, Engine};
 use std::sync::Arc;
 

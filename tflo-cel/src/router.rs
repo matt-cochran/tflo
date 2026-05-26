@@ -1,7 +1,7 @@
 //! CEL-based routing for iterators.
 
-use crate::context::IntoCelContext;
 use crate::rule_engine::{CompiledRule, RuleEngine};
+use crate::traits::IntoCelContext;
 
 /// Extension trait for CEL-based routing on iterators.
 ///
