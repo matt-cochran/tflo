@@ -18,6 +18,9 @@ async = ["tflo-core/async", "dep:tokio", "dep:futures"]
 # Optional concrete backend using `rdkafka` (librdkafka). Disabled by default
 # to keep the crate buildable on hosts without librdkafka system deps.
 rdkafka-backend = ["async", "dep:rdkafka"]
+# Adapter-level integration tests against a real Kafka broker (testcontainers).
+# Requires Docker on the host. Implies `rdkafka-backend`.
+integration-tests = ["rdkafka-backend"]
 
 [dependencies]
 tflo-core = { workspace = true }
@@ -31,6 +34,13 @@ rdkafka = { version = "0.36", optional = true, default-features = false, feature
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+testcontainers = "0.23"
+# Pin at `0.11.6` (matches the workspace lockfile). The MSRV-aware
+# resolver would otherwise pick the lowest `^0.11.*` it can prove
+# compatible with the workspace `rust-version`, which has historically
+# selected 0.11.0 and broken cross-crate feature unification (e.g. with
+# `tflo-state-s3`'s `localstack` feature).
+testcontainers-modules = { version = "0.11.6", features = ["kafka"] }
 
 [lints]
 workspace = true

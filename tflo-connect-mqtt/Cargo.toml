@@ -17,6 +17,10 @@ async = ["tflo-core/async", "dep:tokio", "dep:futures"]
 # Concrete backend using `rumqttc` (pure-Rust MQTT v3/v5). Cross-compiles
 # cleanly to ARM/WASM without C deps — required for edge gateway story.
 rumqttc-backend = ["async", "dep:rumqttc"]
+# Adapter-level integration tests that spin up a mosquitto container via
+# `testcontainers`. Requires Docker on the host. Off by default so the
+# fast `cargo test` path stays hermetic.
+integration-tests = ["rumqttc-backend"]
 
 [dependencies]
 tflo-core = { workspace = true }
@@ -28,7 +32,12 @@ futures = { workspace = true, optional = true }
 rumqttc = { version = "0.24", optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+# Adapter-level integration tests — gated by the `integration-tests`
+# feature so the default `cargo test` run does not require Docker.
+# testcontainers-modules 0.11 does NOT publish a mosquitto module, so we
+# drive a generic `eclipse-mosquitto` image via `testcontainers` directly.
+testcontainers = "0.23"
 
 [lints]
 workspace = true

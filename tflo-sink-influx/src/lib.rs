@@ -139,22 +139,30 @@ impl LineProtocol {
 
 // ── Line-protocol escape helpers ───────────────────────────────────────
 //
-// `InfluxDB` line-protocol escape rules (per the InfluxData spec):
+// `InfluxDB` line-protocol escape rules (per the InfluxData spec — see
+// <https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/#special-characters>):
 //
-//   measurement / identifier : escape `,` ` ` `\` `\n`
+//   measurement / identifier : escape `,` ` `
 //   tag key, tag value,
-//   field key                : escape `,` `=` ` ` `\` `\n`
+//   field key                : escape `,` `=` ` `
 //   field string value       : escape `"` and `\`  (and is wrapped in quotes)
 //
-// All helpers escape the required characters with a leading backslash; a
-// literal newline is rendered as a two-character `\n` sequence so that
-// the wire format remains a single physical line.
+// Backslash is intentionally NOT escaped for identifiers or tags: per
+// the spec, a literal `\` in a tag value is preserved as-is unless it
+// precedes a special character. Integration testing against real
+// `InfluxDB` 2.7 (`tests/integration_influx.rs`) confirmed that
+// escaping `\` to `\\` here causes the server to store the doubled
+// backslash rather than unescape it.
+//
+// Newlines are wire-protocol unsafe (they're record separators) so they
+// are rewritten to the two-character sequence `\n` to keep each record
+// on a single physical line.
 
 fn escape_identifier(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            ',' | ' ' | '\\' => {
+            ',' | ' ' => {
                 out.push('\\');
                 out.push(c);
             }
@@ -172,7 +180,7 @@ fn escape_tag_key(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            ',' | '=' | ' ' | '\\' => {
+            ',' | '=' | ' ' => {
                 out.push('\\');
                 out.push(c);
             }
@@ -714,18 +722,21 @@ mod tests {
     }
 
     #[test]
-    fn escape_handles_backslash_and_newline() {
-        // measurement / identifier
-        assert_eq!(escape_identifier("a\\b"), "a\\\\b");
+    fn escape_handles_newline_and_passes_backslash_through() {
+        // measurement / identifier: `\` is NOT special per the
+        // line-protocol spec — passes through unchanged. `\n` is rewritten
+        // to `\n` (literal two chars) for wire-format safety since
+        // newlines are record separators.
+        assert_eq!(escape_identifier("a\\b"), "a\\b");
         assert_eq!(escape_identifier("a\nb"), "a\\nb");
-        assert_eq!(escape_identifier("a b,c\\d\ne"), "a\\ b\\,c\\\\d\\ne");
-        // tag key (and tag value / field key all share the rule)
-        assert_eq!(escape_tag_key("k\\v"), "k\\\\v");
+        assert_eq!(escape_identifier("a b,c\\d\ne"), "a\\ b\\,c\\d\\ne");
+        // tag key (and tag value / field key all share the rule): `,` `=` ` `
+        assert_eq!(escape_tag_key("k\\v"), "k\\v");
         assert_eq!(escape_tag_key("k\nv"), "k\\nv");
-        assert_eq!(escape_tag_key("k=v\\,x\n"), "k\\=v\\\\\\,x\\n");
-        assert_eq!(escape_tag_value("v\\x\ny"), "v\\\\x\\ny");
-        assert_eq!(escape_field_key("f\\k\n"), "f\\\\k\\n");
-        // field string value: only `"` and `\`
+        assert_eq!(escape_tag_key("k=v\\,x\n"), "k\\=v\\\\,x\\n");
+        assert_eq!(escape_tag_value("v\\x\ny"), "v\\x\\ny");
+        assert_eq!(escape_field_key("f\\k\n"), "f\\k\\n");
+        // field string value: `"` and `\` ARE special per spec.
         assert_eq!(escape_field_string("a\\b"), "a\\\\b");
         assert_eq!(escape_field_string("he said \"hi\""), "he said \\\"hi\\\"");
         // backslash escaped first so we do not double-escape.
@@ -746,14 +757,19 @@ mod tests {
     }
 
     #[test]
-    fn format_measurement_escapes_backslash_in_identifier() {
+    fn format_measurement_passes_backslash_through() {
+        // `\` is not a special character in measurement names per the
+        // line-protocol spec, so it should pass through to the wire
+        // unchanged. (Integration testing against a real InfluxDB 2.7
+        // confirmed escaping `\` here causes the server to store the
+        // doubled backslash rather than unescape it.)
         let line = LineProtocol::new(r"weird\name")
             .field("v", FieldValue::Integer(1))
             .format()
             .expect("ok");
         assert!(
-            line.starts_with(r"weird\\name "),
-            "expected backslash in measurement to be escaped, got: {line}"
+            line.starts_with(r"weird\name "),
+            "expected backslash in measurement to pass through, got: {line}"
         );
     }
 }

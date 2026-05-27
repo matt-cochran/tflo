@@ -12,6 +12,10 @@ categories = ["data-structures", "asynchronous"]
 [features]
 default = []
 async = ["tflo-core/async", "dep:tokio", "dep:futures", "dep:async-trait"]
+# Opt-in: spins up a real InfluxDB 2.x container via testcontainers. Gates
+# `tests/integration_influx.rs`. Requires Docker on the host; off by
+# default so plain `cargo test` (and CI without Docker) stays fast.
+integration-tests = ["async"]
 
 [dependencies]
 tflo-core = { workspace = true }
@@ -22,6 +26,12 @@ async-trait = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+# `testcontainers-modules` 0.11 has no `influxdb` feature (confirmed
+# against the registry index); the `GenericImage` path from the base
+# `testcontainers` crate is the supported way to spin up InfluxDB 2.x
+# with the documented `DOCKER_INFLUXDB_INIT_*` env-var setup.
+testcontainers = "0.23"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 [lints]
 workspace = true
