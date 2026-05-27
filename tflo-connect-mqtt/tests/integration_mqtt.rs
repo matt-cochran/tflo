@@ -472,3 +472,74 @@ async fn mqtt_will_message_published_on_disconnect() {
     assert_eq!(will.payload, b"offline".as_ref(), "will payload mismatch");
     assert_eq!(will.qos, RuQoS::AtLeastOnce, "will qos mismatch");
 }
+
+// ── 5. Unreachable broker surfaces a typed error (no hang) ───────────
+//
+// Failure-mode coverage: the adapter MUST surface broker-unreachable as
+// `Result::Err` from `poll()` rather than hang or block the caller
+// indefinitely. We do NOT start a mosquitto container — instead the
+// consumer is pointed at a port that is guaranteed not to have a broker
+// on it. The first event-loop poll attempts a TCP connect; on a closed
+// port the OS returns `ECONNREFUSED` immediately, which `rumqttc` lifts
+// to `ConnectionError::Io(_)`, which our adapter formats as a `String`
+// error beginning with `"event loop error: I/O:"`.
+//
+// Note on the PRODUCER side: `rumqttc::AsyncClient::publish` only
+// enqueues a `Request::Publish` onto the in-process channel; the
+// network round-trip happens inside the `EventLoop`, which the adapter
+// owns separately. With no one polling the event loop the publish
+// call returns `Ok(())` — there is no broker-unreachable error to
+// surface at the producer's `publish()` boundary. The connection
+// failure is observable only via the consumer-side `poll()` contract,
+// which is what this test asserts. Producer-side coverage would need a
+// new method on the adapter that drives its own event loop; that is
+// out of scope here.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn mqtt_unreachable_broker_surfaces_typed_error() {
+    // Port 1 (TCP MUX, reserved) is effectively never bound on a
+    // developer machine; `connect()` returns `ECONNREFUSED` instantly.
+    // We also keep `keep_alive` short so any retry path bounds out
+    // quickly. No mosquitto container is started — this test runs on
+    // any host, with or without Docker.
+    let port: u16 = 1;
+    let client_id = uniq("unreachable-consumer");
+
+    let (cclient, cel) = make_client(&client_id, port);
+    let consumer = RumqttcConsumer::new(cclient, cel);
+
+    // Subscribe is a local channel send to the event loop — it will
+    // succeed even though the broker is unreachable. The connection
+    // error materialises on the first `poll()`.
+    consumer
+        .subscribe("unreachable/topic", Qos::AtLeastOnce)
+        .await
+        .expect("subscribe (channel send) should not fail");
+
+    // The contract: `poll()` returns `Err(...)` *promptly* — not hangs.
+    // 10s is generous; ECONNREFUSED on localhost is typically <1ms.
+    let polled = timeout(Duration::from_secs(10), consumer.poll()).await;
+
+    let result = polled.expect(
+        "RumqttcConsumer::poll() did not return within 10s against \
+         an unreachable broker — adapter is hanging on connection failure",
+    );
+
+    // Adapter error type: `Result<Option<MqttMessage>, String>`.
+    // The error string is `format!("event loop error: {e}")` where `e`
+    // is a `rumqttc::ConnectionError`. For an unreachable TCP port the
+    // variant is `ConnectionError::Io(_)` whose `Display` impl is
+    // `"I/O: <inner os error>"`. We pin both the adapter prefix and
+    // the underlying variant to catch silent regressions in either.
+    let err = result.expect_err(
+        "RumqttcConsumer::poll() returned Ok against an unreachable \
+         broker — expected Err surfacing the connection failure",
+    );
+    assert!(
+        err.starts_with("event loop error:"),
+        "expected adapter-formatted error prefix, got: {err:?}"
+    );
+    assert!(
+        err.contains("I/O:") || err.to_lowercase().contains("refused"),
+        "expected ConnectionError::Io (I/O / refused) variant, got: {err:?}"
+    );
+}

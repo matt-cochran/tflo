@@ -17,6 +17,24 @@
 //! ```text
 //! cargo test -p tflo-state-s3 --features integration-tests,async
 //! ```
+//!
+//! # On the missing `s3_bad_credentials_surfaces_error` test
+//!
+//! There is intentionally no test here that asserts AWS-style
+//! `InvalidAccessKeyId` / `AccessDenied` surfacing. The community edition
+//! of `localstack` (image `localstack/localstack:3.0`, what
+//! `testcontainers-modules` pins) accepts any credentials — IAM
+//! enforcement (`FORCE_AUTHENTICATION` / IAM streams) is a Pro-only
+//! feature. We could spin a Pro image, but that needs a license token
+//! and pulls a different code path than the SDK against real AWS uses
+//! anyway. The credentials-error path is already exercised by
+//! `aws-sdk-s3` upstream against real AWS; faking it here would mostly
+//! exercise localstack quirks rather than this crate's `S3StateStore`
+//! glue. We instead cover the more interesting "the SDK actually
+//! returned an error and we propagated it" path via
+//! `s3_missing_bucket_surfaces_error` (`NoSuchBucket` from a real server)
+//! and `s3_unreachable_endpoint_surfaces_error` (network error with no
+//! server at all).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -49,6 +67,31 @@ mod localstack_tests {
         inner: AwsS3,
     }
 
+    /// Render an SDK error into a string that exposes the bits a caller
+    /// actually wants to assert on: the operation name, the service-level
+    /// error code (e.g. `NoSuchBucket`), and the SDK's default `Display`.
+    /// The SDK's bare `Display` on `SdkError` collapses service errors to
+    /// `"service error"` with no code — we widen that here so failure
+    /// modes are diagnosable both in tests and in prod logs.
+    fn format_sdk_error<E, R>(
+        op: &str,
+        err: &aws_sdk_s3::error::SdkError<E, R>,
+    ) -> String
+    where
+        E: aws_sdk_s3::error::ProvideErrorMetadata + std::fmt::Debug,
+    {
+        let code = err
+            .as_service_error()
+            .and_then(aws_sdk_s3::error::ProvideErrorMetadata::code)
+            .unwrap_or("");
+        let code_part = if code.is_empty() {
+            String::new()
+        } else {
+            format!(" code={code}")
+        };
+        format!("{op} failed:{code_part} {err}")
+    }
+
     #[async_trait]
     impl S3Client for LocalstackS3Client {
         async fn put_object(
@@ -65,7 +108,7 @@ mod localstack_tests {
                 .send()
                 .await
                 .map(|_| ())
-                .map_err(|e| format!("put_object failed: {e}"))
+                .map_err(|e| format_sdk_error("put_object", &e))
         }
 
         async fn get_object(
@@ -340,6 +383,122 @@ mod localstack_tests {
         })
         .await
         .expect("test exceeded 30s timeout");
+    }
+
+    /// Error path: writing to a bucket that does not exist must surface as
+    /// `Err(..)` and not silently swallow the failure.
+    ///
+    /// Verifies S3StateStore propagates the underlying SDK error. Localstack
+    /// returns `NoSuchBucket` for an absent bucket; the AWS SDK formats this
+    /// as a `DispatchFailure`/`ServiceError` whose `Display` impl includes the
+    /// service error code. The `LocalstackS3Client` adapter renders that as
+    /// `"put_object failed: <SDK error>"` (see the adapter at the top of this
+    /// file). We assert on the substrings any S3 client should expose for a
+    /// 404 NoSuchBucket so the test is robust to small SDK-formatting drifts
+    /// across versions.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn s3_missing_bucket_surfaces_error() {
+        tokio::time::timeout(Duration::from_secs(60), async {
+            let h = start_harness().await;
+            // Build a store pointing at a bucket name that was never
+            // created. Unique UUID guarantees no collision with the harness
+            // bucket or anything else.
+            let absent_bucket = format!("does-not-exist-{}", Uuid::new_v4());
+            let store = S3StateStore::new(
+                LocalstackS3Client {
+                    inner: h.aws.clone(),
+                },
+                absent_bucket,
+                "ckp/".into(),
+            );
+            let snap = make_snap(1);
+            let res = store.save(b"k1", &snap).await;
+            let err = match res {
+                Ok(()) => panic!("save into nonexistent bucket must fail"),
+                Err(e) => e,
+            };
+            // The adapter wraps the SDK error; the SDK's `Display`
+            // includes the service error code (`NoSuchBucket`) and/or
+                // the HTTP status (`404`). Accept any of the canonical
+                // surface strings.
+            let lower = err.to_lowercase();
+            assert!(
+                err.contains("NoSuchBucket")
+                    || lower.contains("bucket")
+                    || err.contains("404"),
+                "expected error to mention bucket/NoSuchBucket/404, got: {err}",
+            );
+        })
+        .await
+        .expect("test exceeded 60s timeout");
+    }
+
+    /// Error path: pointing the SDK at a port with nothing listening must
+    /// surface as `Err(..)` within the configured timeout, not hang or panic.
+    ///
+    /// This exercises the "transport-level failure" branch — there is no
+    /// HTTP response at all, so the SDK returns a dispatch error. The exact
+    /// message varies by smithy/hyper version (`"dispatch failure"`,
+    /// `"connection refused"`, `"error trying to connect"`, etc.), so we
+    /// only assert that *some* error came back and the call did not hang.
+    /// The whole future is wrapped in a 60s timeout to make a hang loud.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn s3_unreachable_endpoint_surfaces_error() {
+        tokio::time::timeout(Duration::from_secs(60), async {
+            // Build an AWS client pointed at a port nothing is bound to.
+            // Port 1 is privileged and never listened on by user code.
+            let creds = Credentials::new(
+                "AKIAIOSFODNN7EXAMPLE",
+                "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                None,
+                None,
+                "unreachable",
+            );
+            // Force a short connect/operation timeout so the test fails fast
+            // instead of relying on the outer tokio::time::timeout. The
+            // default SDK timeouts are minutes-long.
+            let timeout_cfg = aws_config::timeout::TimeoutConfig::builder()
+                .connect_timeout(Duration::from_secs(2))
+                .operation_attempt_timeout(Duration::from_secs(5))
+                .operation_timeout(Duration::from_secs(10))
+                .build();
+            let shared = aws_config::defaults(BehaviorVersion::latest())
+                .region(Region::new("us-east-1"))
+                .endpoint_url("http://127.0.0.1:1")
+                .credentials_provider(creds)
+                .timeout_config(timeout_cfg)
+                // No retries — we want the first failure to surface, not
+                // get masked by the default exponential-backoff schedule.
+                .retry_config(aws_config::retry::RetryConfig::disabled())
+                .load()
+                .await;
+            let s3_conf = aws_sdk_s3::config::Builder::from(&shared)
+                .force_path_style(true)
+                .build();
+            let aws = AwsS3::from_conf(s3_conf);
+
+            let bucket = format!("test-{}", Uuid::new_v4());
+            let store = S3StateStore::new(
+                LocalstackS3Client { inner: aws },
+                bucket,
+                "ckp/".into(),
+            );
+            let snap = make_snap(1);
+            let res = store.save(b"k1", &snap).await;
+            // We don't pin the SDK's exact wording — just that it errored
+            // out, was wrapped by our adapter ("put_object failed: ..."),
+            // and didn't hang.
+            let err = match res {
+                Ok(()) => panic!("save against unreachable endpoint must fail"),
+                Err(e) => e,
+            };
+            assert!(
+                err.starts_with("put_object failed:"),
+                "error must come from the adapter's put_object wrapper, got: {err}",
+            );
+        })
+        .await
+        .expect("test exceeded 60s timeout — call hung instead of erroring");
     }
 
     #[tokio::test(flavor = "multi_thread")]

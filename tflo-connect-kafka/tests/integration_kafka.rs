@@ -412,6 +412,138 @@ async fn kafka_shard_router_owned_partitions() {
     assert!(!router.owns(&revoked), "router must not own revoked partition");
 }
 
+/// Error-path contract: when the adapter is pointed at an unreachable
+/// broker (port 1 is the IANA-reserved tcpmux port — nothing legitimate
+/// listens there) and `poll()` is called, the call MUST return within the
+/// configured rdkafka timeout budget with a typed `Err` whose message
+/// contains a recognisable transport/broker/timeout token. It MUST NOT
+/// hang past the budget and it MUST NOT panic.
+///
+/// This test does *not* start a Kafka container — the point is "no broker
+/// available, surface that as an actionable error to the operator". It
+/// therefore runs anywhere, fast (no Docker required), and guards the
+/// negative path that the five happy-path tests above cannot reach.
+///
+/// Configured budgets:
+///   - `socket.connection.setup.timeout.ms=2000` — bound TCP connect.
+///   - `metadata.request.timeout.ms=3000` — bound metadata fetch.
+///   - outer `tokio::time::timeout` of 10s — hard ceiling proving the
+///     adapter doesn't hang past its declared budget.
+///
+/// Expected error message format from the adapter:
+///   `consumer recv failed: <rdkafka KafkaError text>`
+/// where the rdkafka text reliably contains one of:
+///   "broker", "transport", "connect", or "timeout"
+/// depending on whether ECONNREFUSED arrives before the metadata timeout.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn kafka_unreachable_broker_surfaces_typed_error() {
+    // 127.0.0.1:1 — IANA-reserved tcpmux port; on Linux this usually
+    // returns ECONNREFUSED immediately, but rdkafka may also surface the
+    // metadata request timeout first. Either path satisfies the contract.
+    let bootstrap = "127.0.0.1:1";
+
+    // Build a StreamConsumer with aggressively low connect/metadata
+    // timeouts so we don't sit on rdkafka's defaults (which are minutes).
+    let stream: StreamConsumer = ClientConfig::new()
+        .set("bootstrap.servers", bootstrap)
+        .set("group.id", "kafka-unreachable-test")
+        .set("enable.auto.commit", "false")
+        .set("auto.offset.reset", "earliest")
+        .set("socket.connection.setup.timeout.ms", "2000")
+        .set("metadata.request.timeout.ms", "3000")
+        // session.timeout.ms must be >= group.min.session.timeout.ms (6s
+        // default) for create() to be willing to issue a JoinGroup later;
+        // we never get that far, but keep it valid.
+        .set("session.timeout.ms", "6000")
+        .create()
+        .expect("StreamConsumer create (config-only, no network)");
+    let (_tx, rx) = unbounded_channel::<RebalanceEvent>();
+    let cons = RdKafkaConsumer::new(stream, rx);
+
+    // Subscribe before polling — librdkafka resolves the broker
+    // asynchronously, and `poll()` -> `recv().await` is what observes the
+    // failure. Subscribe itself only updates internal state and should
+    // not fail synchronously.
+    cons.subscribe(&["unreachable-topic".to_string()])
+        .await
+        .expect("subscribe is a local state update; should not require broker");
+
+    // Hard ceiling: the adapter must surface an error within 10s. If
+    // tokio's timeout fires, the adapter hung past its declared budget —
+    // that is itself a failure of this contract.
+    let outcome = tokio::time::timeout(Duration::from_secs(10), cons.poll()).await;
+
+    let result = outcome.expect("adapter must surface broker-unreachable within 10s budget, not hang");
+
+    // Must be the error path — getting `Ok(Some(_))` against 127.0.0.1:1
+    // would mean something is listening there and the test environment
+    // is broken; getting `Ok(None)` would mean the adapter swallowed the
+    // error, equally bad.
+    let err = result.expect_err("poll against unreachable broker must return Err, not Ok");
+
+    // Adapter wraps rdkafka's KafkaError as:
+    //   "consumer recv failed: {e}"
+    // The {e} text from rdkafka for an unreachable bootstrap is one of:
+    //   - "Message consumption error: BrokerTransportFailure (..)"
+    //   - "Message consumption error: ... timed out"
+    //   - "... Connection refused ..."
+    // Any of {broker, transport, connect, timeout} (case-insensitive)
+    // proves the adapter forwarded an actionable signal.
+    assert!(
+        err.starts_with("consumer recv failed:"),
+        "adapter error must use the documented prefix; got: {err}"
+    );
+    let lower = err.to_lowercase();
+    assert!(
+        lower.contains("broker")
+            || lower.contains("transport")
+            || lower.contains("connect")
+            || lower.contains("timeout")
+            || lower.contains("timed out"),
+        "error must surface a recognisable transport/broker token; got: {err}"
+    );
+
+    // ── Producer side: same contract. Build a FutureProducer pointing at
+    // the same dead address with a tight `message.timeout.ms`, call
+    // `send()` under a 10s outer ceiling, assert typed Err with the
+    // documented "send failed:" prefix.
+    let dead_producer = RdKafkaProducer::new(
+        ClientConfig::new()
+            .set("bootstrap.servers", bootstrap)
+            .set("socket.connection.setup.timeout.ms", "2000")
+            .set("metadata.request.timeout.ms", "3000")
+            // message.timeout.ms is the queue + delivery deadline; this
+            // is what FutureProducer::send().await observes.
+            .set("message.timeout.ms", "3000")
+            .create()
+            .expect("FutureProducer create (config-only, no network)"),
+    );
+
+    let prod_outcome = tokio::time::timeout(
+        Duration::from_secs(10),
+        dead_producer.send("unreachable-topic", None, b"never-arrives", None),
+    )
+    .await;
+    let prod_result =
+        prod_outcome.expect("producer must surface broker-unreachable within 10s budget, not hang");
+    let prod_err =
+        prod_result.expect_err("producer send against unreachable broker must return Err, not Ok");
+    assert!(
+        prod_err.starts_with("send failed:"),
+        "producer error must use the documented prefix; got: {prod_err}"
+    );
+    let prod_lower = prod_err.to_lowercase();
+    assert!(
+        prod_lower.contains("broker")
+            || prod_lower.contains("transport")
+            || prod_lower.contains("connect")
+            || prod_lower.contains("timeout")
+            || prod_lower.contains("timed out")
+            || prod_lower.contains("queue"), // rdkafka may report "Local: Message timed out" or queue-full variants
+        "producer error must surface a recognisable transport/broker token; got: {prod_err}"
+    );
+}
+
 /// Type-enforced rule restated against a real broker: the offset committed
 /// by `RdKafkaConsumer::commit_offset` for a message with offset `n` is
 /// exactly `n + 1` on the broker side.

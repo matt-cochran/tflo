@@ -116,15 +116,23 @@ struct ReqwestInfluxClient {
 
 impl ReqwestInfluxClient {
     fn new(base_url: &str) -> Self {
+        Self::with_overrides(base_url, INFLUX_TOKEN, INFLUX_BUCKET)
+    }
+
+    /// Build a client targeted at the same `org` as the default, but
+    /// with an override-able token + bucket. Used by error-path tests
+    /// that need to provoke an authentication failure or hit a bucket
+    /// that does not exist.
+    fn with_overrides(base_url: &str, token: &str, bucket: &str) -> Self {
         Self {
             client: reqwest::Client::builder()
                 .timeout(Duration::from_secs(10))
                 .build()
                 .expect("reqwest client"),
             write_url: format!(
-                "{base_url}/api/v2/write?org={INFLUX_ORG}&bucket={INFLUX_BUCKET}&precision=ns"
+                "{base_url}/api/v2/write?org={INFLUX_ORG}&bucket={bucket}&precision=ns"
             ),
-            token: INFLUX_TOKEN.to_string(),
+            token: token.to_string(),
         }
     }
 }
@@ -395,4 +403,107 @@ async fn influx_drop_warning_path() {
     })
     .await
     .expect("drop_warning test timed out");
+}
+
+// ── Error-path tests ───────────────────────────────────────────────────
+//
+// The happy-path tests above prove the wire-format is spec-correct.
+// These two tests cover the *other* half of the contract: when InfluxDB
+// rejects a write, the failure must surface to the caller as a typed
+// `Err(_)` from `Batcher::flush`, with enough payload (status code and
+// server body) for an operator to diagnose what went wrong. A silent
+// failure here would be a correctness bug — buffered records would be
+// "delivered" from the batcher's accounting standpoint but in fact
+// dropped on the floor.
+
+/// Override the default token with a value the server cannot match. The
+/// `/api/v2/write` endpoint must respond with `401 Unauthorized`, and
+/// that status must propagate through `ReqwestInfluxClient::write` and
+/// out of `Batcher::flush` as an `Err` whose message carries the 401.
+#[tokio::test(flavor = "multi_thread")]
+async fn influx_bad_token_surfaces_401() {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let (_c, base) = start_influx().await;
+        // Same container, same bucket — only the token is wrong.
+        let client = Arc::new(ReqwestInfluxClient::with_overrides(
+            &base,
+            "bogus-token",
+            INFLUX_BUCKET,
+        ));
+        let batcher = Batcher::new(client, 1024 * 1024, 4 * 1024 * 1024);
+
+        let line = LineProtocol::new("auth_probe")
+            .tag("host", "server01")
+            .field("v", FieldValue::Integer(1))
+            .format()
+            .expect("format");
+        batcher.push(&line).await.expect("push");
+
+        let err = batcher
+            .flush()
+            .await
+            .expect_err("flush must fail when the token is invalid");
+        // `ReqwestInfluxClient::write` formats failures as
+        //   "influx write {status}: {body}"
+        // where {status} is reqwest's `StatusCode` Display (e.g.
+        // "401 Unauthorized") and {body} is the raw server JSON. We
+        // assert on the 401 code itself (stable) and on a substring of
+        // InfluxDB 2.x's documented unauthorized response body which
+        // contains the word "unauthorized".
+        assert!(
+            err.contains("401"),
+            "expected error to carry HTTP 401 status; got: {err}"
+        );
+        assert!(
+            err.to_lowercase().contains("unauthorized"),
+            "expected error to mention 'unauthorized'; got: {err}"
+        );
+    })
+    .await
+    .expect("bad_token test timed out");
+}
+
+/// Correct token, but write to a bucket that was never provisioned.
+/// `/api/v2/write` returns 404 for an unknown bucket on InfluxDB 2.7;
+/// the error must surface with enough information for an operator to
+/// see *which* bucket was missing.
+#[tokio::test(flavor = "multi_thread")]
+async fn influx_missing_bucket_surfaces_error() {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        let (_c, base) = start_influx().await;
+        let missing = "does-not-exist";
+        let client = Arc::new(ReqwestInfluxClient::with_overrides(
+            &base,
+            INFLUX_TOKEN,
+            missing,
+        ));
+        let batcher = Batcher::new(client, 1024 * 1024, 4 * 1024 * 1024);
+
+        let line = LineProtocol::new("bucket_probe")
+            .tag("host", "server01")
+            .field("v", FieldValue::Integer(1))
+            .format()
+            .expect("format");
+        batcher.push(&line).await.expect("push");
+
+        let err = batcher
+            .flush()
+            .await
+            .expect_err("flush must fail when the bucket does not exist");
+        // InfluxDB 2.7 returns 404 for an unknown bucket on the write
+        // endpoint; the body includes the bucket name in a "bucket
+        // <name> not found"-style message. We assert on the 404 (stable
+        // status code) and on the bucket name appearing somewhere in
+        // the propagated body so an operator can see what was missing.
+        assert!(
+            err.contains("404"),
+            "expected error to carry HTTP 404 status; got: {err}"
+        );
+        assert!(
+            err.contains(missing),
+            "expected error to mention the missing bucket name '{missing}'; got: {err}"
+        );
+    })
+    .await
+    .expect("missing_bucket test timed out");
 }
