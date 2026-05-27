@@ -80,9 +80,12 @@ pub(crate) const fn cross_mode_str(mode: ThresholdCrossEventMode) -> &'static st
     }
 }
 
-/// Shared JSON error response.
+/// Shared JSON error response. Uses `serde_json::json!` so double quotes
+/// and backslashes in the underlying error message get escaped properly
+/// — naive string interpolation produced malformed JSON when serde
+/// errors contained literals like `invalid type: string "not-a-number"`.
 fn json_err(context: &str, e: impl std::fmt::Display) -> String {
-    format!("{{\"error\": \"{context}: {e}\"}}")
+    serde_json::json!({ "error": format!("{context}: {e}") }).to_string()
 }
 
 // ── Initialize ────────────────────────────────────────────────────────

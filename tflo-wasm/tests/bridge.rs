@@ -175,15 +175,7 @@ fn wasm_error_path_returns_typed_error() {
         "error should tag which stage failed: got `{msg}`"
     );
 
-    // Malformed config — missing the `period` field entirely. Choose this
-    // shape (rather than a wrong-typed value) because the bridge's current
-    // `json_err` does naive string interpolation of the underlying serde
-    // message; a wrong-typed value yields a serde message containing
-    // double-quoted literals which the envelope does not re-escape. The
-    // missing-field message uses single quotes around the field name, so
-    // it round-trips cleanly through the envelope. This test deliberately
-    // exercises the working path; the escaping fragility is a known bridge
-    // limitation worth tracking separately.
+    // Malformed config — missing the `period` field entirely.
     let out = compute_sma("[]", "{\"per\":3}");
     let v: serde_json::Value = serde_json::from_str(&out)
         .expect("envelope from missing-field error must be valid JSON");
@@ -192,11 +184,26 @@ fn wasm_error_path_returns_typed_error() {
         msg.contains("invalid config"),
         "config errors should be tagged: got `{msg}`"
     );
-    // Underlying serde message should mention the offending field — that's
-    // the bit an operator needs to debug.
     assert!(
         msg.contains("period"),
         "config error should mention the missing field name: got `{msg}`"
+    );
+
+    // Regression: serde error containing double-quoted literals (e.g.
+    // `invalid type: string "not-a-number"`) must still produce a
+    // well-formed JSON envelope. Earlier `json_err` interpolated naively
+    // and the inner quotes broke the outer JSON; locked down here.
+    let out = compute_sma("[]", "{\"period\":\"not-a-number\"}");
+    let v: serde_json::Value = serde_json::from_str(&out)
+        .expect("envelope must remain valid JSON even when serde error contains literal quotes");
+    let msg = v.get("error").and_then(|e| e.as_str()).unwrap();
+    assert!(
+        msg.contains("invalid config"),
+        "wrong-type config error should still be tagged: got `{msg}`"
+    );
+    assert!(
+        msg.contains("not-a-number"),
+        "wrong-type config error should preserve the offending literal: got `{msg}`"
     );
 }
 
