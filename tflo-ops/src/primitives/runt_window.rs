@@ -255,7 +255,7 @@ impl RuntDetector {
         }
     }
 
-    fn reset_pulse(&mut self) {
+    const fn reset_pulse(&mut self) {
         self.reached_high = false;
         self.peak_value = f64::NEG_INFINITY;
     }
@@ -277,7 +277,7 @@ impl RuntDetector {
     }
 
     /// Reset the detector state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = RuntState::BelowLow;
         self.reset_pulse();
     }
@@ -380,7 +380,7 @@ impl WindowDetector {
     }
 
     /// Reset the detector state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = WindowState::Unknown;
     }
 }

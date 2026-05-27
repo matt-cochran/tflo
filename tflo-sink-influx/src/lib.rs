@@ -270,8 +270,8 @@ pub const MAX_BUFFER_BYTES: usize = 16 * 1024 * 1024;
 
 /// Bounded line-protocol accumulator with a pluggable flush target.
 ///
-/// **Drop semantics**: callers MUST call [`flush`](Self::flush)`.await`
-/// before drop for at-least-once delivery guarantees. The [`Drop`] impl
+/// **Drop semantics**: callers MUST call [`flush`](Self::flush) and
+/// `.await` it before drop for at-least-once delivery guarantees. The [`Drop`] impl
 /// is best-effort only — it cannot await an HTTP write, so any
 /// in-flight buffer is accounted to [`dropped_total`](Self::dropped_total)
 /// and logged via `eprintln!`, then discarded.

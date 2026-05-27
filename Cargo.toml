@@ -20,7 +20,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 authors = ["Matt Cochran"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/matt-cochran/tflo"
@@ -151,7 +151,7 @@ suspicious_operation_groupings = "allow"
 semicolon_if_nothing_returned = "allow"
 too_long_first_doc_paragraph = "allow"
 derive_partial_eq_without_eq = "allow"
-match_on_vec_items = "allow"           # vec[i] inside match — intentional in some primitives
+# `match_on_vec_items` was removed in Rust 1.88 (`clippy::indexing_slicing` now covers it).
 many_single_char_names = "allow"       # math code uses single-char vars
 needless_pass_by_value = "allow"
 ignored_unit_patterns = "allow"

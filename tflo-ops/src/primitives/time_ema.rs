@@ -107,7 +107,7 @@ impl TimeEma {
     }
 
     /// Reset the EMA to its initial state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.last_ts = None;
         self.value = 0.0;
         self.initialized = false;
@@ -203,7 +203,7 @@ impl CountEma {
     }
 
     /// Reset the EMA to its initial state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.count = 0;
         self.seed_sum = 0.0;
         self.value = 0.0;

@@ -163,7 +163,7 @@ impl WelfordAccumulator {
     }
 
     /// Reset the accumulator.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.count = 0;
         self.mean = 0.0;
         self.m2 = 0.0;

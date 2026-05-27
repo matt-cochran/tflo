@@ -279,14 +279,13 @@ where
 
             match evaluate(&self.engine, &item, &self.query, self.budget_ms) {
                 EvalOutcome::Allow => return Some(item),
-                EvalOutcome::Deny => continue,
+                EvalOutcome::Deny => {}
                 EvalOutcome::EvalError(e) => {
                     log_throttled(
                         &self.eval_errors_total,
                         &format!("eval error on query '{}': {e}", self.query),
                     );
                     // Default-deny: drop the item.
-                    continue;
                 }
                 EvalOutcome::TimedOut {
                     budget_ms,
@@ -300,7 +299,6 @@ where
                         ),
                     );
                     // Default-deny: drop the item.
-                    continue;
                 }
             }
         }
@@ -366,7 +364,7 @@ where
 
             match evaluate(&self.engine, &item, &self.query, self.budget_ms) {
                 EvalOutcome::Allow => return Some(Ok(item)),
-                EvalOutcome::Deny => continue,
+                EvalOutcome::Deny => {}
                 EvalOutcome::EvalError(e) => return Some(Err(e)),
                 EvalOutcome::TimedOut {
                     budget_ms,

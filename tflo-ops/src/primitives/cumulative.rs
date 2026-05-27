@@ -43,7 +43,7 @@ impl CumulativeSum {
     }
 
     /// Reset the cumulative sum to zero.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.sum = 0.0;
     }
 }
@@ -94,7 +94,7 @@ impl CumulativeProduct {
     }
 
     /// Reset the cumulative product to 1.0.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.product = 1.0;
     }
 }
@@ -151,7 +151,7 @@ impl CumulativeMax {
     }
 
     /// Reset to initial state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.max = f64::NEG_INFINITY;
     }
 }
@@ -205,7 +205,7 @@ impl CumulativeMin {
     }
 
     /// Reset to initial state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.min = f64::INFINITY;
     }
 }
@@ -265,7 +265,7 @@ impl CumulativeMean {
     }
 
     /// Reset to initial state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.count = 0;
         self.mean = 0.0;
     }

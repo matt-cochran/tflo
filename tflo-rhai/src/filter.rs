@@ -185,8 +185,8 @@ where
                 .eval_ast_with_scope::<bool>(&mut scope, &self.ast)
             {
                 Ok(true) => return Some(item),
-                Ok(false) => continue,
-                Err(_) => continue, // Evaluation error treated as false
+                Ok(false) => {}
+                Err(_) => {} // Evaluation error treated as false
             }
         }
     }
@@ -280,7 +280,7 @@ where
                 .eval_ast_with_scope::<bool>(&mut scope, &self.ast)
             {
                 Ok(true) => return Some(Ok(item)),
-                Ok(false) => continue,
+                Ok(false) => {}
                 Err(e) => {
                     return Some(Err(RhaiError::EvaluationError {
                         script: self.expression.clone(),

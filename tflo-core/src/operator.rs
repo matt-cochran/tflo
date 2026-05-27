@@ -16,7 +16,8 @@ use crate::compile::{Absent, Computed, NodeOutput};
 
 /// Read input `idx` from an [`Operator::eval`] input slice.
 ///
-/// An out-of-range index is reported as `Err(`[`Absent::WarmingUp`]`)`.
+/// An out-of-range index is reported as `Err(Absent::WarmingUp)` (see
+/// [`Absent::WarmingUp`]).
 ///
 /// # Errors
 ///

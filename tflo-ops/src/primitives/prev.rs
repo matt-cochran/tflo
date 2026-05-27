@@ -32,7 +32,7 @@ impl PrevTracker {
     ///
     /// Returns `None` on the first call, then returns the previous value
     /// on subsequent calls.
-    pub fn update(&mut self, value: f64) -> Option<f64> {
+    pub const fn update(&mut self, value: f64) -> Option<f64> {
         let prev = self.prev;
         self.prev = Some(value);
         prev
@@ -58,7 +58,7 @@ impl PrevTracker {
     }
 
     /// Reset the tracker.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.prev = None;
     }
 }
@@ -80,7 +80,7 @@ impl TimestampedPrevTracker {
     }
 
     /// Update with a new timestamped value and return the previous.
-    pub fn update(&mut self, ts: i64, value: f64) -> Option<(i64, f64)> {
+    pub const fn update(&mut self, ts: i64, value: f64) -> Option<(i64, f64)> {
         let prev = self.prev;
         self.prev = Some((ts, value));
         prev
@@ -121,7 +121,7 @@ impl TimestampedPrevTracker {
     }
 
     /// Reset the tracker.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.prev = None;
     }
 }

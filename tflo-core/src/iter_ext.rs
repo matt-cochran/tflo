@@ -375,7 +375,7 @@ where
             let record = self.iter.next()?;
             match self.graph.step_with_status(&record) {
                 crate::compile::StepResult::Ready(item) => return Some(Ok(item)),
-                crate::compile::StepResult::WarmingUp { .. } => continue,
+                crate::compile::StepResult::WarmingUp { .. } => {}
                 crate::compile::StepResult::Error(e) => return Some(Err(TFloError::Compute(e))),
             }
         }

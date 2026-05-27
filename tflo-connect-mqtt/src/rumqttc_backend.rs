@@ -77,7 +77,7 @@ impl MqttConsumer for RumqttcConsumer {
                     }));
                 }
                 Ok(Event::Incoming(Incoming::Disconnect)) => return Ok(None),
-                Ok(_) => continue,
+                Ok(_) => {}
                 Err(e) => return Err(format!("event loop error: {e}")),
             }
         }

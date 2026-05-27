@@ -205,7 +205,7 @@ impl GlitchFilter {
     }
 
     /// Reset the filter state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = GlitchState::Low;
         self.pulse_start_ts = None;
     }
@@ -296,7 +296,7 @@ impl PulseWidthDetector {
     }
 
     /// Reset the detector state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = PulseWidthState::Low;
         self.pulse_start_ts = None;
     }

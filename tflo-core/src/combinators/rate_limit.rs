@@ -93,7 +93,6 @@ where
                 }
                 Some(_) => {
                     // Rate limited - drop this item
-                    continue;
                 }
             }
         }

@@ -149,7 +149,7 @@ impl CrossDetector {
     }
 
     /// Reset the detector state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.prev_value = None;
         self.prev_threshold = None;
     }
@@ -246,7 +246,7 @@ impl HysteresisCrossDetector {
     }
 
     /// Reset the detector state.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.state = HysteresisState::Unknown;
     }
 }

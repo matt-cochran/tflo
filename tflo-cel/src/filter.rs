@@ -193,9 +193,9 @@ where
 
             match self.program.execute(&ctx) {
                 Ok(cel_interpreter::Value::Bool(true)) => return Some(item),
-                Ok(cel_interpreter::Value::Bool(false)) => continue,
-                Ok(_) => continue,  // Non-boolean result treated as false
-                Err(_) => continue, // Evaluation error treated as false
+                Ok(cel_interpreter::Value::Bool(false)) => {}
+                Ok(_) => {}  // Non-boolean result treated as false
+                Err(_) => {} // Evaluation error treated as false
             }
         }
     }
@@ -321,7 +321,7 @@ where
 
             match result {
                 Ok(cel_interpreter::Value::Bool(true)) => return Some(Ok(item)),
-                Ok(cel_interpreter::Value::Bool(false)) => continue,
+                Ok(cel_interpreter::Value::Bool(false)) => {}
                 Ok(v) => {
                     self.eval_errors.fetch_add(1, Ordering::Relaxed);
                     return Some(Err(CelError::TypeError {

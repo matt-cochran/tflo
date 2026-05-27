@@ -90,7 +90,7 @@ pub mod parquet_io {
             .first()
             .ok_or_else(|| "write_batches: empty input".to_string())?;
         let file =
-            File::create(path).map_err(|e| format!("create {path:?} failed: {e}"))?;
+            File::create(path).map_err(|e| format!("create {} failed: {e}", path.display()))?;
         let props = WriterProperties::builder().build();
         let mut writer = ArrowWriter::try_new(file, first.schema(), Some(props))
             .map_err(|e| format!("ArrowWriter::try_new failed: {e}"))?;
@@ -112,7 +112,7 @@ pub mod parquet_io {
     /// Returns an error string on I/O or schema failure.
     pub fn read_batches(path: &Path) -> Result<Vec<RecordBatch>, String> {
         use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-        let file = File::open(path).map_err(|e| format!("open {path:?} failed: {e}"))?;
+        let file = File::open(path).map_err(|e| format!("open {} failed: {e}", path.display()))?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)
             .map_err(|e| format!("reader builder failed: {e}"))?;
         let reader = builder

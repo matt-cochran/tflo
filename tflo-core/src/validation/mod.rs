@@ -181,7 +181,7 @@ impl TimestampValidator {
     }
 
     /// Reset the validator.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.last_ts = None;
         self.violations = 0;
     }
@@ -207,7 +207,7 @@ impl WarmupTracker {
     }
 
     /// Record that a new record has been processed.
-    pub fn record(&mut self) {
+    pub const fn record(&mut self) {
         self.records_seen += 1;
     }
 
@@ -263,7 +263,7 @@ impl ValueValidator {
     }
 
     /// Check a value and return whether it's valid.
-    pub fn check(&mut self, value: f64) -> bool {
+    pub const fn check(&mut self, value: f64) -> bool {
         if value.is_nan() {
             self.nan_count += 1;
             if self.options.reject_nan {
@@ -333,7 +333,7 @@ impl ValueValidator {
     }
 
     /// Reset the validator.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.nan_count = 0;
         self.inf_count = 0;
     }

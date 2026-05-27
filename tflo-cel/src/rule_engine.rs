@@ -166,7 +166,7 @@ impl RuleEngine {
 
     /// Get the number of rules.
     #[must_use]
-    pub fn rule_count(&self) -> usize {
+    pub const fn rule_count(&self) -> usize {
         self.rules.len()
     }
 

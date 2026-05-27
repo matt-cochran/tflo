@@ -9,7 +9,7 @@ use crate::pipeline::PipelineContext;
 impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     /// Get the total number of nodes in the graph.
     #[must_use]
-    pub fn node_count(&self) -> usize {
+    pub const fn node_count(&self) -> usize {
         self.nodes.len() + self.composition_nodes.len()
     }
 
@@ -36,7 +36,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     /// Returns a summary of the graph's runtime state including warmup status,
     /// node counts, and other metrics useful for monitoring and debugging.
     #[must_use]
-    pub fn state_summary(&self) -> GraphStateSummary {
+    pub const fn state_summary(&self) -> GraphStateSummary {
         GraphStateSummary {
             records_seen: self.records_seen,
             min_warmup: self.min_warmup,
@@ -72,7 +72,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     }
 
     /// Set the minimum warmup period.
-    pub fn set_min_warmup(&mut self, min: usize) {
+    pub const fn set_min_warmup(&mut self, min: usize) {
         self.min_warmup = min;
     }
 
