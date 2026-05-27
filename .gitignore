@@ -25,6 +25,10 @@
 Thumbs.db
 *.Zone.Identifier
 
+# ── Python (fixture generators in tflo-fintech/tests/golden/scripts/) ─
+__pycache__/
+*.pyc
+
 # ── Misc ───────────────────────────────────────────────────────────────
 *.log
 *.bak

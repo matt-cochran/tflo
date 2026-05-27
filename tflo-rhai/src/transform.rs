@@ -234,8 +234,46 @@ where
     T: IntoRhaiScope + Clone,
 {
     /// Transform items and keep both original and result.
+    ///
+    /// PANICS on compile error and silently coerces evaluation errors to
+    /// `Dynamic::UNIT`. Use [`rhai_enrich_result`](Self::rhai_enrich_result)
+    /// — the `Result`-returning variant — to surface failures.
+    #[deprecated(
+        since = "0.2.0",
+        note = "use rhai_enrich_result(...) — Result-returning variant — to surface compile and evaluation errors instead of panicking / silently substituting Dynamic::UNIT; the panicking constructor is also DoS-able because it builds a Rhai engine with no resource caps"
+    )]
+    #[allow(deprecated)]
     fn rhai_enrich(self, expr: &str) -> RhaiEnrich<Self, T> {
         RhaiEnrich::new(self, expr)
+    }
+
+    /// Transform items and keep both original and result, propagating
+    /// evaluation errors as `Result`.
+    ///
+    /// Engine is built from [`RhaiOptions::default`] which applies
+    /// conservative resource caps (`max_operations`, `max_call_levels`)
+    /// so adversarial scripts cannot `DoS` the host.
+    ///
+    /// # Errors
+    ///
+    /// Returns
+    /// [`RhaiError::CompileError`](crate::error::RhaiError::CompileError)
+    /// when `expr` fails to compile as a Rhai expression.
+    fn rhai_enrich_result(self, expr: &str) -> RhaiResult<RhaiEnrichResult<Self, T>> {
+        RhaiEnrichResult::new(self, expr)
+    }
+
+    /// Transform items with custom Rhai resource budgets.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RhaiError::CompileError`] when `expr` fails to compile.
+    fn rhai_enrich_result_with_options(
+        self,
+        expr: &str,
+        options: RhaiOptions,
+    ) -> RhaiResult<RhaiEnrichResult<Self, T>> {
+        RhaiEnrichResult::with_options(self, expr, options)
     }
 }
 
@@ -307,12 +345,87 @@ where
     }
 }
 
+/// Iterator adapter that enriches items with computed values, surfacing
+/// compile and evaluation errors as `Result` instead of panicking /
+/// silently substituting [`Dynamic::UNIT`].
+pub struct RhaiEnrichResult<I, T>
+where
+    I: Iterator<Item = T>,
+    T: IntoRhaiScope + Clone,
+{
+    iter: I,
+    engine: Arc<Engine>,
+    ast: AST,
+    expression: String,
+}
+
+impl<I, T> std::fmt::Debug for RhaiEnrichResult<I, T>
+where
+    I: Iterator<Item = T> + std::fmt::Debug,
+    T: IntoRhaiScope + Clone,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RhaiEnrichResult")
+            .field("iter", &self.iter)
+            .field("expression", &self.expression)
+            .finish()
+    }
+}
+
+impl<I, T> RhaiEnrichResult<I, T>
+where
+    I: Iterator<Item = T>,
+    T: IntoRhaiScope + Clone,
+{
+    fn new(iter: I, expr: &str) -> RhaiResult<Self> {
+        Self::with_options(iter, expr, RhaiOptions::default())
+    }
+
+    fn with_options(iter: I, expr: &str, options: RhaiOptions) -> RhaiResult<Self> {
+        let engine = Arc::new(options.build_engine());
+        let ast = engine.compile(expr).map_err(|e| RhaiError::CompileError {
+            script: expr.to_string(),
+            message: e.to_string(),
+        })?;
+        Ok(Self {
+            iter,
+            engine,
+            ast,
+            expression: expr.to_string(),
+        })
+    }
+}
+
+impl<I, T> Iterator for RhaiEnrichResult<I, T>
+where
+    I: Iterator<Item = T>,
+    T: IntoRhaiScope + Clone,
+{
+    type Item = RhaiResult<(T, Dynamic)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.iter.next()?;
+        let mut scope = item.into_rhai_scope();
+
+        match self
+            .engine
+            .eval_ast_with_scope::<Dynamic>(&mut scope, &self.ast)
+        {
+            Ok(result) => Some(Ok((item, result))),
+            Err(e) => Some(Err(RhaiError::EvaluationError {
+                script: self.expression.clone(),
+                message: e.to_string(),
+            })),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rhai::Scope;
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     struct TestItem {
         x: i64,
         y: i64,
@@ -340,6 +453,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_rhai_enrich() {
         let items = vec![TestItem { x: 1, y: 2 }, TestItem { x: 3, y: 4 }];
 
@@ -363,5 +477,30 @@ mod tests {
             Some(Err(RhaiError::EvaluationError { .. })) => {}
             other => panic!("expected Some(Err(EvaluationError)), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn rhai_enrich_result_propagates_eval_error() {
+        let items = vec![TestItem { x: 1, y: 2 }];
+        let mut it = items
+            .into_iter()
+            .rhai_enrich_result("throw \"boom\"")
+            .expect("compile ok");
+        match it.next() {
+            Some(Err(RhaiError::EvaluationError { .. })) => {}
+            other => panic!("expected Some(Err(EvaluationError)), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rhai_enrich_result_yields_pair_on_success() {
+        let items = vec![TestItem { x: 3, y: 4 }];
+        let mut it = items
+            .into_iter()
+            .rhai_enrich_result("x * y")
+            .expect("compile ok");
+        let (orig, result) = it.next().expect("at least one item").expect("eval ok");
+        assert_eq!(orig.x, 3);
+        assert_eq!(result.as_int().expect("int"), 12);
     }
 }
