@@ -340,7 +340,7 @@ async fn main() -> Result<(), String> {
                 partition: (ev.device_id.bytes().last().unwrap_or(0) as i32) % 3,
                 offset: edge_detected as i64,
                 key: Some(ev.device_id.as_bytes().to_vec()),
-                value: payload,
+                payload: Some(payload),
                 timestamp_ms: Some(ev.ts_ms),
             });
         }
@@ -393,7 +393,8 @@ async fn main() -> Result<(), String> {
         consumed += 1;
 
         // Write to Influx via line-protocol.
-        let event: LifecycleEvent = serde_json::from_slice(&msg.value).map_err(|e| e.to_string())?;
+        let payload = msg.payload.as_deref().ok_or_else(|| "tombstone message".to_string())?;
+        let event: LifecycleEvent = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
         let line = LineProtocol::new("lifecycle")
             .tag("device_id", &event.device_id)
             .tag("state", &event.state)
@@ -419,11 +420,11 @@ async fn main() -> Result<(), String> {
                     topology_fingerprint: Some([0xab; 32]),
                 },
             };
-            let off = KafkaOffset {
-                topic: msg.topic.clone(),
-                partition: msg.partition,
-                offset: msg.offset + 1,
-            };
+            let off = KafkaOffset::from_committable(
+                msg.topic.clone(),
+                msg.partition,
+                msg.commit_offset(),
+            );
             checkpointer
                 .commit(tp.topic.as_bytes(), &snap, &off)
                 .await

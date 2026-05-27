@@ -13,12 +13,15 @@
 //!   [`WindowDetector`].
 //!
 //! The step logic is ported verbatim from the legacy `tflo-core` catalog
-//! (`compile/eval/helpers.rs`). In particular the **absent-input semantics
-//! match the oracle exactly**: every detector arm substituted `f64::NAN` for an
-//! absent input rather than propagating the [`Absent`] reason, so these
-//! operators do the same — an absent input is fed to the detector as `NaN`,
-//! and the detector emits whatever its "no event" variant is. Results are
-//! bit-identical to the old catalog.
+//! (`compile/eval/helpers.rs`). The **absent-input semantics**, however, are
+//! tightened from the oracle: where the legacy arms substituted `f64::NAN` for
+//! an absent input — which silently advanced detector state with a poisoned
+//! sample — these operators short-circuit. An absent input emits the
+//! detector's "no event" variant (`ThresholdCrossEventMode::None`,
+//! `GlitchResult::NoTransition`, `Option::<…>::None`) without invoking
+//! `detector.update`, so the next present record sees the prior level rather
+//! than NaN-polluted state. The detector's own output values remain
+//! bit-identical to the old catalog for all-present input streams.
 //!
 //! # Layout (post `StructureOS` decomposition)
 //!

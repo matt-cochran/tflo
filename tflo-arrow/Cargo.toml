@@ -11,7 +11,7 @@ categories = ["data-structures"]
 
 [features]
 default = ["arrow-impl"]
-arrow-impl = ["dep:arrow", "dep:arrow-schema"]
+arrow-impl = ["dep:arrow", "dep:arrow-schema", "dep:blake3"]
 parquet = ["arrow-impl", "dep:parquet"]
 polars = ["arrow-impl", "dep:polars"]
 async = ["tflo-core/async"]
@@ -23,6 +23,7 @@ arrow = { version = "53", optional = true, default-features = false }
 arrow-schema = { version = "53", optional = true, default-features = false }
 parquet = { version = "53", optional = true, default-features = false, features = ["arrow"] }
 polars = { version = "0.43", optional = true, default-features = false, features = ["lazy"] }
+blake3 = { version = "1", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

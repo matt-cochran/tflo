@@ -125,7 +125,7 @@ impl LineProtocol {
         for (k, v) in &self.fields {
             out.push(if first { ' ' } else { ',' });
             first = false;
-            out.push_str(&escape_tag_key(k));
+            out.push_str(&escape_field_key(k));
             out.push('=');
             out.push_str(&format_field(v));
         }
@@ -137,13 +137,30 @@ impl LineProtocol {
     }
 }
 
+// ── Line-protocol escape helpers ───────────────────────────────────────
+//
+// `InfluxDB` line-protocol escape rules (per the InfluxData spec):
+//
+//   measurement / identifier : escape `,` ` ` `\` `\n`
+//   tag key, tag value,
+//   field key                : escape `,` `=` ` ` `\` `\n`
+//   field string value       : escape `"` and `\`  (and is wrapped in quotes)
+//
+// All helpers escape the required characters with a leading backslash; a
+// literal newline is rendered as a two-character `\n` sequence so that
+// the wire format remains a single physical line.
+
 fn escape_identifier(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            ',' | ' ' => {
+            ',' | ' ' | '\\' => {
                 out.push('\\');
                 out.push(c);
+            }
+            '\n' => {
+                out.push('\\');
+                out.push('n');
             }
             _ => out.push(c),
         }
@@ -155,9 +172,13 @@ fn escape_tag_key(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            ',' | '=' | ' ' => {
+            ',' | '=' | ' ' | '\\' => {
                 out.push('\\');
                 out.push(c);
+            }
+            '\n' => {
+                out.push('\\');
+                out.push('n');
             }
             _ => out.push(c),
         }
@@ -169,15 +190,40 @@ fn escape_tag_value(s: &str) -> String {
     escape_tag_key(s)
 }
 
+/// Field keys follow the same rules as tag keys per the line-protocol
+/// spec; kept as a distinct helper for readability and so future
+/// divergence is a one-line change.
+fn escape_field_key(s: &str) -> String {
+    escape_tag_key(s)
+}
+
+/// Escape the contents of a quoted field-string value. Per the
+/// line-protocol spec only `"` and `\` need escaping inside the quotes;
+/// the backslash must be escaped first so we do not double-escape the
+/// backslashes that escape the quotes themselves.
+fn escape_field_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' | '"' => {
+                out.push('\\');
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 fn format_field(v: &FieldValue) -> String {
     match v {
         FieldValue::Float(f) => format!("{f}"),
         FieldValue::Integer(i) => format!("{i}i"),
         FieldValue::UInteger(u) => format!("{u}u"),
         FieldValue::String(s) => {
-            // Strings are wrapped in double quotes; internal quotes are
-            // escaped with a backslash per the line-protocol spec.
-            let escaped = s.replace('"', "\\\"");
+            // Strings are wrapped in double quotes; backslashes and
+            // internal quotes are escaped per the line-protocol spec.
+            let escaped = escape_field_string(s);
             format!("\"{escaped}\"")
         }
         FieldValue::Boolean(b) => {
@@ -223,16 +269,37 @@ impl<T: InfluxHttpClient + ?Sized> InfluxHttpClient for std::sync::Arc<T> {
 pub const MAX_BUFFER_BYTES: usize = 16 * 1024 * 1024;
 
 /// Bounded line-protocol accumulator with a pluggable flush target.
+///
+/// **Drop semantics**: callers MUST call [`flush`](Self::flush)`.await`
+/// before drop for at-least-once delivery guarantees. The [`Drop`] impl
+/// is best-effort only — it cannot await an HTTP write, so any
+/// in-flight buffer is accounted to [`dropped_total`](Self::dropped_total)
+/// and logged via `eprintln!`, then discarded.
+///
+/// **Max-age flushing**: by default the batcher only flushes on the
+/// byte threshold or an explicit `flush()`. Slow streams that never
+/// hit the threshold will stall indefinitely. Construct with
+/// [`with_max_age`](Self::with_max_age) and drive
+/// [`tick`](Self::tick) from a periodic task to bound the worst-case
+/// flush latency.
 #[cfg(feature = "async")]
 pub struct Batcher<H: InfluxHttpClient> {
     client: H,
     flush_at_bytes: usize,
     max_buffer_bytes: usize,
-    buffered: tokio::sync::Mutex<String>,
-    /// Total successful flushes. Observable.
-    pub flushes_total: std::sync::atomic::AtomicU64,
-    /// Total dropped writes (push exceeded `max_buffer_bytes`).
-    pub dropped_total: std::sync::atomic::AtomicU64,
+    max_age: Option<std::time::Duration>,
+    /// Buffered line-protocol body plus the instant of the first
+    /// outstanding `push` since the last flush. `None` when the buffer
+    /// is empty.
+    buffered: tokio::sync::Mutex<(String, Option<std::time::Instant>)>,
+    /// Total successful flushes. Observable. Held in an `Arc` so
+    /// observers can keep a handle live past the batcher's own drop.
+    pub flushes_total: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Total dropped *bytes* — either rejected by [`push`](Self::push)
+    /// for exceeding `max_buffer_bytes`, or abandoned by [`Drop`].
+    /// Held in an `Arc` so observers can keep a handle live past the
+    /// batcher's own drop.
+    pub dropped_total: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
 #[cfg(feature = "async")]
@@ -241,6 +308,7 @@ impl<H: InfluxHttpClient> std::fmt::Debug for Batcher<H> {
         f.debug_struct("Batcher")
             .field("flush_at_bytes", &self.flush_at_bytes)
             .field("max_buffer_bytes", &self.max_buffer_bytes)
+            .field("max_age", &self.max_age)
             .field(
                 "flushes_total",
                 &self.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
@@ -255,30 +323,51 @@ impl<H: InfluxHttpClient> std::fmt::Debug for Batcher<H> {
 
 #[cfg(feature = "async")]
 impl<H: InfluxHttpClient> Batcher<H> {
-    /// Construct.
+    /// Construct with size-only flush triggers (no max-age).
     ///
     /// `flush_at_bytes` is the soft trigger — when the buffer crosses
     /// this size, the next `push` triggers a flush. `max_buffer_bytes`
     /// is the hard limit; pushes that would exceed it return an error
-    /// and increment the `dropped_total` counter. Both bounds are
-    /// silently clamped to [`MAX_BUFFER_BYTES`] for safety.
+    /// and add the rejected byte count to `dropped_total`. Both bounds
+    /// are silently clamped to [`MAX_BUFFER_BYTES`] for safety.
+    ///
+    /// Equivalent to `with_max_age(client, flush_at_bytes,
+    /// max_buffer_bytes, None)`; provided for backwards compatibility.
     #[must_use]
     pub fn new(client: H, flush_at_bytes: usize, max_buffer_bytes: usize) -> Self {
+        Self::with_max_age(client, flush_at_bytes, max_buffer_bytes, None)
+    }
+
+    /// Construct with an optional maximum buffer age. When `max_age` is
+    /// `Some(d)`, a `push` whose buffer has been outstanding for at
+    /// least `d` triggers a flush even if the byte threshold has not
+    /// been hit. To bound flush latency on streams that never push
+    /// after the deadline, drive [`tick`](Self::tick) from a periodic
+    /// task — see that method's doc for the typical pattern.
+    #[must_use]
+    pub fn with_max_age(
+        client: H,
+        flush_at_bytes: usize,
+        max_buffer_bytes: usize,
+        max_age: Option<std::time::Duration>,
+    ) -> Self {
         let flush = flush_at_bytes.min(MAX_BUFFER_BYTES);
         let max = max_buffer_bytes.min(MAX_BUFFER_BYTES);
         Self {
             client,
             flush_at_bytes: flush,
             max_buffer_bytes: max,
-            buffered: tokio::sync::Mutex::new(String::new()),
-            flushes_total: std::sync::atomic::AtomicU64::new(0),
-            dropped_total: std::sync::atomic::AtomicU64::new(0),
+            max_age,
+            buffered: tokio::sync::Mutex::new((String::new(), None)),
+            flushes_total: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            dropped_total: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
     }
 
     /// Push one formatted line-protocol line. May trigger an HTTP flush
-    /// if the buffer crosses `flush_at_bytes`. Always appends a trailing
-    /// newline.
+    /// if the buffer crosses `flush_at_bytes` or — when configured via
+    /// [`with_max_age`](Self::with_max_age) — has been outstanding for
+    /// longer than `max_age`. Always appends a trailing newline.
     ///
     /// # Errors
     ///
@@ -286,18 +375,30 @@ impl<H: InfluxHttpClient> Batcher<H> {
     /// `max_buffer_bytes`, or when an auto-triggered flush fails.
     pub async fn push(&self, line: &str) -> Result<(), String> {
         let mut buf = self.buffered.lock().await;
-        if buf.len() + line.len() + 1 > self.max_buffer_bytes {
+        let added = line.len() + 1;
+        if buf.0.len() + added > self.max_buffer_bytes {
             self.dropped_total
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                .fetch_add(added as u64, std::sync::atomic::Ordering::Relaxed);
             return Err(format!(
                 "Batcher: push would exceed max_buffer_bytes ({} bytes)",
                 self.max_buffer_bytes
             ));
         }
-        buf.push_str(line);
-        buf.push('\n');
-        if buf.len() >= self.flush_at_bytes {
-            let body = std::mem::take(&mut *buf);
+        // Stamp the first-push time when transitioning from empty.
+        if buf.0.is_empty() {
+            buf.1 = Some(std::time::Instant::now());
+        }
+        buf.0.push_str(line);
+        buf.0.push('\n');
+
+        let size_trip = buf.0.len() >= self.flush_at_bytes;
+        let age_trip = match (self.max_age, buf.1) {
+            (Some(max), Some(stamp)) => stamp.elapsed() >= max,
+            _ => false,
+        };
+        if size_trip || age_trip {
+            let body = std::mem::take(&mut buf.0);
+            buf.1 = None;
             drop(buf);
             self.client.write(&body).await?;
             self.flushes_total
@@ -313,15 +414,88 @@ impl<H: InfluxHttpClient> Batcher<H> {
     /// Returns an error string when the HTTP write fails.
     pub async fn flush(&self) -> Result<(), String> {
         let mut buf = self.buffered.lock().await;
-        if buf.is_empty() {
+        if buf.0.is_empty() {
             return Ok(());
         }
-        let body = std::mem::take(&mut *buf);
+        let body = std::mem::take(&mut buf.0);
+        buf.1 = None;
         drop(buf);
         self.client.write(&body).await?;
         self.flushes_total
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Periodic tick — flushes the buffer when `max_age` has elapsed
+    /// since the first outstanding `push`. No-op when `max_age` is
+    /// `None` or the buffer is empty. Cheap to call frequently.
+    ///
+    /// Drive from a periodic task so slow streams do not stall:
+    ///
+    /// ```rust,ignore
+    /// let batcher = std::sync::Arc::new(Batcher::with_max_age(
+    ///     client, 64 * 1024, 1024 * 1024, Some(std::time::Duration::from_secs(1)),
+    /// ));
+    /// let b = batcher.clone();
+    /// tokio::spawn(async move {
+    ///     let mut iv = tokio::time::interval(std::time::Duration::from_millis(500));
+    ///     loop {
+    ///         iv.tick().await;
+    ///         let _ = b.tick().await;
+    ///     }
+    /// });
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the triggered HTTP write fails.
+    pub async fn tick(&self) -> Result<(), String> {
+        let Some(max) = self.max_age else { return Ok(()) };
+        let mut buf = self.buffered.lock().await;
+        if buf.0.is_empty() {
+            return Ok(());
+        }
+        let elapsed = buf.1.is_some_and(|s| s.elapsed() >= max);
+        if !elapsed {
+            return Ok(());
+        }
+        let body = std::mem::take(&mut buf.0);
+        buf.1 = None;
+        drop(buf);
+        self.client.write(&body).await?;
+        self.flushes_total
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    }
+}
+
+/// Best-effort accounting on drop. Cannot await — so any in-flight
+/// buffer is **lost**. Callers that need at-least-once delivery MUST
+/// call [`Batcher::flush`].`await` before letting the batcher go out
+/// of scope; this impl only ensures the loss is visible via
+/// [`Batcher::dropped_total`] and a `stderr` log line.
+#[cfg(feature = "async")]
+impl<H: InfluxHttpClient> Drop for Batcher<H> {
+    fn drop(&mut self) {
+        // `try_lock` rather than `blocking_lock` — we must never block
+        // the async runtime from `Drop`.
+        if let Ok(buf) = self.buffered.try_lock() {
+            let n = buf.0.len();
+            if n > 0 {
+                self.dropped_total
+                    .fetch_add(n as u64, std::sync::atomic::Ordering::Relaxed);
+                eprintln!(
+                    "[tflo-sink-influx] Batcher dropped with {n} unflushed bytes"
+                );
+            }
+        } else {
+            // Lock contention at drop-time means another task still
+            // holds the buffer — exceptionally rare. Surface it; we
+            // cannot account the loss precisely.
+            eprintln!(
+                "[tflo-sink-influx] Batcher dropped while buffer mutex was held"
+            );
+        }
     }
 }
 
@@ -451,10 +625,135 @@ mod tests {
             let big = "x".repeat(40);
             let err = b.push(&big).await.unwrap_err();
             assert!(err.contains("max_buffer_bytes"));
+            // Counter measures bytes (line + newline = 41), not calls.
             assert_eq!(
                 b.dropped_total.load(std::sync::atomic::Ordering::Relaxed),
-                1
+                41
             );
         }
+
+        #[tokio::test]
+        async fn batcher_drop_records_loss() {
+            let b = Batcher::new(CapturingClient::default(), 1024, 1024);
+            // Clone the Arc so we keep an observer alive past drop.
+            let dropped = std::sync::Arc::clone(&b.dropped_total);
+            let pushed = "abc v=1i";
+            b.push(pushed).await.expect("ok");
+            let expected_bytes = (pushed.len() + 1) as u64; // +1 for '\n'
+            drop(b);
+            assert!(
+                dropped.load(std::sync::atomic::Ordering::Relaxed) >= expected_bytes,
+                "Drop should account at least the pushed body to dropped_total"
+            );
+        }
+
+        #[tokio::test]
+        async fn batcher_max_age_triggers_flush() {
+            // Threshold is huge; only the max_age path should fire.
+            let b = Batcher::with_max_age(
+                CapturingClient::default(),
+                1024 * 1024,
+                1024 * 1024,
+                Some(std::time::Duration::from_millis(50)),
+            );
+            b.push("m v=1i").await.expect("ok");
+            assert_eq!(
+                b.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
+                0,
+                "first push should not flush yet"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+            // Second push observes elapsed > max_age and flushes.
+            b.push("m v=2i").await.expect("ok");
+            assert_eq!(
+                b.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
+                1,
+                "second push past max_age should have flushed"
+            );
+        }
+
+        #[tokio::test]
+        async fn batcher_tick_flushes_when_age_elapsed() {
+            let b = Batcher::with_max_age(
+                CapturingClient::default(),
+                1024 * 1024,
+                1024 * 1024,
+                Some(std::time::Duration::from_millis(50)),
+            );
+            b.push("m v=1i").await.expect("ok");
+            // Not yet elapsed.
+            b.tick().await.expect("ok");
+            assert_eq!(
+                b.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
+                0,
+                "tick before max_age should be a no-op"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+            b.tick().await.expect("ok");
+            assert_eq!(
+                b.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
+                1,
+                "tick after max_age should flush"
+            );
+        }
+
+        #[tokio::test]
+        async fn batcher_tick_noop_when_no_max_age() {
+            let b = Batcher::new(CapturingClient::default(), 1024 * 1024, 1024 * 1024);
+            b.push("m v=1i").await.expect("ok");
+            // No max_age configured — tick must never flush.
+            for _ in 0..5 {
+                b.tick().await.expect("ok");
+            }
+            assert_eq!(
+                b.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
+                0,
+                "tick must be a no-op when max_age is None"
+            );
+        }
+    }
+
+    #[test]
+    fn escape_handles_backslash_and_newline() {
+        // measurement / identifier
+        assert_eq!(escape_identifier("a\\b"), "a\\\\b");
+        assert_eq!(escape_identifier("a\nb"), "a\\nb");
+        assert_eq!(escape_identifier("a b,c\\d\ne"), "a\\ b\\,c\\\\d\\ne");
+        // tag key (and tag value / field key all share the rule)
+        assert_eq!(escape_tag_key("k\\v"), "k\\\\v");
+        assert_eq!(escape_tag_key("k\nv"), "k\\nv");
+        assert_eq!(escape_tag_key("k=v\\,x\n"), "k\\=v\\\\\\,x\\n");
+        assert_eq!(escape_tag_value("v\\x\ny"), "v\\\\x\\ny");
+        assert_eq!(escape_field_key("f\\k\n"), "f\\\\k\\n");
+        // field string value: only `"` and `\`
+        assert_eq!(escape_field_string("a\\b"), "a\\\\b");
+        assert_eq!(escape_field_string("he said \"hi\""), "he said \\\"hi\\\"");
+        // backslash escaped first so we do not double-escape.
+        assert_eq!(escape_field_string("\\\""), "\\\\\\\"");
+    }
+
+    #[test]
+    fn format_field_string_escapes_backslash() {
+        let line = LineProtocol::new("m")
+            .field("path", FieldValue::String(r"C:\tmp\x".into()))
+            .format()
+            .expect("ok");
+        // Each backslash escaped to `\\`; quotes wrap the whole thing.
+        assert!(
+            line.contains(r#"path="C:\\tmp\\x""#),
+            "expected backslashes to be escaped, got: {line}"
+        );
+    }
+
+    #[test]
+    fn format_measurement_escapes_backslash_in_identifier() {
+        let line = LineProtocol::new(r"weird\name")
+            .field("v", FieldValue::Integer(1))
+            .format()
+            .expect("ok");
+        assert!(
+            line.starts_with(r"weird\\name "),
+            "expected backslash in measurement to be escaped, got: {line}"
+        );
     }
 }

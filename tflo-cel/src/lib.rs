@@ -35,9 +35,11 @@
 //!     Detection { power_dbm: -90.0, snr_db: 5.0 },
 //! ];
 //!
-//! // Simple filtering with CEL expressions
+//! // Simple filtering with CEL expressions (Result-returning, canonical).
 //! let filtered: Vec<Detection> = detections.into_iter()
-//!     .cel_filter("snr_db > 10.0 && power_dbm > -80.0")
+//!     .cel_filter_result("snr_db > 10.0 && power_dbm > -80.0")
+//!     .expect("expression compiles")
+//!     .filter_map(Result::ok)
 //!     .collect();
 //!
 //! assert_eq!(filtered.len(), 1);
@@ -63,7 +65,7 @@ pub mod wasm;
 /// Prelude for convenient imports
 pub mod prelude {
     pub use crate::error::{CelError, CelResult};
-    pub use crate::filter::CelFilterExt;
+    pub use crate::filter::{CelFilterExt, CelFilterResult, CelOptions};
     pub use crate::router::CelRouterExt;
     pub use crate::rule_engine::{Action, CompiledRule, RuleEngine};
     pub use crate::traits::IntoCelContext;

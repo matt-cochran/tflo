@@ -12,7 +12,7 @@ use crate::{MqttConsumer, MqttMessage, MqttProducer, MqttPublish, Qos};
 use rumqttc::{AsyncClient, Event, EventLoop, Incoming, QoS as RuQoS};
 use tokio::sync::Mutex;
 
-fn to_rumqttc_qos(q: Qos) -> RuQoS {
+const fn to_rumqttc_qos(q: Qos) -> RuQoS {
     match q {
         Qos::AtMostOnce => RuQoS::AtMostOnce,
         Qos::AtLeastOnce => RuQoS::AtLeastOnce,
@@ -20,7 +20,7 @@ fn to_rumqttc_qos(q: Qos) -> RuQoS {
     }
 }
 
-fn from_rumqttc_qos(q: RuQoS) -> Qos {
+const fn from_rumqttc_qos(q: RuQoS) -> Qos {
     match q {
         RuQoS::AtMostOnce => Qos::AtMostOnce,
         RuQoS::AtLeastOnce => Qos::AtLeastOnce,

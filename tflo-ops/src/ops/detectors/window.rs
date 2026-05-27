@@ -23,7 +23,12 @@ impl WindowDetectOp {
 
 impl Operator for WindowDetectOp {
     fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
-        let value = require(inputs, 0).unwrap_or(f64::NAN);
+        // Absent input → no event this tick. Skip the detector update entirely
+        // so the next present record sees the prior level, not a NaN-polluted
+        // state.
+        let Ok(value) = require(inputs, 0) else {
+            return NodeOutput::other::<Option<WindowEvent>>(None);
+        };
         let result: Option<WindowEvent> = self.detector.update(value).map(to_window_event);
         NodeOutput::other(result)
     }
@@ -48,5 +53,45 @@ pub(crate) const fn to_window_event(event: crate::primitives::WindowEvent) -> Wi
         Core::EnteredWindow => WindowEvent::EnteredWindow,
         Core::ExitedLow => WindowEvent::ExitedLow,
         Core::ExitedHigh => WindowEvent::ExitedHigh,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tflo_core::compile::Absent;
+
+    /// Confirms the OPS-001 fix: an absent input emits `None` without feeding
+    /// `NaN` to the window detector and corrupting its inside-window state.
+    #[test]
+    fn window_detect_skips_on_absent_input() {
+        // Window 4.5..=5.5.
+        let mut op = WindowDetectOp::new(WindowDetector::new(4.5, 5.5));
+
+        // Initialize below the band.
+        let out0 = op.eval(&[Ok(4.0)], 1);
+        assert_eq!(
+            out0.as_any().downcast_ref::<Option<WindowEvent>>(),
+            Some(&None),
+        );
+
+        // Absent → no event, detector state untouched.
+        let out1 = op.eval(&[Err(Absent::WarmingUp)], 2);
+        assert_eq!(
+            out1.as_any().downcast_ref::<Option<WindowEvent>>(),
+            Some(&None),
+        );
+
+        // Crossing into the band must still fire EnteredWindow. Legacy
+        // NaN-substitution could have left the detector in an undefined
+        // inside/outside state, swallowing this event.
+        let out2 = op.eval(&[Ok(5.0)], 3);
+        assert_eq!(
+            out2.as_any()
+                .downcast_ref::<Option<WindowEvent>>()
+                .copied()
+                .flatten(),
+            Some(WindowEvent::EnteredWindow),
+        );
     }
 }

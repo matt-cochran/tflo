@@ -90,15 +90,16 @@ pub trait S3Client: Send + Sync {
     /// Returns an error string when the listing call fails.
     async fn list_objects(&self, bucket: &str, prefix: &str) -> Result<Vec<String>, String>;
 
-    /// DELETE an object. Default implementation is a no-op success — a
-    /// store that intends to support eviction must override.
+    /// DELETE an object. A client that genuinely cannot delete should return
+    /// `Err("delete unsupported".into())` rather than a silent success — the
+    /// default impl was removed because forgetful implementers caused S3
+    /// objects to accumulate indefinitely.
     ///
     /// # Errors
     ///
-    /// Returns an error string when the underlying client fails.
-    async fn delete_object(&self, _bucket: &str, _key: &str) -> Result<(), String> {
-        Ok(())
-    }
+    /// Returns an error string when the underlying client fails or delete is
+    /// not supported by the client.
+    async fn delete_object(&self, bucket: &str, key: &str) -> Result<(), String>;
 }
 
 /// `AsyncStateStore` implementation backed by an [`S3Client`].

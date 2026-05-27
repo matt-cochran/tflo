@@ -62,6 +62,22 @@ pub struct KafkaOffset {
     pub offset: i64,
 }
 
+impl KafkaOffset {
+    /// Build a [`KafkaOffset`] from a [`CommitableOffset`] — the type-safe
+    /// way to construct cursor entries. Using this constructor (vs. the
+    /// raw struct literal with `offset: msg.offset`) makes the off-by-one
+    /// correction explicit at the call site: the [`CommitableOffset`] you
+    /// pass in is guaranteed to already be `record-offset + 1`.
+    #[must_use]
+    pub const fn from_committable(topic: String, partition: i32, offset: CommitableOffset) -> Self {
+        Self {
+            topic,
+            partition,
+            offset: offset.as_i64(),
+        }
+    }
+}
+
 impl Cursor for KafkaOffset {
     fn to_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap_or_default()
@@ -106,6 +122,41 @@ impl<'de> serde::Deserialize<'de> for KafkaOffset {
 
 // ── KafkaConsumer / KafkaProducer trait surface ────────────────────────
 
+/// A Kafka offset already incremented by 1 — the value that should be passed
+/// to `commit`. The newtype prevents the off-by-one bug documented historically:
+/// [`KafkaMessage::offset`] is the offset of the current record; the commit
+/// value is `offset + 1`. Use [`KafkaMessage::commit_offset`] to obtain a
+/// `CommitableOffset`; do not construct directly.
+///
+/// Backed by `i64` to match Kafka's wire/protocol offset type (also what
+/// `rdkafka` exposes). Saturating arithmetic is used at construction to
+/// avoid a wraparound at `i64::MAX`.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct CommitableOffset(i64);
+
+impl CommitableOffset {
+    /// Underlying offset value (already `+1`). Use this when persisting or
+    /// sending to Kafka.
+    #[must_use]
+    pub const fn into_inner(self) -> i64 {
+        self.0
+    }
+
+    /// As `i64` — convenient for `rdkafka` APIs that take signed offsets.
+    /// Equivalent to [`Self::into_inner`]; provided for symmetry with the
+    /// other type-conversion helpers and to read clearly at call sites.
+    #[must_use]
+    pub const fn as_i64(self) -> i64 {
+        self.0
+    }
+}
+
+impl From<CommitableOffset> for i64 {
+    fn from(o: CommitableOffset) -> Self {
+        o.0
+    }
+}
+
 /// A consumed Kafka record, as surfaced by [`KafkaConsumer::poll`].
 #[derive(Debug, Clone)]
 pub struct KafkaMessage {
@@ -113,14 +164,27 @@ pub struct KafkaMessage {
     pub topic: String,
     /// Partition this message came from.
     pub partition: i32,
-    /// Offset of this message (the offset to commit is `offset + 1`).
+    /// Offset of this message. **Do not commit this value directly** — use
+    /// [`Self::commit_offset`] to obtain the type-safe `+1`-adjusted
+    /// [`CommitableOffset`].
     pub offset: i64,
     /// Optional key bytes.
     pub key: Option<Vec<u8>>,
-    /// Payload bytes.
-    pub value: Vec<u8>,
+    /// Payload bytes. `None` distinguishes a *tombstone* (compaction
+    /// delete marker) from an *empty payload*; the historical
+    /// `Vec<u8>::new()` representation conflated the two.
+    pub payload: Option<Vec<u8>>,
     /// Producer timestamp in milliseconds since epoch, if present.
     pub timestamp_ms: Option<i64>,
+}
+
+impl KafkaMessage {
+    /// The offset to commit for this message (always `self.offset + 1`).
+    /// Saturating to handle the rare overflow at `i64::MAX`.
+    #[must_use]
+    pub const fn commit_offset(&self) -> CommitableOffset {
+        CommitableOffset(self.offset.saturating_add(1))
+    }
 }
 
 /// A rebalance event surfaced to the consumer.
@@ -167,6 +231,65 @@ pub trait KafkaProducer: Send + Sync {
 mod tests {
     use super::*;
     use tflo_core::adapter::CursorStore;
+
+    fn sample_msg(offset: i64, payload: Option<Vec<u8>>) -> KafkaMessage {
+        KafkaMessage {
+            topic: "t".into(),
+            partition: 0,
+            offset,
+            key: None,
+            payload,
+            timestamp_ms: None,
+        }
+    }
+
+    #[test]
+    fn commit_offset_returns_offset_plus_one() {
+        let m = sample_msg(42, Some(b"v".to_vec()));
+        assert_eq!(m.commit_offset().into_inner(), 43);
+        assert_eq!(m.commit_offset().as_i64(), 43);
+    }
+
+    #[test]
+    fn commit_offset_does_not_panic_at_max() {
+        let m = sample_msg(i64::MAX, None);
+        // Saturating add: stays at i64::MAX, no panic, no wraparound.
+        assert_eq!(m.commit_offset().into_inner(), i64::MAX);
+    }
+
+    #[test]
+    fn commitable_offset_into_i64_via_from() {
+        let m = sample_msg(7, None);
+        let c = m.commit_offset();
+        let raw: i64 = c.into();
+        assert_eq!(raw, 8);
+    }
+
+    #[test]
+    fn kafka_offset_from_committable_preserves_value() {
+        let m = sample_msg(99, None);
+        let c = m.commit_offset();
+        let off = KafkaOffset::from_committable("topic-x".into(), 5, c);
+        assert_eq!(off.topic, "topic-x");
+        assert_eq!(off.partition, 5);
+        assert_eq!(off.offset, 100);
+    }
+
+    #[test]
+    fn kafka_message_payload_is_some_when_present() {
+        let m = sample_msg(0, Some(b"v".to_vec()));
+        assert_eq!(m.payload.as_deref(), Some(b"v".as_slice()));
+    }
+
+    #[test]
+    fn kafka_message_payload_is_none_for_tombstone() {
+        let m = sample_msg(0, None);
+        assert_eq!(m.payload, None);
+        // Crucially, a tombstone is *not* the same as an empty payload.
+        let empty = sample_msg(0, Some(Vec::new()));
+        assert_ne!(m.payload, empty.payload);
+        assert_ne!(None::<Vec<u8>>, Some(Vec::<u8>::new()));
+    }
 
     #[test]
     fn kafka_offset_round_trip() {

@@ -23,7 +23,12 @@ impl PulseWidthOp {
 
 impl Operator for PulseWidthOp {
     fn eval(&mut self, inputs: &[Computed], ts: i64) -> NodeOutput {
-        let value = require(inputs, 0).unwrap_or(f64::NAN);
+        // Absent input → no event this tick. Skip the detector update entirely
+        // so the next present record sees the prior level, not a NaN-polluted
+        // state.
+        let Ok(value) = require(inputs, 0) else {
+            return NodeOutput::other::<Option<PulseWidthResult>>(None);
+        };
         let result: Option<PulseWidthResult> = self.detector.update(value, ts).map(to_pulse_width);
         NodeOutput::other(result)
     }
@@ -50,5 +55,44 @@ pub(crate) const fn to_pulse_width(
         Core::TooShort { width_ms } => PulseWidthResult::TooShort { width_ms },
         Core::Valid { width_ms } => PulseWidthResult::Valid { width_ms },
         Core::TooLong { width_ms } => PulseWidthResult::TooLong { width_ms },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tflo_core::compile::Absent;
+
+    /// Confirms the OPS-001 fix: an absent input emits `None` without feeding
+    /// `NaN` to the pulse-width detector and corrupting its in-pulse state.
+    #[test]
+    fn pulse_width_skips_on_absent_input() {
+        // Threshold 100, valid range 5..=15ms.
+        let mut op = PulseWidthOp::new(PulseWidthDetector::new(100.0, 5, 15));
+
+        // Pulse starts.
+        let out0 = op.eval(&[Ok(110.0)], 0);
+        assert_eq!(
+            out0.as_any().downcast_ref::<Option<PulseWidthResult>>(),
+            Some(&None),
+        );
+
+        // Absent mid-pulse → no event, detector state untouched.
+        let out1 = op.eval(&[Err(Absent::WarmingUp)], 5);
+        assert_eq!(
+            out1.as_any().downcast_ref::<Option<PulseWidthResult>>(),
+            Some(&None),
+        );
+
+        // Pulse ends at 10ms (Valid range 5..=15). Legacy NaN-substitution
+        // would have killed the pulse on the absent tick.
+        let out2 = op.eval(&[Ok(90.0)], 10);
+        assert_eq!(
+            out2.as_any()
+                .downcast_ref::<Option<PulseWidthResult>>()
+                .copied()
+                .flatten(),
+            Some(PulseWidthResult::Valid { width_ms: 10 }),
+        );
     }
 }

@@ -121,8 +121,12 @@
 //! - Out-of-order detection compares the current record's timestamp to the
 //!   last processed timestamp for that key (in keyed execution) or globally
 //!   (in non-keyed execution with validation).
-//! - Buffering is currently a placeholder - full implementation requires
-//!   a priority queue sorted by timestamp.
+//! - Buffering inserts each record into a `pending` buffer kept sorted by
+//!   timestamp, advances a watermark of `max_ts_seen - max_lateness_ms`, and
+//!   releases records at or below the watermark in order (see
+//!   [`KeyedGraphState::step`](crate::keyed::KeyedGraphState::step)). The
+//!   engine calls [`KeyedGraphState::flush`](crate::keyed::KeyedGraphState::flush)
+//!   at end-of-stream to drain any records still inside the lateness window.
 //!
 //! **Example**:
 //! ```ignore

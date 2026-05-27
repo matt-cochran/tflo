@@ -1,6 +1,7 @@
 //! Rhai-based transformation for iterators.
 
 use crate::error::{RhaiError, RhaiResult};
+use crate::options::RhaiOptions;
 use crate::traits::IntoRhaiScope;
 use rhai::{AST, Dynamic, Engine};
 use std::sync::Arc;
@@ -12,21 +13,38 @@ where
 {
     /// Transform items using a Rhai expression.
     ///
-    /// The expression should return a Dynamic value.
+    /// PANICS on compile error; use [`rhai_map_result`](Self::rhai_map_result)
+    /// — Result-returning variant — to surface compile errors instead.
     ///
     /// # Panics
     ///
     /// Panics if the Rhai expression fails to compile.
+    #[deprecated(
+        since = "0.2.0",
+        note = "use rhai_map_result(...) — Result-returning variant — to surface compile errors instead of panicking; the panicking constructor is also DoS-able because it builds a Rhai engine with no resource caps"
+    )]
     fn rhai_map(self, expr: &str) -> RhaiMap<Self, T> {
         RhaiMap::new(self, expr)
     }
 
     /// Transform items using a Rhai expression with a custom engine.
+    #[deprecated(
+        since = "0.2.0",
+        note = "use rhai_map_result_with_engine(...) — Result-returning variant — to surface compile errors instead of panicking"
+    )]
     fn rhai_map_with_engine(self, engine: Arc<Engine>, expr: &str) -> RhaiMap<Self, T> {
         RhaiMap::with_engine(self, engine, expr)
     }
 
     /// Transform items, returning errors.
+    ///
+    /// Engine is built from [`RhaiOptions::default`] which applies
+    /// conservative resource caps (`max_operations`, `max_call_levels`)
+    /// so adversarial scripts cannot `DoS` the host. Use
+    /// [`rhai_map_result_with_options`](Self::rhai_map_result_with_options)
+    /// to pick a different budget, or
+    /// [`rhai_map_result_with_engine`](Self::rhai_map_result_with_engine)
+    /// to share a pre-configured engine.
     ///
     /// # Errors
     ///
@@ -35,6 +53,32 @@ where
     /// when `expr` fails to compile as a Rhai expression.
     fn rhai_map_result(self, expr: &str) -> RhaiResult<RhaiMapResult<Self, T>> {
         RhaiMapResult::new(self, expr)
+    }
+
+    /// Transform items with custom Rhai resource budgets.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RhaiError::CompileError`] when `expr` fails to compile.
+    fn rhai_map_result_with_options(
+        self,
+        expr: &str,
+        options: RhaiOptions,
+    ) -> RhaiResult<RhaiMapResult<Self, T>> {
+        RhaiMapResult::with_options(self, expr, options)
+    }
+
+    /// Transform items using a caller-supplied Rhai engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RhaiError::CompileError`] when `expr` fails to compile.
+    fn rhai_map_result_with_engine(
+        self,
+        engine: Arc<Engine>,
+        expr: &str,
+    ) -> RhaiResult<RhaiMapResult<Self, T>> {
+        RhaiMapResult::with_engine(self, engine, expr)
     }
 }
 
@@ -140,7 +184,15 @@ where
     T: IntoRhaiScope,
 {
     fn new(iter: I, expr: &str) -> RhaiResult<Self> {
-        let engine = Arc::new(Engine::new());
+        Self::with_options(iter, expr, RhaiOptions::default())
+    }
+
+    fn with_options(iter: I, expr: &str, options: RhaiOptions) -> RhaiResult<Self> {
+        let engine = Arc::new(options.build_engine());
+        Self::with_engine(iter, engine, expr)
+    }
+
+    fn with_engine(iter: I, engine: Arc<Engine>, expr: &str) -> RhaiResult<Self> {
         let ast = engine.compile(expr).map_err(|e| RhaiError::CompileError {
             script: expr.to_string(),
             message: e.to_string(),
@@ -276,6 +328,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_rhai_map() {
         let items = vec![TestItem { x: 1, y: 2 }, TestItem { x: 3, y: 4 }];
 
@@ -297,5 +350,18 @@ mod tests {
         assert_eq!(results[0].1.as_int().expect("should be int"), 2);
         assert_eq!(results[1].0.x, 3);
         assert_eq!(results[1].1.as_int().expect("should be int"), 12);
+    }
+
+    #[test]
+    fn rhai_map_propagates_eval_error() {
+        let items = vec![TestItem { x: 1, y: 2 }];
+        let mut it = items
+            .into_iter()
+            .rhai_map_result("throw \"boom\"")
+            .expect("compile ok");
+        match it.next() {
+            Some(Err(RhaiError::EvaluationError { .. })) => {}
+            other => panic!("expected Some(Err(EvaluationError)), got {other:?}"),
+        }
     }
 }

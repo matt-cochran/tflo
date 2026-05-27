@@ -54,14 +54,18 @@ impl KafkaConsumer for RdKafkaConsumer {
     async fn poll(&self) -> Result<Option<KafkaMessage>, String> {
         match self.inner.recv().await {
             Ok(msg) => {
-                let payload = msg.payload().unwrap_or_default().to_vec();
+                // Preserve tombstone semantics: a `None` payload is a
+                // compaction delete marker, distinct from `Some(vec![])`
+                // (an explicit empty payload). The previous
+                // `unwrap_or_default().to_vec()` form conflated the two.
+                let payload = msg.payload().map(<[u8]>::to_vec);
                 let key = msg.key().map(<[u8]>::to_vec);
                 Ok(Some(KafkaMessage {
                     topic: msg.topic().to_string(),
                     partition: msg.partition(),
                     offset: msg.offset(),
                     key,
-                    value: payload,
+                    payload,
                     timestamp_ms: msg.timestamp().to_millis(),
                 }))
             }

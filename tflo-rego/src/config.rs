@@ -29,7 +29,15 @@ pub struct PolicyConfig {
     #[serde(default)]
     pub data: HashMap<String, serde_json::Value>,
 
-    /// Query timeout in milliseconds.
+    /// Post-evaluation wall-clock watchdog: `regorus` is synchronous and
+    /// cannot be interrupted mid-eval, but an exceeded budget is detected
+    /// and reported (as `Err(EvalTimeout)` on
+    /// [`RegoFilterResult`](crate::filter::RegoFilterResult) or as a denial
+    /// plus an incremented `eval_timeouts_total` counter on
+    /// [`RegoFilter`](crate::filter::RegoFilter)). Honored by
+    /// [`RegoFilterExt::rego_filter_with_config`](crate::filter::RegoFilterExt::rego_filter_with_config)
+    /// and
+    /// [`RegoFilterExt::rego_filter_result_with_config`](crate::filter::RegoFilterExt::rego_filter_result_with_config).
     #[serde(default)]
     pub timeout_ms: Option<u64>,
 

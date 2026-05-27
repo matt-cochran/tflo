@@ -159,9 +159,15 @@ impl WmaTimeWindow {
             return self.buffer[0].1;
         }
 
-        // Get the time range
-        let oldest_ts = self.buffer.front().map(|(ts, _)| *ts).unwrap_or(0);
-        let newest_ts = self.buffer.back().map(|(ts, _)| *ts).unwrap_or(0);
+        // Get the time range. The two `is_empty`/`len == 1` guards above
+        // ensure the buffer holds at least two entries here; treat any
+        // violation as the same "no data" outcome the empty branch returns.
+        let Some(&(oldest_ts, _)) = self.buffer.front() else {
+            return f64::NAN;
+        };
+        let Some(&(newest_ts, _)) = self.buffer.back() else {
+            return f64::NAN;
+        };
         let time_span = (newest_ts - oldest_ts) as f64;
 
         if time_span <= 0.0 {

@@ -33,6 +33,7 @@
 pub mod context;
 pub mod error;
 pub mod filter;
+pub mod options;
 pub mod script;
 pub mod traits;
 pub mod transform;
@@ -42,6 +43,7 @@ pub mod script_exec;
 pub mod prelude {
     pub use crate::error::{RhaiError, RhaiResult};
     pub use crate::filter::RhaiFilterExt;
+    pub use crate::options::RhaiOptions;
     pub use crate::script::ScriptEngine;
     pub use crate::traits::IntoRhaiScope;
     pub use crate::transform::RhaiMapExt;

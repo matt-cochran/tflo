@@ -153,6 +153,15 @@ pub(super) fn trima_last(data: &[f64], period: usize) -> f64 {
         weight_sum += weight;
     }
 
+    // FINTECH-002: guard against the (algebraically impossible but
+    // defensively required) zero-denominator case. For any `period >= 1`
+    // the triangular weights sum to a positive integer, so this should
+    // never fire — `debug_assert!` documents that invariant in dev
+    // builds while the runtime branch keeps release builds NaN-safe.
+    debug_assert!(weight_sum > 0.0, "TRIMA weight_sum invariant violated");
+    if weight_sum == 0.0 {
+        return f64::NAN;
+    }
     weighted_sum / weight_sum
 }
 
@@ -223,15 +232,29 @@ pub(super) fn tema_last(data: &[f64], period: usize) -> f64 {
 }
 
 pub(super) fn ppo_last(data: &[f64], fast: usize, slow: usize) -> f64 {
-    if data.len() < fast.max(slow) || fast == 0 || slow == 0 {
+    // PPO is the EMA-based Percentage Price Oscillator:
+    //     ((EMA(fast) - EMA(slow)) / EMA(slow)) * 100
+    // matching TA-Lib's default `matype=EMA`. An earlier implementation
+    // computed a single-window SMA on each side, which is neither the
+    // TA-Lib default nor a usable PPO once tolerance is tightened.
+    let n = data.len();
+    if fast == 0 || slow == 0 || n < fast.max(slow) {
         return f64::NAN;
     }
-    let fast_ma = data[data.len() - fast..].iter().sum::<f64>() / fast as f64;
-    let slow_ma = data[data.len() - slow..].iter().sum::<f64>() / slow as f64;
-    if slow_ma == 0.0 {
+    let fast_ema = ema_series(data, fast);
+    let slow_ema = ema_series(data, slow);
+    let fast_last = match fast_ema[n - 1] {
+        Some(v) => v,
+        None => return f64::NAN,
+    };
+    let slow_last = match slow_ema[n - 1] {
+        Some(v) => v,
+        None => return f64::NAN,
+    };
+    if slow_last == 0.0 {
         0.0
     } else {
-        (fast_ma - slow_ma) / slow_ma * 100.0
+        (fast_last - slow_last) / slow_last * 100.0
     }
 }
 

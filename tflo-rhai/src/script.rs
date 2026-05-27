@@ -1,5 +1,6 @@
 //! Rhai script engine with caching.
 
+use crate::options::RhaiOptions;
 use rhai::{AST, Engine};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,16 +21,25 @@ impl Default for ScriptEngine {
 }
 
 impl ScriptEngine {
-    /// Create a new script engine.
+    /// Create a new script engine with conservative DoS-mitigation
+    /// resource caps applied via [`RhaiOptions::default`].
     #[must_use]
     pub fn new() -> Self {
+        Self::with_options(&RhaiOptions::default())
+    }
+
+    /// Create a script engine with the given Rhai resource budgets.
+    #[must_use]
+    pub fn with_options(options: &RhaiOptions) -> Self {
         Self {
-            engine: Arc::new(Engine::new()),
+            engine: Arc::new(options.build_engine()),
             scripts: HashMap::new(),
         }
     }
 
-    /// Create a script engine with a custom Rhai engine.
+    /// Create a script engine with a caller-supplied Rhai engine. The
+    /// caller owns the engine's configuration — no [`RhaiOptions`] are
+    /// applied here.
     #[must_use]
     pub fn with_engine(engine: Engine) -> Self {
         Self {

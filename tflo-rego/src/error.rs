@@ -49,6 +49,21 @@ pub enum RegoError {
         /// The actual result.
         actual: String,
     },
+
+    /// Evaluation exceeded the configured wall-clock budget.
+    ///
+    /// `regorus` is synchronous and cannot be interrupted mid-evaluation,
+    /// so this variant is reported by a post-evaluation watchdog: the
+    /// evaluation already completed, but the elapsed time exceeded the
+    /// caller's `budget_ms`.
+    EvalTimeout {
+        /// The query that exceeded the budget.
+        query: String,
+        /// The configured wall-clock budget, in milliseconds.
+        budget_ms: u64,
+        /// The actual elapsed time, in milliseconds.
+        elapsed_ms: u64,
+    },
 }
 
 impl fmt::Display for RegoError {
@@ -71,6 +86,16 @@ impl fmt::Display for RegoError {
             }
             Self::InvalidResult { expected, actual } => {
                 write!(f, "invalid result: expected {expected}, got {actual}")
+            }
+            Self::EvalTimeout {
+                query,
+                budget_ms,
+                elapsed_ms,
+            } => {
+                write!(
+                    f,
+                    "Rego query '{query}' exceeded {budget_ms}ms budget (elapsed {elapsed_ms}ms)"
+                )
             }
         }
     }

@@ -50,10 +50,15 @@ impl IntoCelContext for AuthEvent {
 
 fn demo_cel(events: &[AuthEvent]) {
     // Keep only events with many failed logins from a suspect IP.
+    // `cel_filter_result` is the canonical API — it surfaces compile and
+    // evaluation errors as `Result<T>` instead of panicking / silently
+    // dropping records.
     let filtered: Vec<AuthEvent> = events
         .iter()
         .cloned()
-        .cel_filter("fail_count > 3.0 && source_ip_score > 50.0")
+        .cel_filter_result("fail_count > 3.0 && source_ip_score > 50.0")
+        .expect("CEL expression compiles")
+        .filter_map(Result::ok)
         .collect();
 
     println!("CEL: {}/{} events flagged", filtered.len(), events.len());
@@ -74,10 +79,15 @@ impl IntoRhaiScope for AuthEvent {
 
 fn demo_rhai(events: &[AuthEvent]) {
     // Rhai script: flag brute-force attempts from low-reputation IPs.
+    // `rhai_filter_result` is the canonical API — its engine is built
+    // from `RhaiOptions::default()` (conservative DoS-mitigation caps)
+    // and evaluation errors propagate as `Result<T>`.
     let filtered: Vec<AuthEvent> = events
         .iter()
         .cloned()
-        .rhai_filter("fail_count > 3.0 && source_ip_score > 50.0")
+        .rhai_filter_result("fail_count > 3.0 && source_ip_score > 50.0")
+        .expect("Rhai expression compiles")
+        .filter_map(Result::ok)
         .collect();
 
     println!("Rhai: {}/{} events flagged", filtered.len(), events.len());

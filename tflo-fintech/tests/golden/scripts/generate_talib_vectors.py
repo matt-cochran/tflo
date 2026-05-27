@@ -521,9 +521,15 @@ def stochrsi_talib(
 def ppo_talib(
     input_data: list[float], fast: int, slow: int, matype: int = 0
 ) -> list[float | None]:
-    """PPO — Percentage Price Oscillator: ((EMA(fast)-EMA(slow))/EMA(slow))*100."""
+    """PPO — Percentage Price Oscillator: ((EMA(fast)-EMA(slow))/EMA(slow))*100.
+
+    Uses TA-Lib's default ``matype=MA_Type.EMA`` to match the canonical
+    EMA-based definition. The previous SMA-based variant masked seeding
+    differences and required a coarse (1.0) tolerance to pass; with EMA
+    we can validate to 1e-6 against the regenerated fixtures.
+    """
     data = np.array(input_data, dtype=np.float64)
-    result = talib.PPO(data, fastperiod=fast, slowperiod=slow, matype=MA_Type.SMA)
+    result = talib.PPO(data, fastperiod=fast, slowperiod=slow, matype=MA_Type.EMA)
     return [None if np.isnan(x) else float(x) for x in result]
 
 

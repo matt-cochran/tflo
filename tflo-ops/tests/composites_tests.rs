@@ -343,3 +343,108 @@ fn rate_of_change_period_2() {
     assert!(out[1].is_nan());
     close(out[2], 50.0);
 }
+
+// ============================================================================
+// Typed divide-by-zero — OPS-002 regression suite.
+//
+// Each composite division was previously a closure-`Div` node whose `f64 / 0.0`
+// drifted to `±inf` or `NaN` and was then flattened to `Absent::WarmingUp` by
+// the downstream `finite_or_warming` mapping. With the `divide_safe` helper a
+// zero denominator now surfaces the typed `Absent::DivideByZero`. The tests
+// below `collect::<Vec<Computed>>` so the `Absent` variant is preserved (the
+// `f64` extraction would still flatten it to `NaN`).
+// ============================================================================
+
+use tflo_core::compile::{Absent, Computed, NodeOutput};
+use tflo_core::operator::{Operator, require};
+
+/// Passthrough operator that re-emits its single input verbatim. It exists
+/// only to retype `Comp<R, f64>` as `Comp<R, Computed>` so the typed `Absent`
+/// reason survives extraction (the `f64` extractor would flatten every
+/// `Err(_)` to `NaN`).
+struct AsComputed;
+
+impl Operator for AsComputed {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        NodeOutput::computed(require(inputs, 0))
+    }
+
+    fn name(&self) -> &str {
+        "as_computed"
+    }
+}
+
+/// Same shape as [`run`] above but collects per-record [`Computed`] so the
+/// typed [`Absent`] reason survives. Routes the composite output through the
+/// [`AsComputed`] passthrough operator to retype the marker without changing
+/// the stored value.
+fn run_computed<F>(rows: &[(i64, f64)], build: F) -> Vec<Computed>
+where
+    F: FnOnce(&Comp<Rec, f64>) -> Comp<Rec, f64>,
+{
+    recs(rows)
+        .into_iter()
+        .tflo(|t| {
+            let _ = t.timestamp(|x| x.ts);
+            let v = t.prop(|x| x.v);
+            let out: Comp<Rec, f64> = build(&v);
+            Comp::<Rec, f64>::custom_node1_dyn::<_, Computed>(&out, || Box::new(AsComputed))
+        })
+        .collect()
+}
+
+#[test]
+fn zscore_emits_divide_by_zero_when_std_is_zero() {
+    // A constant series → std=0 once the window has ≥2 samples, so every
+    // post-warmup record divides 0 by 0. Pre-fix: each was flattened to
+    // `Err(Absent::WarmingUp)`. Post-fix: typed `Err(Absent::DivideByZero)`.
+    let rows = [(1, 10.0), (2, 10.0), (3, 10.0), (4, 10.0)];
+    let out = run_computed(&rows, |v| Composites::zscore(v, 3usize));
+    // Step 0: std is still NaN (only 1 sample in the window), so the
+    // numerator/denominator are still warming up.
+    assert_eq!(out[0], Err(Absent::WarmingUp));
+    // Steps 1..=3: std=0 → typed DivideByZero.
+    assert_eq!(out[1], Err(Absent::DivideByZero));
+    assert_eq!(out[2], Err(Absent::DivideByZero));
+    assert_eq!(out[3], Err(Absent::DivideByZero));
+}
+
+#[test]
+fn peak_decline_emits_divide_by_zero_when_peak_is_zero() {
+    // Starting at 0 → cummax is 0 → (current - 0) / 0 is DivideByZero.
+    // After a positive sample lifts the peak, the typed reason clears.
+    let rows = [(1, 0.0), (2, 0.0), (3, 5.0), (4, 3.0)];
+    let out = run_computed(&rows, Composites::peak_decline);
+    assert_eq!(out[0], Err(Absent::DivideByZero));
+    assert_eq!(out[1], Err(Absent::DivideByZero));
+    // peak=5, current=5 → 0/5 = 0.0
+    assert_eq!(out[2], Ok(0.0));
+    // peak=5, current=3 → (3-5)/5 = -0.4
+    let v = out[3].unwrap();
+    assert!((v - -0.4).abs() < EPS, "expected -0.4, got {v}");
+}
+
+#[test]
+fn rate_of_change_emits_divide_by_zero_when_prev_is_zero() {
+    // Period 1, series starts at 0 → on step 1, prev=0 → DivideByZero.
+    let rows = [(1, 0.0), (2, 5.0), (3, 10.0)];
+    let out = run_computed(&rows, |v| Composites::rate_of_change(v, 1));
+    assert_eq!(out[0], Err(Absent::WarmingUp));
+    assert_eq!(out[1], Err(Absent::DivideByZero));
+    // prev=5, current=10 → ((10-5)/5)*100 = 100.0
+    assert_eq!(out[2], Ok(100.0));
+}
+
+#[test]
+fn normalize_range_emits_divide_by_zero_when_range_is_zero() {
+    // Constant series → max == min → range=0 → DivideByZero on every record.
+    let rows = [(1, 7.0), (2, 7.0), (3, 7.0)];
+    let out = run_computed(&rows, |v| Composites::normalize_range(v, 2usize));
+    for (i, &c) in out.iter().enumerate() {
+        assert_eq!(
+            c,
+            Err(Absent::DivideByZero),
+            "step {i}: expected DivideByZero, got {c:?}",
+        );
+    }
+}

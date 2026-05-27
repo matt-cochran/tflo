@@ -38,36 +38,31 @@
 #![warn(missing_debug_implementations)]
 #![deny(unsafe_code)]
 
-#[cfg(feature = "arrow-impl")]
-use std::collections::hash_map::DefaultHasher;
-#[cfg(feature = "arrow-impl")]
-use std::hash::{Hash, Hasher};
-
 // ── Schema fingerprint ─────────────────────────────────────────────────
 
 /// Stable 32-byte topology hash of an Arrow [`Schema`](arrow_schema::Schema).
 ///
 /// Hashes each field's `(name, data_type, nullable)` triple in column
-/// order. Two schemas that produce the same fingerprint have the same
+/// order using BLAKE3, which is stable across Rust versions, platforms,
+/// and processes (unlike `std::collections::hash_map::DefaultHasher`).
+/// Two schemas that produce the same fingerprint have the same
 /// structural shape; a fingerprint mismatch must be treated as a hard
 /// stop — the contract is identical to
 /// [`tflo_core::builder::TFlowBuilder::fingerprint`].
 #[cfg(feature = "arrow-impl")]
 #[must_use]
 pub fn schema_fingerprint(schema: &arrow_schema::Schema) -> [u8; 32] {
-    let mut h = DefaultHasher::new();
-    schema.fields().len().hash(&mut h);
+    let mut hasher = blake3::Hasher::new();
+    let len = schema.fields().len();
+    hasher.update(&len.to_le_bytes());
     for field in schema.fields() {
-        field.name().hash(&mut h);
-        format!("{:?}", field.data_type()).hash(&mut h);
-        field.is_nullable().hash(&mut h);
+        hasher.update(field.name().as_bytes());
+        let dt = format!("{:?}", field.data_type());
+        hasher.update(dt.as_bytes());
+        hasher.update(&[u8::from(field.is_nullable())]);
     }
-    let h64 = h.finish();
     let mut out = [0u8; 32];
-    out[..8].copy_from_slice(&h64.to_le_bytes());
-    out[8..16].copy_from_slice(&h64.rotate_left(17).to_le_bytes());
-    out[16..24].copy_from_slice(&h64.rotate_left(31).to_le_bytes());
-    out[24..32].copy_from_slice(&h64.rotate_left(47).to_le_bytes());
+    out.copy_from_slice(hasher.finalize().as_bytes());
     out
 }
 
@@ -227,6 +222,24 @@ mod tests {
             let a = Arc::new(schema_a());
             let b = Arc::new(schema_a());
             assert_eq!(schema_fingerprint(&a), schema_fingerprint(&b));
+        }
+
+        // Cross-version stability: pin a known schema's fingerprint so any
+        // accidental change to the hash function, field ordering, or input
+        // encoding breaks CI immediately. Bytes were captured from BLAKE3
+        // over the documented serialization and are now contractual.
+        #[test]
+        fn schema_fingerprint_is_stable() {
+            let schema = Schema::new(vec![
+                Field::new("ts", DataType::Int64, false),
+                Field::new("value", DataType::Float64, true),
+            ]);
+            let fp = schema_fingerprint(&schema);
+            let expected: [u8; 32] = [
+                149, 19, 83, 110, 232, 66, 201, 203, 206, 132, 21, 190, 53, 4, 100, 208, 0,
+                156, 245, 243, 220, 102, 48, 75, 3, 36, 249, 105, 78, 57, 31, 231,
+            ];
+            assert_eq!(fp, expected, "fingerprint regression");
         }
     }
 
