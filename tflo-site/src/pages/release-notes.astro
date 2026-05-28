@@ -18,6 +18,39 @@ import NextReleaseBadge from '../components/NextReleaseBadge.astro';
       <NextReleaseBadge variant="block" /> Items below ship at the next release.
     </p>
 
+    <!-- tflo-cep + tflo-cep-wasm -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-3"><code>tflo-cep</code> + <code>tflo-cep-wasm</code> &mdash; event-pattern matching</h2>
+      <p class="text-text-muted leading-relaxed mb-3">
+        Two new sibling crates that compose typed signals into multi-event domain
+        signals &mdash; "abandoned cart" (added to cart, not purchased within T),
+        "engaged with product" (viewed, then scrolled deep within T), "rage click"
+        (three identical clicks within T). Six-method closure-based builder
+        mirroring <code>tflo-cel</code> / <code>tflo-rhai</code> / <code>tflo-rego</code>;
+        bounded by construction.
+      </p>
+      <p class="text-text-muted leading-relaxed mb-3">
+        A generic <code>engine::Runtime</code> parameterized over three callback traits
+        (<code>Predicate</code>, <code>EmitCallback</code>, <code>TimestampCallback</code>)
+        is the <em>single</em> implementation of the matching state machine.
+        <code>tflo-cep</code> wraps it with Arc-based, <code>Send + Sync</code> callbacks
+        for multi-threaded Rust use; <code>tflo-cep-wasm</code> wraps it with Rc-based,
+        <code>js_sys::Function</code> callbacks for the browser.
+        <strong class="text-white">No duplicate runtime.</strong> Feature additions land
+        once. See the <a href="/docs/patterns" class="text-primary hover:underline">event patterns</a> docs.
+      </p>
+      <p class="text-text-muted leading-relaxed">
+        The companion TypeScript SDK
+        <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline"><code>@tflo/events-browser</code></a>
+        ships a capture layer (DOM listeners + <code>IntersectionObserver</code>-backed
+        viewport tracking), a pluggable <code>Sink</code> interface (Console, Edge, GA4
+        bundled; custom sinks in fifty lines), a consent gate, and end-of-session
+        flush via <code>sendBeacon</code>. Total wire weight: ~25 KB gzip. The
+        <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+        page walks through the workflow end-to-end.
+      </p>
+    </section>
+
     <!-- Phase 0 / CEP refactor -->
     <section class="mt-10">
       <h2 class="text-2xl font-bold text-white mb-3">CEP reorientation</h2>

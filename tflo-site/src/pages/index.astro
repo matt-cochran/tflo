@@ -383,6 +383,19 @@ const batchStreamAscii = `<span class="text-text-muted">// Live</span>
         Arrow / Parquet for batch replay and archive.
         <NextReleaseBadge variant="block" />
       </FeatureCard>
+      <FeatureCard title="Event-Pattern Matching" icon="&#x1F9E0;">
+        <code>tflo-cep</code> composes typed signals into multi-event domain signals
+        &mdash; <em>abandoned_cart</em>, <em>engaged_with_product</em>,
+        <em>rage_click</em>. Six-method closure API. Same engine runs in Rust and in
+        the browser via <code>tflo-cep-wasm</code>.
+        <NextReleaseBadge variant="block" />
+      </FeatureCard>
+      <FeatureCard title="Browser SDK" icon="&#x1F310;">
+        <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline">@tflo/events-browser</a>:
+        capture DOM events, derive typed signals via WASM, route to GA4 / first-party
+        edge / your own sink. ~25 KB gzip. The engine has zero vendor knowledge.
+        <NextReleaseBadge variant="block" />
+      </FeatureCard>
     </div>
   </section>
 

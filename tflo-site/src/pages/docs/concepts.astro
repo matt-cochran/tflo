@@ -280,6 +280,26 @@ let results: Vec<f64> = my_stream
       for end-to-end use.
     </p>
 
+    <!-- Pattern matching -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Pattern matching <NextReleaseBadge />
+    </h2>
+    <p class="text-text-muted mb-4">
+      Single-condition detectors (cross, hysteresis, glitch, runt, pulse-width) compose
+      readily for "this event meets this condition" shapes. For multi-event sequences
+      &mdash; "A then B within T", "A then no B within T", "three identical events within
+      T" &mdash; the <code>tflo-cep</code> crate provides a closure-based builder over the
+      same engine substrate (timers, snapshot-safe state, typed signals). The
+      <code>tflo-cep-wasm</code> sibling exposes the same engine to JavaScript through
+      WebAssembly &mdash; one state machine, two idiomatic surfaces.
+    </p>
+    <p class="text-text-muted mb-4">
+      See <a href="/docs/patterns" class="text-primary hover:underline">event patterns</a>
+      for the API and worked examples in both Rust and TypeScript, and
+      <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+      for the end-to-end browser workflow.
+    </p>
+
     <!-- Next -->
     <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
       <p class="text-text-muted">

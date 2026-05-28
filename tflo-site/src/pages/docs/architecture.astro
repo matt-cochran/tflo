@@ -11,6 +11,9 @@ const architectureDiagram = `<span class="text-text-muted">┌──────
 <span class="text-text-muted">│</span>                  <span class="text-accent">Scripting &amp; policy filters</span>                     <span class="text-text-muted">│</span>
 <span class="text-text-muted">│</span>          tflo-cel    tflo-rhai    tflo-rego                      <span class="text-text-muted">│</span>
 <span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>             <span class="text-accent">Pattern matching (event sequences)</span>                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>          tflo-cep (closure-based, WASM-clean)                    <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
 <span class="text-text-muted">│</span>                     <span class="text-accent">Operator catalogs</span>                            <span class="text-text-muted">│</span>
 <span class="text-text-muted">│</span>   tflo-ops (generic catalog)   tflo-fintech (finance plugin)     <span class="text-text-muted">│</span>
 <span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
@@ -24,7 +27,7 @@ const architectureDiagram = `<span class="text-text-muted">┌──────
 <span class="text-text-muted">│</span>      tflo-state-files          tflo-state-s3                     <span class="text-text-muted">│</span>
 <span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
 <span class="text-text-muted">│</span>                         <span class="text-accent">Browser</span>                                  <span class="text-text-muted">│</span>
-<span class="text-text-muted">│</span>                       tflo-wasm                                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>      tflo-wasm (ops/fintech)    tflo-cep-wasm (patterns)         <span class="text-text-muted">│</span>
 <span class="text-text-muted">└──────────────────────────────────────────────────────────────────┘</span>`;
 
 const cargoAddCommands = `# Minimal: engine + operator catalog
@@ -114,6 +117,44 @@ cargo add tflo-core --features async`;
         </p>
         <p class="text-xs text-text-muted">
           <code>cargo add tflo-fintech</code>
+        </p>
+      </div>
+    </div>
+
+    <!-- Pattern matching -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Pattern matching</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-cep <NextReleaseBadge />
+        </h3>
+        <p class="text-sm text-text-muted mb-3">
+          Closure-based event-pattern matching &mdash; "A then B within T", "A then not B
+          within T", bounded sequences. Six-method builder
+          (<code>when</code> / <code>then</code> / <code>not_then</code> /
+          <code>within</code> / <code>emit</code> plus <code>timestamp</code>),
+          <code>Match&lt;E&gt;</code> with <code>first</code> / <code>last</code> /
+          <code>at(name)</code> / <code>named()</code> / <code>all()</code>. The shared
+          <code>engine::Runtime</code> is also reused by
+          <code>tflo-cep-wasm</code>. WASM-clean by construction.
+        </p>
+        <p class="text-xs text-text-muted">
+          <code>cargo add tflo-cep</code>
+        </p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-cep-wasm <NextReleaseBadge />
+        </h3>
+        <p class="text-sm text-text-muted">
+          WebAssembly bindings for <code>tflo-cep</code>. Wraps <code>engine::Runtime</code>
+          with JS-callback adapters (Rc-based, since wasm32 is single-threaded). ~41 KB
+          optimized <code>.wasm</code>. Consumed by the
+          <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline"><code>@tflo/events-browser</code></a>
+          TypeScript SDK &mdash; see the
+          <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+          page for the end-to-end flow.
         </p>
       </div>
     </div>
@@ -230,9 +271,11 @@ cargo add tflo-core --features async`;
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-wasm</h3>
         <p class="text-sm text-text-muted">
-          WebAssembly bindings. Imports <code>tflo-ops</code> and <code>tflo-fintech</code>
-          directly. Run the streaming detectors live inside a dashboard, an extension, or a
-          service worker. See the <a href="/docs/wasm" class="text-primary hover:underline">WebAssembly</a> page.
+          WebAssembly bindings for the operator catalogs (<code>tflo-ops</code> and
+          <code>tflo-fintech</code>). Run streaming detectors and TA indicators live in
+          a dashboard, extension, or service worker. For browser event-pattern
+          matching, see the sibling <code>tflo-cep-wasm</code> crate above. See the
+          <a href="/docs/wasm" class="text-primary hover:underline">WebAssembly</a> page.
         </p>
       </div>
       <div class="card">
