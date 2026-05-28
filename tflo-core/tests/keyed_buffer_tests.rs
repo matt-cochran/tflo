@@ -155,6 +155,8 @@ proptest! {
         let data: Vec<Ev> = raw.iter().map(|&t| ev("k", t)).collect();
         let out = run(
             data,
+            // SAFETY: compile-time constant division; no runtime panic.
+            #[allow(clippy::integer_division)]
             OutOfOrderPolicy::Buffer { max_lateness_ms: i64::MAX / 2 },
         );
         let mut expected = raw.clone();

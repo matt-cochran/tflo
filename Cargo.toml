@@ -167,6 +167,13 @@ panic = "deny"
 unreachable = "deny"
 todo = "deny"
 
+# ── Lint backlog batch 6 (panic-adjacent, denied) ──────────────────────
+# Integer division panics on divide-by-zero. Sites in production code
+# carry per-site `#[allow(clippy::integer_division)]` + a `// SAFETY:`
+# comment explaining why the divisor cannot be zero (constructor guard,
+# bound at top of fn, compile-time constant, etc.).
+integer_division = "deny"
+
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
 # Philosophy:

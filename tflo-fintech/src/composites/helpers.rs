@@ -137,6 +137,10 @@ pub(super) fn trima_last(data: &[f64], period: usize) -> f64 {
     }
 
     let window = &data[n - period..n];
+    // SAFETY: `period == 0` is rejected by the guard above, so this
+    // division cannot panic. The integer-division precision-loss is the
+    // intended TRIMA half-window calculation.
+    #[allow(clippy::integer_division)]
     let half = period / 2;
     let mut weighted_sum = 0.0;
     let mut weight_sum = 0.0;
