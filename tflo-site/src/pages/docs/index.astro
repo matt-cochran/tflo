@@ -31,11 +31,35 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
       </a>
       <a href="/docs/architecture" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
         <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Crate Architecture</h2>
-        <p class="mt-2 text-sm text-text-muted">How the 10 workspace crates fit together: core, fintech, state, scripting, and connectors.</p>
+        <p class="mt-2 text-sm text-text-muted">How the workspace crates fit together: engine, ops catalogs, state, scripting, connectors, sinks.</p>
       </a>
       <a href="/docs/advanced" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
         <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Advanced</h2>
-        <p class="mt-2 text-sm text-text-muted">Checkpointing, async streams, Kafka integration, multi-language scripting, and performance tuning.</p>
+        <p class="mt-2 text-sm text-text-muted">Checkpointing, async contracts, Deduplicator, Metrics, multi-language scripting, performance.</p>
+      </a>
+      <a href="/docs/contracts" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Contracts</h2>
+        <p class="mt-2 text-sm text-text-muted">The four pluggable traits: AsyncStateStore, Cursor, ShardRouter, Operator &mdash; plus connector auxiliaries.</p>
+      </a>
+      <a href="/docs/deployment-shapes" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Deployment shapes</h2>
+        <p class="mt-2 text-sm text-text-muted">Six concrete shapes &mdash; embedded, edge, cluster, WASM, batch / replay &mdash; with caveats per shape.</p>
+      </a>
+      <a href="/docs/reference-deployment" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Reference deployment</h2>
+        <p class="mt-2 text-sm text-text-muted">End-to-end iot-portal example: MQTT &rarr; tflo &rarr; Kafka &rarr; tflo &rarr; Influx + Parquet.</p>
+      </a>
+      <a href="/docs/non-goals" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Non-goals</h2>
+        <p class="mt-2 text-sm text-text-muted">What tflo deliberately doesn't do (streaming SQL, JobManager, 2PC exactly-once, cross-shard watermark) and why.</p>
+      </a>
+      <a href="/docs/interop-backlog" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">Interop backlog</h2>
+        <p class="mt-2 text-sm text-text-muted">Designed-but-deferred integrations: tflo-flink, tflo-beam, tflo-kstreams.</p>
+      </a>
+      <a href="/docs/wasm" class="card group hover:bg-bg-card-hover transition-colors duration-200 no-underline">
+        <h2 class="text-xl font-bold text-white group-hover:text-primary transition-colors">WebAssembly</h2>
+        <p class="mt-2 text-sm text-text-muted">Run tflo computations in the browser via wasm-bindgen.</p>
       </a>
     </div>
   </div>

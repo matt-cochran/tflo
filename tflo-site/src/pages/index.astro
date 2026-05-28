@@ -1,25 +1,53 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import FeatureCard from '../components/FeatureCard.astro';
+import NextReleaseBadge from '../components/NextReleaseBadge.astro';
 
 const codeExample = `<span class="text-text-muted">use tflo_core::prelude::*;</span>
+<span class="text-text-muted">use tflo_ops::prelude::*;</span>
 
-<span class="text-text-muted">// A noisy domain event — e.g. a sensor or detector reading</span>
+<span class="text-text-muted">// A noisy domain event — e.g. a sensor reading or detection confidence</span>
 <span class="text-text-muted">#[derive(Clone)]
-struct Reading { ts: i64, level: f64 }</span>
+struct Detection { ts: i64, confidence: f64 }</span>
 
-<span class="text-text-muted">let readings = vec![
-    Reading { ts: 1000, level: 100.0 },
-    Reading { ts: 2000, level: 101.0 },
-];</span>
-
-<span class="text-text-muted">// Smooth the stream with a time-based moving average</span>
-<span class="text-primary">let smoothed: Vec&lt;f64&gt;</span> = readings.into_iter()
+<span class="text-text-muted">// Smooth confidence and flag threshold crossings</span>
+<span class="text-primary">let events</span> = detections.into_iter()
     .<span class="text-accent">tflo</span>(|t| {
-        t.timestamp(|x| x.ts);
-        <span class="text-accent">let level = t.prop(|x| x.level);</span>
-        level.sma(2_u64.secs())
+        t.timestamp(|d| d.ts);
+        <span class="text-accent">let confidence = t.prop(|d| d.confidence);</span>
+        let smoothed = confidence.sma(5_u64.secs());
+        let threshold = t.constant(0.8);
+        smoothed.cross(&threshold)
     })
+    .collect::&lt;Vec&lt;_&gt;&gt;();
+
+<span class="text-text-muted">// Same code on a Vec&lt;Detection&gt; (backfill) or a Stream&lt;Detection&gt; (live)</span>`;
+
+const edgeAscii = `<span class="text-text-muted">[sensor gateways] [browser dashboards] [embedded services]</span>
+       │                  │                    │
+       └── <span class="text-accent">tflo signal emission (typed Signal events)</span> ──┐
+                                                       │
+                                            <span class="text-primary">[Kafka / NATS / MQTT]</span>
+                                                       │
+                                                <span class="text-primary">[Flink / Esper /
+                                                 Kafka Streams]</span>`;
+
+const insideHostAscii = `         <span class="text-primary">[Flink job]</span>
+             │
+     ┌───────┴────────┐
+     │  KeyedProcess  │  ← Flink owns watermarks,
+     │  Function      │     exactly-once, scaling
+     │   <span class="text-accent">┌────────┐</span>   │
+     │   <span class="text-accent">│ tflo   │</span>   │  ← tflo owns signal logic,
+     │   <span class="text-accent">│ graph  │</span>   │     typed Absent
+     │   <span class="text-accent">└────────┘</span>   │
+     └────────────────┘`;
+
+const batchStreamAscii = `<span class="text-text-muted">// Live</span>
+<span class="text-primary">let live</span> = stream<span class="text-accent">.tflo</span>(|t| { ... });
+
+<span class="text-text-muted">// Backfill — same closure</span>
+<span class="text-primary">let back</span> = vec<span class="text-accent">.tflo</span>(|t| { ... })
     .collect();`;
 ---
 
@@ -34,26 +62,27 @@ struct Reading { ts: i64, level: f64 }</span>
           Experimental &middot; pre-1.0
         </div>
         <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-tight">
-          A
-          <span class="gradient-text">Temporal Event Processing</span>
-          Engine
+          An embeddable
+          <span class="gradient-text">temporal event-processing</span>
+          engine
         </h1>
         <p class="mt-6 text-lg sm:text-xl text-text-muted max-w-2xl mx-auto leading-relaxed">
-          tflo &mdash; short for &ldquo;temporal flow&rdquo; &mdash; turns noisy domain events into clean
-          lifecycle events: <em>appeared</em>, <em>persisted</em>, <em>changed</em>,
-          <em>dropped out</em>, <em>crossed a threshold</em>. Composable computation graphs over
-          iterators and streams, with first-class keyed execution, checkpoint/restore, and observability.
+          tflo &mdash; short for &ldquo;temporal flow&rdquo; &mdash; runs at the
+          <strong class="text-white">edge</strong>, in the <strong class="text-white">browser</strong>,
+          embedded in your <strong class="text-white">Rust service</strong>, or alongside the
+          Flink, Esper, or Kafka Streams cluster you already operate. Typed signals, typed
+          missing values, identical code for batch and streaming.
         </p>
         <p class="mt-3 text-md text-primary/80 max-w-2xl mx-auto leading-relaxed font-medium">
-          Model your domain events; layer streaming temporal analysis on top.
+          Composition, not substitution &mdash; tflo fills the deployment shapes JVM CEP engines can't reach.
         </p>
         <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a href="/docs/quick-start" class="btn-primary text-base px-8 py-3.5">
             Get Started
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4l4 4-4 4"/></svg>
           </a>
-          <a href="#features" class="btn-secondary text-base px-8 py-3.5">
-            Features
+          <a href="/positioning" class="btn-secondary text-base px-8 py-3.5">
+            Where tflo fits
           </a>
           <a href="/use-cases" class="btn-secondary text-base px-8 py-3.5">
             Use Cases
@@ -71,35 +100,92 @@ struct Reading { ts: i64, level: f64 }</span>
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
     <div class="card flex justify-center overflow-x-auto">
       <pre class="text-xs text-center sm:text-sm text-text-muted leading-relaxed font-mono whitespace-pre">
-<span class="text-primary">+--------------------------------------------------+</span>
-<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
-<span class="text-primary">|</span>   Noisy Events --&gt; tflo() --&gt; Keyed Execution    <span class="text-primary">|</span>
-<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">|</span>  sma <span class="text-accent">|</span> ema <span class="text-accent">|</span> std <span class="text-accent">|</span> rate <span class="text-accent">|</span>  Streaming     <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">|</span>  deviation_band   <span class="text-accent">|</span> ..   <span class="text-accent">|</span>  Analysis      <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">|</span>  peak_decline <span class="text-accent">|</span> momentum <span class="text-accent">|</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">|</span>  Cross <span class="text-accent">|</span> Hysteresis     <span class="text-accent">|</span>  Detectors     <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">|</span>  Glitch <span class="text-accent">|</span> Pulse <span class="text-accent">|</span> Runt  <span class="text-accent">|</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">|</span>  Window <span class="text-accent">|</span> Pulse-Width   <span class="text-accent">|</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>       <span class="text-accent">+-------------------------+</span>                <span class="text-primary">|</span>
-<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
-<span class="text-primary">|</span>  Lifecycle Events &lt;-- CompiledGraph &lt;-- Checkpoint<span class="text-primary">|</span>
-<span class="text-primary">|</span>                                                  <span class="text-primary">|</span>
-<span class="text-primary">+--------------------------------------------------+</span>
+<span class="text-primary">+------------------------------------------------------------+</span>
+<span class="text-primary">|</span>                                                            <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">Connectors:</span>  tflo-connect-kafka   tflo-connect-mqtt      <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">Sinks:</span>       tflo-sink-influx     tflo-arrow             <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">Policy:</span>      tflo-cel   tflo-rhai   tflo-rego             <span class="text-primary">|</span>
+<span class="text-primary">|</span>                              │                             <span class="text-primary">|</span>
+<span class="text-primary">|</span>                              ▼                             <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">Catalogs:</span>   tflo-ops (generic)  tflo-fintech (finance)  <span class="text-primary">|</span>
+<span class="text-primary">|</span>                              │                             <span class="text-primary">|</span>
+<span class="text-primary">|</span>                              ▼                             <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">Engine:</span>     <strong>tflo-core</strong>                                <span class="text-primary">|</span>
+<span class="text-primary">|</span>                  graph + windowing + keyed exec            <span class="text-primary">|</span>
+<span class="text-primary">|</span>                  timers + dedup + metrics                  <span class="text-primary">|</span>
+<span class="text-primary">|</span>                  typed Absent + async contracts            <span class="text-primary">|</span>
+<span class="text-primary">|</span>                              │                             <span class="text-primary">|</span>
+<span class="text-primary">|</span>                              ▼                             <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">State:</span>      tflo-state-files     tflo-state-s3          <span class="text-primary">|</span>
+<span class="text-primary">|</span>   <span class="text-accent">Browser:</span>    tflo-wasm                                   <span class="text-primary">|</span>
+<span class="text-primary">|</span>                                                            <span class="text-primary">|</span>
+<span class="text-primary">+------------------------------------------------------------+</span>
       </pre>
     </div>
   </section>
 
-  <!-- Feature Matrix -->
-  <section id="features" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
-    <div class="text-center mb-14">
-      <h2 class="section-title">Why tflo?</h2>
-      <p class="section-subtitle">Built from the ground up for real-time streaming workloads.</p>
+  <!-- Where tflo fits (composition story) -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border">
+    <div class="text-center mb-12">
+      <h2 class="section-title">Where tflo fits</h2>
+      <p class="section-subtitle">Composition with the engines you already operate &mdash; not substitution.</p>
     </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Pattern 1 -->
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">At the edge, mature engine in the center</h3>
+        <p class="text-sm text-text-muted mb-3 leading-relaxed">
+          tflo runs on sensor gateways and in browsers, emitting typed
+          <code>Signal</code> events. Those signals flow into Flink / Esper / Kafka Streams
+          for cross-source aggregation.
+        </p>
+        <pre class="text-[10px] sm:text-xs leading-relaxed font-mono whitespace-pre overflow-x-auto" set:html={edgeAscii} />
+      </div>
+
+      <!-- Pattern 2 -->
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">Inside a host engine, per key</h3>
+        <p class="text-sm text-text-muted mb-3 leading-relaxed">
+          The host owns watermarks, exactly-once, scaling, savepoints. tflo runs inside a
+          per-key slot (<code>KeyedProcessFunction</code>, <code>DoFn</code>,
+          <code>Processor</code>) and contributes signal logic and typed <code>Absent</code>.
+        </p>
+        <pre class="text-[10px] sm:text-xs leading-relaxed font-mono whitespace-pre overflow-x-auto" set:html={insideHostAscii} />
+      </div>
+
+      <!-- Pattern 3 -->
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">Same code for batch and streaming</h3>
+        <p class="text-sm text-text-muted mb-3 leading-relaxed">
+          The same detectors that run in production also run against archived events.
+          <code>Iterator::tflo(...)</code> works identically on
+          <code>Vec&lt;Event&gt;</code> (backfill) and <code>Stream&lt;Event&gt;</code>
+          (live) &mdash; deterministic output.
+        </p>
+        <pre class="text-[10px] sm:text-xs leading-relaxed font-mono whitespace-pre overflow-x-auto" set:html={batchStreamAscii} />
+      </div>
+    </div>
+
+    <div class="text-center mt-8">
+      <a href="/positioning" class="btn-secondary text-base px-6 py-3">
+        Read the full positioning
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4l4 4-4 4"/></svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- Capabilities matrix — tflo vs JVM CEP -->
+  <section id="features" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20">
+    <div class="text-center mb-6">
+      <h2 class="section-title">Where each lane wins</h2>
+      <p class="section-subtitle">Composition, not competition &mdash; honest about where each tool fits.</p>
+    </div>
+    <p class="text-sm text-text-muted text-center max-w-2xl mx-auto mb-10">
+      Rows where tflo shows &ldquo;&mdash;&rdquo; are deliberate
+      <a href="/docs/non-goals" class="text-primary hover:underline">non-goals</a>; for those,
+      host tflo <em>inside</em> Flink / Beam and the host engine covers them.
+    </p>
 
     <div class="overflow-x-auto rounded-xl border border-border">
       <table class="w-full text-sm">
@@ -107,98 +193,105 @@ struct Reading { ts: i64, level: f64 }</span>
           <tr class="border-b border-border bg-bg-card">
             <th class="text-left p-4 font-semibold text-white">Capability</th>
             <th class="text-center p-4 font-semibold"><span class="gradient-text">tflo</span></th>
+            <th class="text-center p-4 font-semibold text-text-muted">Flink / Esper / KStreams</th>
             <th class="text-center p-4 font-semibold text-text-muted">Hand-rolled state</th>
-            <th class="text-center p-4 font-semibold text-text-muted">Batch jobs / SQL</th>
           </tr>
         </thead>
         <tbody class="text-text-muted">
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Streaming-first &mdash; no full history in memory</td>
+            <td class="p-4">Runs in browser / WASM</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
-            <td class="text-center p-4">&#x2717; (batch)</td>
+            <td class="text-center p-4">case-by-case</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Keyed execution &mdash; independent state per entity</td>
+            <td class="p-4">Runs on edge gateways under 1 GB RAM</td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4">&#x2717; (JVM)</td>
+            <td class="text-center p-4">case-by-case</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Embeds in your Rust service, no sidecar</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2713;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Checkpoint/restore</td>
-            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
-            <td class="text-center p-4">&#x2717;</td>
-          </tr>
-          <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Lifecycle events (appeared / persisted / dropped out)</td>
-            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
-            <td class="text-center p-4">&#x2717;</td>
-          </tr>
-          <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Iterator + Stream adapters</td>
+            <td class="p-4">Typed missing-value reasons (not <code>NaN</code>)</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Async-native</td>
+            <td class="p-4">Identical code for batch and streaming</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">partial</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Event detectors (cross, hysteresis, glitch, runt, pulse)</td>
+            <td class="p-4">Keyed execution, snapshot-safe state</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Functional graph primitives (map/scan/filter closures)</td>
+            <td class="p-4">Event-time timers, per-key heap</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">CEL/Rhai/Rego policy filters</td>
+            <td class="p-4">Built-in event detectors (cross, glitch, runt, pulse)</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">partial</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Time-based windows on irregular data</td>
+            <td class="p-4">No JobManager / no separate state backend to operate</td>
             <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
+            <td class="text-center p-4">&#x2713;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Streaming SQL for analyst self-service<sup>*</sup></td>
+            <td class="text-center p-4">&mdash;</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Enrichment pipeline (keep original records)</td>
-            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
-            <td class="text-center p-4">&#x2717;</td>
-          </tr>
-          <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Stream combinators (merge, join, batch, dedupe)</td>
-            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="p-4">Cross-shard / global watermark, multi-shard joins<sup>*</sup></td>
+            <td class="text-center p-4">&mdash;</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="border-b border-border hover:bg-bg-card transition-colors">
-            <td class="p-4">Domain plugins (e.g. tflo-fintech indicators)</td>
-            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="p-4">Exactly-once via two-phase-commit sinks<sup>*</sup></td>
+            <td class="text-center p-4">&mdash;</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">At-least-once + idempotent sinks + <code>Deduplicator</code></td>
+            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
           <tr class="hover:bg-bg-card transition-colors">
-            <td class="p-4">Signal conditioning (DC removal, normalization)</td>
-            <td class="text-center p-4 text-emerald-400 font-bold">&#x2713;</td>
-            <td class="text-center p-4">&#x2717;</td>
+            <td class="p-4">Broad connector catalog (Debezium CDC, dozens of cloud sources)<sup>*</sup></td>
+            <td class="text-center p-4">Kafka / MQTT / Arrow</td>
+            <td class="text-center p-4 text-emerald-400">&#x2713;</td>
             <td class="text-center p-4">&#x2717;</td>
           </tr>
         </tbody>
       </table>
     </div>
+    <p class="text-xs text-text-muted mt-4 max-w-3xl">
+      <sup>*</sup> Rows where tflo shows &ldquo;&mdash;&rdquo; are deliberately
+      <a href="/docs/non-goals" class="text-primary hover:underline">non-goals</a>: tflo
+      doesn't try to replace the host engine on these axes. Host tflo inside Flink / Beam /
+      Kafka Streams and the host covers them &mdash; see
+      <a href="/positioning" class="text-primary hover:underline">positioning</a>.
+    </p>
   </section>
 
   <!-- Feature Highlights -->
@@ -250,10 +343,11 @@ struct Reading { ts: i64, level: f64 }</span>
         readings, or events with irregular intervals. No padding, interpolation,
         or normalized time series required. Just timestamps and values.
       </FeatureCard>
-      <FeatureCard title="Domain Plugins" icon="&#x1F4E6;">
-        The temporal event processing engine lives in <code>tflo-core</code>; domain logic plugs in on top.
-        <code>tflo-fintech</code> ships financial TA indicators &mdash; one domain among
-        RF, observability, fraud, and IoT.
+      <FeatureCard title="Operator Catalogs" icon="&#x1F4E6;">
+        The engine lives in <code>tflo-core</code>; operators live in
+        <code>tflo-ops</code> (generic) and <code>tflo-fintech</code> (finance plugin).
+        Domain catalogs evolve on their own cadence &mdash; finance is one among RF,
+        observability, fraud, IoT.
       </FeatureCard>
       <FeatureCard title="Stream Composition" icon="&#x1F500;">
         Merge multiple streams by timestamp, window-join two streams, batch
@@ -264,6 +358,30 @@ struct Reading { ts: i64, level: f64 }</span>
         Preprocess raw signals before analysis: DC removal, drifting baseline
         correction, range normalization, z-score standardization, and
         gain/offset calibration. Built for sensor and RF pipelines.
+      </FeatureCard>
+      <FeatureCard title="Event-Time Timers" icon="&#x23F2;">
+        Per-key timer heap with deterministic <code>(fire_ts, seq)</code> ordering;
+        snapshot-safe serialization via <code>postcard</code>. The clean way to express
+        dwell timers, watchdog timeouts, and absence detection.
+        <NextReleaseBadge variant="block" />
+      </FeatureCard>
+      <FeatureCard title="Idempotent Sinks" icon="&#x1F510;">
+        <code>Deduplicator</code> primitive: process-local cache plus a durable
+        per-sink window backed by <code>AsyncStateStore</code>. tflo's answer to
+        exactly-once is at-least-once + idempotent, not 2PC.
+        <NextReleaseBadge variant="block" />
+      </FeatureCard>
+      <FeatureCard title="Pluggable Metrics" icon="&#x1F4C8;">
+        <code>Metrics</code> trait fires on keyed-step latency, timer fires,
+        checkpoint commit and failure, late-record drops. No-op default; wire
+        Prometheus / statsd / OTEL in one place.
+        <NextReleaseBadge variant="block" />
+      </FeatureCard>
+      <FeatureCard title="Connector Ecosystem" icon="&#x1F517;">
+        Kafka (<code>KafkaShardRouter</code> with rebalance fencing), MQTT
+        (<code>BoundedSet</code> for QoS-2 dedup), Influx line-protocol sink, and
+        Arrow / Parquet for batch replay and archive.
+        <NextReleaseBadge variant="block" />
       </FeatureCard>
     </div>
   </section>
@@ -292,8 +410,8 @@ struct Reading { ts: i64, level: f64 }</span>
       <div class="relative">
         <h2 class="text-3xl sm:text-4xl font-extrabold text-white">Ready to model your events?</h2>
         <p class="mt-4 text-lg text-text-muted max-w-lg mx-auto">
-          Add <code>tflo-core</code> to your <code>Cargo.toml</code> and start building
-          real-time event-processing pipelines today.
+          Add <code>tflo-core</code> and <code>tflo-ops</code> to your
+          <code>Cargo.toml</code> and start building real-time event-processing pipelines today.
         </p>
         <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a href="/docs/quick-start" class="btn-primary text-lg px-10 py-4">Get Started</a>

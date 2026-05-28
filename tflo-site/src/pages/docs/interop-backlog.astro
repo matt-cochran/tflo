@@ -1,0 +1,124 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
+---
+
+<DocsLayout title="Interop backlog" description="Deferred integrations with Flink, Beam, Kafka Streams, and pattern matching.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Interop backlog</h1>
+    <p class="text-lg text-text-muted mb-6">
+      Designed integrations between tflo and mature CEP / streaming engines &mdash; deferred
+      until concrete user demand surfaces. The framing across all entries is
+      <strong class="text-white">composability, not substitution</strong>: tflo brings what the
+      host engine cannot (typed <code>Absent</code>, typed <code>Signal</code>, edge / WASM /
+      embedded-Rust deployment); the host brings what tflo does not (distributed runtime,
+      exactly-once via 2PC, savepoints, broad connector catalogs).
+    </p>
+    <p class="text-text-muted mb-12">
+      Documenting the shape here, before any build, prevents wheels from being re-invented and
+      lets reviewers reject ad-hoc integration PRs by pointing at the intended design.
+    </p>
+
+    <!-- tflo-flink -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-2">
+        <code>tflo-flink</code> &mdash; Flink integration
+        <NextReleaseBadge tone="backlog" label="Backlog" />
+      </h2>
+      <p class="text-text-muted mb-4">
+        <code>tflo-core</code> compiled to a shared library; Flink calls via JNI. A thin Java
+        wrapper exposes <code>TfloKeyedProcessFunction&lt;K, R, S&gt;</code> to Flink job
+        authors. In jurisdictions where JNI is off-limits, the fallback is a sidecar process
+        with a small binary protocol.
+      </p>
+      <p class="text-text-muted mb-4">Two integration directions, both supported:</p>
+      <ul class="list-disc pl-6 space-y-2 text-text-muted mb-4">
+        <li>
+          <strong class="text-white">Flink &rarr; tflo:</strong> Flink hosts the distributed
+          runtime; tflo runs per-key detector logic inside a
+          <code>KeyedProcessFunction</code>. The host owns watermarks, exactly-once, scaling,
+          savepoints. tflo owns signal logic and typed <code>Absent</code>.
+        </li>
+        <li>
+          <strong class="text-white">tflo &rarr; Flink:</strong> tflo runs at the edge
+          (gateway, browser, embedded service), emits typed
+          <code>Signal&lt;Mode, Payload&gt;</code> events that get shipped to a central Flink
+          job for aggregation and joining with reference data.
+        </li>
+      </ul>
+      <p class="text-text-muted">
+        <strong class="text-white">Standalone value:</strong> Flink users gain typed
+        <code>Absent</code> (named reasons for missing values, which Flink itself does not
+        provide) and edge-side signal pre-processing in deployment shapes the JVM cannot reach.
+        Both engines stay in their best lane: Flink owns the cluster; tflo owns the signal
+        logic.
+      </p>
+    </section>
+
+    <!-- tflo-beam -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-2">
+        <code>tflo-beam</code> &mdash; Apache Beam adapter
+        <NextReleaseBadge tone="backlog" label="Backlog" />
+      </h2>
+      <p class="text-text-muted">
+        A Beam <code>DoFn</code> (Java) that wraps a tflo graph the same way
+        <code>tflo-flink</code> wraps it inside a Flink <code>KeyedProcessFunction</code>. The
+        shared-library / JNI layer is shared with <code>tflo-flink</code>; the Java companion
+        is Beam-specific. Strictly built <em>after</em> <code>tflo-flink</code> validates the
+        JNI pattern. Portability is the payoff: choose Dataflow for managed, Flink for
+        self-hosted, or Spark for batch-heavy without rewriting the signal logic.
+      </p>
+    </section>
+
+    <!-- tflo-kstreams -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-2">
+        <code>tflo-kstreams</code> &mdash; Kafka Streams adapter
+        <NextReleaseBadge tone="backlog" label="Backlog" />
+      </h2>
+      <p class="text-text-muted">
+        A Kafka Streams <code>Processor&lt;K, V&gt;</code> (Java) wrapping a tflo graph; same
+        shared-library / JNI substrate as <code>tflo-flink</code>. For Kafka shops, the
+        operational surface stays just Kafka &mdash; no JobManager, no separate state cluster.
+        Postponed until <code>tflo-flink</code> and <code>tflo-beam</code> validate the JNI
+        pattern.
+      </p>
+    </section>
+
+    <!-- Esper -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-2">Esper integration</h2>
+      <p class="text-text-muted">
+        <strong class="text-white">Explicitly not planned.</strong> Esper is in maintenance
+        mode upstream; the integration cost-benefit is poor. Users who need it can have tflo
+        emit typed <code>Signal</code> events to a topic that Esper consumes &mdash; a normal
+        producer / consumer pattern, no special integration crate required.
+      </p>
+    </section>
+
+    <!-- Promotion criteria -->
+    <section class="mt-12">
+      <h2 class="text-2xl font-bold text-white mb-3">Promotion criteria</h2>
+      <p class="text-text-muted mb-3">An entry above leaves the backlog when, in order:</p>
+      <ol class="list-decimal pl-6 space-y-2 text-text-muted">
+        <li>A concrete user requests the integration with a clear use case.</li>
+        <li>The use case is consistent with the "supplement, not replace" framing.</li>
+        <li>The standalone story (Phases 0&ndash;3 of the closure plan) is complete and stable.</li>
+      </ol>
+    </section>
+
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Canonical source:</strong>
+        <a href="https://github.com/matt-cochran/tflo/blob/main/docs/interop-backlog.md" class="text-primary hover:underline">docs/interop-backlog.md</a>.
+      </p>
+      <p class="text-text-muted mt-3">
+        <strong class="text-white">Related:</strong>
+        <a href="/docs/non-goals" class="text-primary hover:underline">Non-goals</a>
+        &middot;
+        <a href="/positioning" class="text-primary hover:underline">Positioning</a>
+      </p>
+    </div>
+  </div>
+</DocsLayout>

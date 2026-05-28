@@ -1,6 +1,52 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
+import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
+
+const asyncContractsCode = `use tflo_core::state::{AsyncStateStore, Checkpointer};
+
+// The Checkpointer is the single place that orders the writes.
+// Snapshot first, cursor last — the only crash-safe order.
+let cp = Checkpointer::new(state_store, cursor_store)
+    .with_stage_deadline(Duration::from_secs(5))    // per-stage timeout
+    .with_failure_breaker(consecutive = 3);          // circuit breaker
+
+// commit() takes a snapshot from the graph and the current cursor and
+// writes both in order. Counters: commits_total / failures_total /
+// timeouts_total — wire them up via the Metrics trait below.
+cp.commit(key, graph.snapshot()?, cursor).await?;`;
+
+const dedupCode = `use tflo_core::dedup::Deduplicator;
+
+// At-least-once + idempotent sinks is tflo's answer to exactly-once.
+// Deduplicator backs a per-sink durable window keyed by message id.
+let mut dedup = Deduplicator::new(state_store, namespace = "influx-sink")
+    .with_window(64 * 1024);
+
+for msg in incoming {
+    if dedup.is_new(&msg.id).await? {
+        sink.write(&msg).await?;
+        dedup.remember(&msg.id).await?;
+    }
+    // Duplicates are skipped silently — safe to replay the source.
+}`;
+
+const metricsCode = `use tflo_core::metrics::Metrics;
+
+// Pluggable metrics trait — no-op by default. Wire to Prometheus,
+// statsd, OTEL by implementing it once.
+struct PromMetrics;
+
+impl Metrics for PromMetrics {
+    fn on_keyed_step(&self, key: &[u8], lat_ns: u64) { /* observe */ }
+    fn on_timer_fire(&self, key: &[u8], count: u64)   { /* counter */ }
+    fn on_checkpoint_commit(&self, dur_ms: u64)       { /* histogram */ }
+    fn on_checkpoint_failure(&self, kind: &str)       { /* counter */ }
+    fn on_late_record_drop(&self, key: &[u8])         { /* counter */ }
+}
+
+// Plug into the builder.
+builder.metrics(Arc::new(PromMetrics));`;
 
 const fileCheckpointCode = `use std::sync::Arc;
 use tflo_core::builder::Compile;
@@ -299,6 +345,62 @@ let allowed: Vec<Detection> = detections
         <strong class="text-white">Checkpoint periodically, not per-tick:</strong> choose a checkpoint interval that balances recovery time against write overhead.
       </li>
     </ul>
+
+    <!-- Async state contracts -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Async state contracts <NextReleaseBadge />
+    </h2>
+    <p class="text-text-muted mb-4">
+      For network-backed state stores, tflo exposes <code>AsyncStateStore</code> /
+      <code>AsyncCursorStore</code> alongside the sync trait family. The
+      <code>Checkpointer</code> orchestrates the only crash-safe write order
+      &mdash; snapshot first, cursor last &mdash; with a per-stage deadline and a
+      consecutive-failure circuit breaker. Counters (<code>commits_total</code>,
+      <code>failures_total</code>, <code>timeouts_total</code>) feed back through the
+      <code>Metrics</code> trait below.
+    </p>
+    <CodeBlock code={asyncContractsCode} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      See <a href="/docs/contracts" class="text-primary hover:underline">Contracts</a> for
+      the trait signatures, and
+      <a href="/docs/reference-deployment" class="text-primary hover:underline">reference deployment</a>
+      for end-to-end use against Kafka and Influx.
+    </p>
+
+    <!-- Deduplication -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Idempotent sinks via <code>Deduplicator</code> <NextReleaseBadge />
+    </h2>
+    <p class="text-text-muted mb-4">
+      End-to-end exactly-once delivery requires either transactional sinks coordinated with
+      checkpoint barriers (Flink's approach) or idempotent sinks with at-least-once delivery
+      and deduplication. tflo commits to the second path: <code>Deduplicator&lt;K&gt;</code>
+      is a first-class primitive that maintains a process-local cache plus a durable per-sink
+      window keyed by message id, backed by any <code>AsyncStateStore</code>.
+    </p>
+    <CodeBlock code={dedupCode} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      This is the engine's "exactly-once via 2PC is not a goal" answer &mdash; see
+      <a href="/docs/non-goals" class="text-primary hover:underline">non-goals</a> for the
+      reasoning. Two-phase commit lives in the host engine if you need it; the
+      <code>Deduplicator</code> covers the at-least-once + idempotent-sink path natively.
+    </p>
+
+    <!-- Metrics -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Metrics integration <NextReleaseBadge />
+    </h2>
+    <p class="text-text-muted mb-4">
+      Observability ships as a pluggable <code>Metrics</code> trait with a no-op default.
+      The engine fires events on keyed-step latency, timer fire counts, checkpoint commit
+      and failure, and late-record drops. Implement the trait once to bridge to Prometheus,
+      statsd, or OTEL; the rest of the engine doesn't know or care which.
+    </p>
+    <CodeBlock code={metricsCode} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      Trait-level integration means no log-line parsing, no engine forking, and no runtime
+      cost when nobody's listening (the default impl is a no-op the optimizer eliminates).
+    </p>
 
     <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
       <p class="text-text-muted">
