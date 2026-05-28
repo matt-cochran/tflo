@@ -195,6 +195,26 @@ arithmetic_side_effects = "deny"
 # Test code uses file-level `#![allow]` (test exception).
 indexing_slicing = "deny"
 
+# ── Lint backlog batch 9 (free-win lock-in, denied) ────────────────────
+# These had zero hits at sweep time — denying them keeps the codebase
+# clean of these footguns forever:
+#   - debug macros left in production (`dbg!`)
+#   - direct process exit from library code (`std::process::exit`)
+#   - silent leak of resources (`std::mem::forget`)
+#   - `Mutex<bool>` / `Mutex<u64>` / `RwLock<bool>` that should be
+#     atomics
+#   - unfinished implementations escaping past code review
+#     (`unimplemented!()`, `string_slice` panic on non-char-boundary,
+#     `1.5_f32` precision-loss literals)
+dbg_macro = "deny"
+exit = "deny"
+mem_forget = "deny"
+mutex_atomic = "deny"
+mutex_integer = "deny"
+unimplemented = "deny"
+string_slice = "deny"
+lossy_float_literal = "deny"
+
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
 # Philosophy:
