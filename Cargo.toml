@@ -13,6 +13,8 @@ members = [
     "tflo-connect-mqtt",
     "tflo-sink-influx",
     "tflo-arrow",
+    "tflo-cep",
+    "tflo-cep-wasm",
     "tflo-examples",
     "tflo-wasm",
 ]
@@ -39,6 +41,7 @@ tflo-connect-kafka = { path = "tflo-connect-kafka" }
 tflo-connect-mqtt = { path = "tflo-connect-mqtt" }
 tflo-sink-influx = { path = "tflo-sink-influx" }
 tflo-arrow = { path = "tflo-arrow" }
+tflo-cep = { path = "tflo-cep" }
 
 # Async runtime
 tokio = { version = "1.41", default-features = false }
