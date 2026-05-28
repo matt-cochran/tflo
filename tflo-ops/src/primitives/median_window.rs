@@ -106,6 +106,9 @@ impl MedianCountWindow {
         let n = self.sorted.len();
 
         if n == 1 {
+            // SAFETY: `is_empty` early-return above plus `n == 1` here guarantee
+            // index 0 is valid.
+            #[allow(clippy::indexing_slicing)]
             return self.sorted[0];
         }
 
@@ -120,9 +123,19 @@ impl MedianCountWindow {
         let frac = pos - lower as f64;
 
         if lower == upper {
-            self.sorted[lower]
+            // SAFETY: `q` is clamped to [0,1] and `pos = q * (n-1)` so
+            // `lower = pos.floor() <= n-1`, within bounds.
+            #[allow(clippy::indexing_slicing)]
+            {
+                self.sorted[lower]
+            }
         } else {
-            self.sorted[lower] * (1.0 - frac) + self.sorted[upper] * frac
+            // SAFETY: `q` is clamped to [0,1] so `pos = q * (n-1) <= n-1`,
+            // giving `lower <= n-1` and `upper = pos.ceil() <= n-1`.
+            #[allow(clippy::indexing_slicing)]
+            {
+                self.sorted[lower] * (1.0 - frac) + self.sorted[upper] * frac
+            }
         }
     }
 
@@ -257,6 +270,9 @@ impl MedianTimeWindow {
 
         let n = values.len();
         if n == 1 {
+            // SAFETY: `is_empty` early-return above plus `n == 1` here guarantee
+            // index 0 is valid.
+            #[allow(clippy::indexing_slicing)]
             return values[0];
         }
 
@@ -271,9 +287,19 @@ impl MedianTimeWindow {
         let frac = pos - lower as f64;
 
         if lower == upper {
-            values[lower]
+            // SAFETY: `q` is clamped to [0,1] and `pos = q * (n-1)` so
+            // `lower = pos.floor() <= n-1`, within bounds.
+            #[allow(clippy::indexing_slicing)]
+            {
+                values[lower]
+            }
         } else {
-            values[lower] * (1.0 - frac) + values[upper] * frac
+            // SAFETY: `q` is clamped to [0,1] so `pos = q * (n-1) <= n-1`,
+            // giving `lower <= n-1` and `upper = pos.ceil() <= n-1`.
+            #[allow(clippy::indexing_slicing)]
+            {
+                values[lower] * (1.0 - frac) + values[upper] * frac
+            }
         }
     }
 

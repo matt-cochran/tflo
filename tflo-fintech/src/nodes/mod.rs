@@ -261,7 +261,13 @@ impl Operator for AtrNode {
                 // are `n` long after the pushes above).
                 #[allow(clippy::arithmetic_side_effects)]
                 let i1 = i + 1;
-                sum_tr += true_range(self.high[i1], self.low[i1], self.close[i]);
+                // SAFETY: `i1 = i + 1 <= period < n = self.high.len() =
+                // self.low.len()`, and `i < period < n = self.close.len()`,
+                // so all three indices are in bounds.
+                #[allow(clippy::indexing_slicing)]
+                {
+                    sum_tr += true_range(self.high[i1], self.low[i1], self.close[i]);
+                }
             }
             self.prev_atr = sum_tr / period as f64;
             self.seeded = true;
@@ -274,6 +280,8 @@ impl Operator for AtrNode {
         // so `n - 2 >= 0` cannot underflow.
         #[allow(clippy::arithmetic_side_effects)]
         let prev_close_idx = n - 2;
+        // SAFETY: `prev_close_idx = n - 2 < n = self.close.len()`, in bounds.
+        #[allow(clippy::indexing_slicing)]
         let prev_tr = true_range(high, low, self.close[prev_close_idx]);
         self.prev_atr = (self.prev_atr * (period as f64 - 1.0) + prev_tr) / period as f64;
         NodeOutput::computed(Ok(self.prev_atr))

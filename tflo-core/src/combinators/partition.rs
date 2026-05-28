@@ -131,6 +131,8 @@ impl<I, T> PartitionExt<T> for I where I: Iterator<Item = T> {}
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)] // SAFETY: test code, indexes into vecs of known size
+
     use super::*;
 
     #[test]

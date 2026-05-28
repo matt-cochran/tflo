@@ -36,7 +36,7 @@
 //! and `s3_unreachable_endpoint_surfaces_error` (network error with no
 //! server at all).
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 // The integration-tests feature is only meaningful in combination with the
 // `async` feature, which provides the `AsyncStateStore` impl this test

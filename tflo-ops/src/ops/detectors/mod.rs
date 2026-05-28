@@ -222,6 +222,7 @@ impl<R: 'static> DetectorOps<R> for Comp<R, f64> {
 // ============================================================================
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::events::GlitchResult;

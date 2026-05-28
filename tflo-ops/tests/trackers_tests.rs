@@ -13,7 +13,12 @@
 //! operator end-to-end through the real `tflo` builder via the [`StatefulOps`]
 //! extension trait.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 use std::time::Duration;
 use tflo_core::compile::Absent;

@@ -2,7 +2,8 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing
 )]
 // The golden-vector scaffolding carries diagnostic fields/methods that not
 // every test path reads.

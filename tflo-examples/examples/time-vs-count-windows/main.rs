@@ -153,15 +153,19 @@ fn main() {
         })
         .collect();
 
+    // SAFETY: `sample_throughput()` returns a 10-element vec literal; slicing
+    // the first 6 is in-bounds. Used in both display loops below.
+    #[allow(clippy::indexing_slicing)]
+    let head = &sample_throughput()[..6];
     println!("Time-based SMA(2s): always covers 2 seconds of data");
-    for (sample, val) in sample_throughput()[..6].iter().zip(&time_varying) {
+    for (sample, val) in head.iter().zip(&time_varying) {
         println!(
             "  ts={:>6} mbps={:>.1} sma={:>.4}",
             sample.ts, sample.mbps, val
         );
     }
     println!("\nCount-based SMA(3): always covers last 3 samples");
-    for (sample, val) in sample_throughput()[..6].iter().zip(&count_varying) {
+    for (sample, val) in head.iter().zip(&count_varying) {
         println!(
             "  ts={:>6} mbps={:>.1} sma={:>.4}",
             sample.ts, sample.mbps, val

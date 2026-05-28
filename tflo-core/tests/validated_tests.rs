@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::indexing_slicing)] // SAFETY: test code, indexes into vecs of known size
 //! Integration tests for `validated()` — proves every `ValidationOptions`
 //! field is actually enforced (not silently ignored).
 

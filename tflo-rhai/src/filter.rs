@@ -293,7 +293,7 @@ where
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
+#[allow(deprecated, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use rhai::Scope;

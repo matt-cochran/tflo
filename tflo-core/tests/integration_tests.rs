@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::indexing_slicing)] // SAFETY: test code, indexes into vecs of known size
 //! Integration tests for tflow.
 
 use tflo_core::prelude::*;

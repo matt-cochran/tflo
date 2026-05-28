@@ -8,7 +8,12 @@
 //! exact same window primitives the old `NodeOp` arms dispatched to, so
 //! results are bit-identical.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 use tflo_core::prelude::*;
 use tflo_ops::ops::windows::WindowOps;

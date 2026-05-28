@@ -187,6 +187,14 @@ integer_division = "deny"
 #     `#![allow]` extension (test exception convention).
 arithmetic_side_effects = "deny"
 
+# ── Lint backlog batch 8 (panic-adjacent, denied) ──────────────────────
+# Out-of-bounds indexing/slicing panics. Sites in production code carry
+# per-site `#[allow(clippy::indexing_slicing)]` + a `// SAFETY:` comment
+# naming the invariant (typically a length guard at the top of the
+# function, an enumerate index, or a numerically-clamped position).
+# Test code uses file-level `#![allow]` (test exception).
+indexing_slicing = "deny"
+
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
 # Philosophy:

@@ -15,7 +15,12 @@
 //! that depends on it (zscore, `deviation_band` upper/lower) is NaN for the
 //! first record.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 use tflo_core::prelude::*;
 use tflo_ops::ops::composites::Composites;

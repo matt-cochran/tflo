@@ -16,7 +16,12 @@
 //! `MathOps` trait methods under plain call syntax. Builder tests use UFCS
 //! (`MathOps::sqrt(&v)`) to reach the `tflo-ops` extension-trait methods.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 use tflo_core::compile::Absent;
 use tflo_core::operator::Operator;

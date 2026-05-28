@@ -323,11 +323,17 @@ async fn main() -> Result<(), String> {
         let reading: Reading = {
             let v: serde_json::Value =
                 serde_json::from_slice(&msg.payload).map_err(|e| e.to_string())?;
-            Reading {
-                device_id: v["device_id"].as_str().unwrap_or("?").to_string(),
-                ts_ms: v["ts_ms"].as_i64().unwrap_or(0),
-                value: v["value"].as_f64().unwrap_or(0.0),
-            }
+            // SAFETY: `serde_json::Value`'s `Index` impl returns `Value::Null`
+            // on missing keys (NOT a panic); the chained `.as_*().unwrap_or(...)`
+            // handles the absent case. Clippy flags `Value[k]` only because the
+            // generic Index could panic for slices — for `Value` it cannot.
+            #[allow(clippy::indexing_slicing)]
+            let device_id = v["device_id"].as_str().unwrap_or("?").to_string();
+            #[allow(clippy::indexing_slicing)]
+            let ts_ms = v["ts_ms"].as_i64().unwrap_or(0);
+            #[allow(clippy::indexing_slicing)]
+            let value = v["value"].as_f64().unwrap_or(0.0);
+            Reading { device_id, ts_ms, value }
         };
         if let Some(ev) = detect_threshold(&mut history, &reading, 60.0, 2.0) {
             // SAFETY: detected-event counter bounded by simulated 30 messages; cannot overflow u64

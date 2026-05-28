@@ -2,7 +2,8 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing
 )]
 use tflo_core::prelude::*;
 use tflo_fintech::prelude::*;

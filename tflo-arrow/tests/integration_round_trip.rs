@@ -9,7 +9,11 @@
 //! `--no-default-features`, `--features parquet`, `--features polars`,
 //! and `--all-features`.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing
+)]
 
 // ── Parquet round-trip tests ───────────────────────────────────────────
 

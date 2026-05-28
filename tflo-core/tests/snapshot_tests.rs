@@ -2,8 +2,9 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::arithmetic_side_effects
-)]
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing
+)] // SAFETY: test code, indexes into vecs of known size
 //! Integration tests for `CompiledGraph::snapshot` / `restore`.
 //!
 //! Covers: checkpointable graphs round-trip exactly; non-checkpointable

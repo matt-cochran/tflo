@@ -118,17 +118,32 @@ pub(super) fn ema_series(data: &[f64], period: usize) -> Vec<Option<f64>> {
         return out;
     }
     let alpha = 2.0 / (period as f64 + 1.0);
-    let mut val = data[..period].iter().sum::<f64>() / period as f64;
+    // SAFETY: `n >= period` (guarded above), so the slice `data[..period]`
+    // is in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let seed_window = &data[..period];
+    let mut val = seed_window.iter().sum::<f64>() / period as f64;
     // SAFETY: `period >= 1` (guarded above), so `period - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let seed_idx = period - 1;
-    out[seed_idx] = Some(val);
+    // SAFETY: `seed_idx = period - 1 < period <= n = out.len()`, in bounds.
+    #[allow(clippy::indexing_slicing)]
+    {
+        out[seed_idx] = Some(val);
+    }
     for i in period..n {
-        if data[i].is_nan() {
+        // SAFETY: `i < n = data.len() = out.len()` from the loop range,
+        // so all `data[i]`/`out[i]` indexing is in bounds.
+        #[allow(clippy::indexing_slicing)]
+        let di = data[i];
+        if di.is_nan() {
             continue;
         }
-        val = alpha * data[i] + (1.0 - alpha) * val;
-        out[i] = Some(val);
+        val = alpha * di + (1.0 - alpha) * val;
+        #[allow(clippy::indexing_slicing)]
+        {
+            out[i] = Some(val);
+        }
     }
     out
 }
@@ -139,8 +154,9 @@ pub(super) fn trima_last(data: &[f64], period: usize) -> f64 {
         return f64::NAN;
     }
 
-    // SAFETY: `n >= period` (guarded above), so `n - period` cannot underflow.
-    #[allow(clippy::arithmetic_side_effects)]
+    // SAFETY: `n >= period` (guarded above), so `n - period` cannot underflow
+    // and `n - period..n` is a valid sub-slice of `data` (length `n`).
+    #[allow(clippy::arithmetic_side_effects, clippy::indexing_slicing)]
     let window = &data[n - period..n];
     // SAFETY: `period == 0` is rejected by the guard above, so this
     // division cannot panic. The integer-division precision-loss is the
@@ -195,6 +211,8 @@ pub(super) fn dema_last(data: &[f64], period: usize) -> f64 {
     // SAFETY: `n >= 2*period - 1 >= 1`, so `n - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let last_idx = n - 1;
+    // SAFETY: `last_idx = n - 1 < n = ema1.len()`, in bounds.
+    #[allow(clippy::indexing_slicing)]
     let ema1_last = match ema1[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
@@ -203,6 +221,9 @@ pub(super) fn dema_last(data: &[f64], period: usize) -> f64 {
     // SAFETY: `period >= 1`, so `period - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let ema1_start = period - 1;
+    // SAFETY: `ema1_start = period - 1 < period <= n = ema1.len()`, so the
+    // open-ended slice `ema1[ema1_start..]` is in bounds.
+    #[allow(clippy::indexing_slicing)]
     let ema1_values: Vec<f64> = ema1[ema1_start..]
         .iter()
         .map(|v| v.unwrap_or(f64::NAN))
@@ -236,6 +257,8 @@ pub(super) fn tema_last(data: &[f64], period: usize) -> f64 {
     // SAFETY: `n >= 3*period - 2 >= 1`, so `n - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let last_idx = n - 1;
+    // SAFETY: `last_idx = n - 1 < n = ema1.len()`, in bounds.
+    #[allow(clippy::indexing_slicing)]
     let ema1_last = match ema1[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
@@ -244,6 +267,9 @@ pub(super) fn tema_last(data: &[f64], period: usize) -> f64 {
     // SAFETY: `period >= 1`, so `period - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let ema1_start = period - 1;
+    // SAFETY: `ema1_start = period - 1 < period <= n = ema1.len()`, so
+    // the open-ended slice `ema1[ema1_start..]` is in bounds.
+    #[allow(clippy::indexing_slicing)]
     let ema1_values: Vec<f64> = ema1[ema1_start..]
         .iter()
         .map(|v| v.unwrap_or(f64::NAN))
@@ -260,6 +286,10 @@ pub(super) fn tema_last(data: &[f64], period: usize) -> f64 {
     // SAFETY: `period >= 1`, so `period - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let ema2_start = period - 1;
+    // SAFETY: `ema2_start = period - 1 < period <= ema2.len()` because
+    // `ema2 = ema_series(ema1_values, period)` and `ema1_values.len() = n -
+    // (period - 1) >= 2*period - 1 >= period`, so the slice is in bounds.
+    #[allow(clippy::indexing_slicing)]
     let ema2_values: Vec<f64> = ema2[ema2_start..]
         .iter()
         .map(|v| v.unwrap_or(f64::NAN))
@@ -292,10 +322,14 @@ pub(super) fn ppo_last(data: &[f64], fast: usize, slow: usize) -> f64 {
     // SAFETY: `n >= max(fast, slow) >= 1`, so `n - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let last_idx = n - 1;
+    // SAFETY: `last_idx = n - 1 < n = fast_ema.len() = slow_ema.len()`,
+    // so both indexes are in bounds.
+    #[allow(clippy::indexing_slicing)]
     let fast_last = match fast_ema[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
     };
+    #[allow(clippy::indexing_slicing)]
     let slow_last = match slow_ema[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
@@ -333,7 +367,10 @@ pub(super) fn macd_last(
     let macd_start = slow - 1;
     let mut line_raw = Vec::with_capacity(n.saturating_sub(macd_start));
     for i in macd_start..n {
-        match (fast_ema[i], slow_ema[i]) {
+        // SAFETY: `i < n = fast_ema.len() = slow_ema.len()`, in bounds.
+        #[allow(clippy::indexing_slicing)]
+        let pair = (fast_ema[i], slow_ema[i]);
+        match pair {
             (Some(f), Some(s)) => line_raw.push(f - s),
             _ => return f64::NAN,
         }
@@ -342,8 +379,14 @@ pub(super) fn macd_last(
         return f64::NAN;
     }
     let alpha = 2.0 / (signal as f64 + 1.0);
-    let mut sig = line_raw[..signal].iter().sum::<f64>() / signal as f64;
-    for v in &line_raw[signal..] {
+    // SAFETY: `line_raw.len() >= signal` (guarded above), so the slices
+    // `line_raw[..signal]` and `line_raw[signal..]` are in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let seed_window = &line_raw[..signal];
+    let mut sig = seed_window.iter().sum::<f64>() / signal as f64;
+    #[allow(clippy::indexing_slicing)]
+    let tail = &line_raw[signal..];
+    for v in tail {
         sig = alpha * *v + (1.0 - alpha) * sig;
     }
     let Some(&line) = line_raw.last() else {
@@ -380,7 +423,11 @@ pub(super) fn trix_last(data: &[f64], period: usize) -> f64 {
     if flat1.len() <= ema2_start {
         return f64::NAN;
     }
-    let ema2_vals = ema_series(&flat1[ema2_start..], period);
+    // SAFETY: `flat1.len() > ema2_start` (guarded immediately above), so
+    // `flat1[ema2_start..]` is in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let ema2_input = &flat1[ema2_start..];
+    let ema2_vals = ema_series(ema2_input, period);
     let flat2: Vec<f64> = ema2_vals.iter().map(|v| v.unwrap_or(f64::NAN)).collect();
     // SAFETY: `period >= 1` (guarded above), so `period - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
@@ -388,7 +435,11 @@ pub(super) fn trix_last(data: &[f64], period: usize) -> f64 {
     if flat2.len() <= ema3_start {
         return f64::NAN;
     }
-    let ema3_vals = ema_series(&flat2[ema3_start..], period);
+    // SAFETY: `flat2.len() > ema3_start` (guarded immediately above), so
+    // `flat2[ema3_start..]` is in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let ema3_input = &flat2[ema3_start..];
+    let ema3_vals = ema_series(ema3_input, period);
     // SAFETY: `n >= 3*period - 2 = 2*(period - 1) + 1`, so
     // `n - (period - 1) - (period - 1) - 1 >= 0`. All subtractions are
     // well-defined because each intermediate stays non-negative.
@@ -401,7 +452,11 @@ pub(super) fn trix_last(data: &[f64], period: usize) -> f64 {
     // so `idx - 1` cannot underflow.
     #[allow(clippy::arithmetic_side_effects)]
     let prev_idx = idx - 1;
-    match (ema3_vals[prev_idx], ema3_vals[idx]) {
+    // SAFETY: both `prev_idx = idx - 1 < idx < ema3_vals.len()` from the
+    // guard above, so both indexes are in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let pair = (ema3_vals[prev_idx], ema3_vals[idx]);
+    match pair {
         (Some(prev), Some(cur)) if prev != 0.0 => (cur - prev) / prev * 100.0,
         _ => f64::NAN,
     }
@@ -428,13 +483,27 @@ pub(super) fn rsi_series(data: &[f64], period: usize) -> Vec<Option<f64>> {
         // underflow; `i < n` from the range bound.
         #[allow(clippy::arithmetic_side_effects)]
         let prev = i - 1;
+        // SAFETY: `i < n = data.len()` and `prev = i - 1 < i < n`, both
+        // indices are in bounds.
+        #[allow(clippy::indexing_slicing)]
         let d = data[i] - data[prev];
         gains.push(if d > 0.0 { d } else { 0.0 });
         losses.push(if d < 0.0 { -d } else { 0.0 });
     }
-    let mut avg_gain = gains[..period].iter().sum::<f64>() / period as f64;
-    let mut avg_loss = losses[..period].iter().sum::<f64>() / period as f64;
-    out[period] = Some(rsi_value(avg_gain, avg_loss));
+    // SAFETY: the `1..n` loop above pushed `n - 1` entries into both
+    // `gains` and `losses`; `n - 1 >= period` because `n >= period + 1`,
+    // so the slices `[..period]` are in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let gain_seed = &gains[..period];
+    #[allow(clippy::indexing_slicing)]
+    let loss_seed = &losses[..period];
+    let mut avg_gain = gain_seed.iter().sum::<f64>() / period as f64;
+    let mut avg_loss = loss_seed.iter().sum::<f64>() / period as f64;
+    // SAFETY: `period < n = out.len()` because `n >= period + 1`, in bounds.
+    #[allow(clippy::indexing_slicing)]
+    {
+        out[period] = Some(rsi_value(avg_gain, avg_loss));
+    }
     // SAFETY: `period + 1` cannot overflow (same as above).
     #[allow(clippy::arithmetic_side_effects)]
     let start = period + 1;
@@ -450,9 +519,16 @@ pub(super) fn rsi_series(data: &[f64], period: usize) -> Vec<Option<f64>> {
         let pm1 = period - 1;
         #[allow(clippy::arithmetic_side_effects)]
         let im1 = i - 1;
-        avg_gain = (avg_gain * pm1 as f64 + gains[im1]) / period as f64;
-        avg_loss = (avg_loss * pm1 as f64 + losses[im1]) / period as f64;
-        out[i] = Some(rsi_value(avg_gain, avg_loss));
+        // SAFETY: `im1 = i - 1`; for `i in (period+1)..n`, `im1` ranges
+        // from `period` to `n - 2`. Both `gains` and `losses` have length
+        // `n - 1` from the loop above, so `im1 < n - 1` is in bounds.
+        // `i < n = out.len()`, so `out[i]` is in bounds.
+        #[allow(clippy::indexing_slicing)]
+        {
+            avg_gain = (avg_gain * pm1 as f64 + gains[im1]) / period as f64;
+            avg_loss = (avg_loss * pm1 as f64 + losses[im1]) / period as f64;
+            out[i] = Some(rsi_value(avg_gain, avg_loss));
+        }
     }
     out
 }
@@ -493,15 +569,23 @@ pub(super) fn stochrsi_last(
         // `i < n_def` and `fastk >= 1`.
         #[allow(clippy::arithmetic_side_effects)]
         let win_start = i + 1 - fastk;
+        // SAFETY: `win_start <= i < n_def = defined.len()`, so the
+        // inclusive slice `defined[win_start..=i]` is in bounds; `i` is
+        // also in bounds for `defined[i]` and `fast_k_raw[i]` (which has
+        // length `n_def`).
+        #[allow(clippy::indexing_slicing)]
         let slice = &defined[win_start..=i];
         let mn = slice.iter().copied().fold(f64::INFINITY, f64::min);
         let mx = slice.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let rng = mx - mn;
-        fast_k_raw[i] = if rng == 0.0 {
-            0.0
-        } else {
-            (defined[i] - mn) / rng * 100.0
-        };
+        #[allow(clippy::indexing_slicing)]
+        {
+            fast_k_raw[i] = if rng == 0.0 {
+                0.0
+            } else {
+                (defined[i] - mn) / rng * 100.0
+            };
+        }
     }
     if output == 0 {
         return *fast_k_raw.last().unwrap_or(&f64::NAN);
@@ -522,5 +606,9 @@ pub(super) fn stochrsi_last(
     // `i + 1 - fastd <= i` and indexing is in bounds.
     #[allow(clippy::arithmetic_side_effects)]
     let d_start = i + 1 - fastd;
-    fast_k_raw[d_start..=i].iter().sum::<f64>() / fastd as f64
+    // SAFETY: `d_start <= i < n_def = fast_k_raw.len()`, so the inclusive
+    // slice `fast_k_raw[d_start..=i]` is in bounds.
+    #[allow(clippy::indexing_slicing)]
+    let d_window = &fast_k_raw[d_start..=i];
+    d_window.iter().sum::<f64>() / fastd as f64
 }

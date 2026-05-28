@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::indexing_slicing)] // SAFETY: test code, indexes into vecs of known size
 use std::time::Duration;
 use tflo_core::combinators::{
     GroupByExt, PartitionExt, fork, partition_lazy, rate_limit_keep_last,

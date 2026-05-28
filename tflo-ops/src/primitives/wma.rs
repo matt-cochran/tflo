@@ -168,6 +168,9 @@ impl WmaTimeWindow {
         }
 
         if self.buffer.len() == 1 {
+            // SAFETY: `is_empty` early-return above plus `len() == 1` here
+            // guarantee index 0 is valid.
+            #[allow(clippy::indexing_slicing)]
             return self.buffer[0].1;
         }
 

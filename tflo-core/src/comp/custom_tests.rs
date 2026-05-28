@@ -3,6 +3,8 @@
 //! still live in the same `tests` module of `custom`, so `use super::*`
 //! continues to reach private internals like `add_node`.
 
+#![allow(clippy::indexing_slicing)] // SAFETY: test code, indexes into vecs of known size
+
     use crate::iter_ext::TFlowIteratorExt;
 
     #[derive(Clone, Debug)]

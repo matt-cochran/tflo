@@ -233,7 +233,12 @@ impl BaselineCorrector {
         let idx = (last_idx as f64 * self.percentile).floor() as usize;
         let idx = idx.min(last_idx);
 
-        self.sorted[idx]
+        // SAFETY: `idx` is clamped to `last_idx = n - 1` and `n >= 1` by the
+        // `is_empty` guard above, so `idx` is always a valid index.
+        #[allow(clippy::indexing_slicing)]
+        {
+            self.sorted[idx]
+        }
     }
 
     /// Get the current baseline estimate.

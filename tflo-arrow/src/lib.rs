@@ -160,6 +160,7 @@ pub mod polars_interop {
 // ── Tests ──────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     #[cfg(feature = "arrow-impl")]
     mod arrow_tests {
