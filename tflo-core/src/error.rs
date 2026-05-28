@@ -172,6 +172,15 @@ pub enum ComputeError {
         /// Reason why the input is invalid.
         reason: &'static str,
     },
+    /// A serialization/deserialization or codec step failed. Carries a static
+    /// `context` tag plus the underlying error rendered as a string so the
+    /// original diagnostic isn't lost.
+    Decode {
+        /// Short static label for what was being decoded/encoded.
+        context: &'static str,
+        /// `Display` rendering of the underlying error.
+        source: String,
+    },
     /// NaN value encountered.
     NaN,
     /// Infinite value encountered.
@@ -183,6 +192,7 @@ impl std::fmt::Display for ComputeError {
         match self {
             Self::DivisionByZero => write!(f, "division by zero"),
             Self::InvalidInput { reason } => write!(f, "invalid input: {reason}"),
+            Self::Decode { context, source } => write!(f, "{context}: {source}"),
             Self::NaN => write!(f, "NaN value"),
             Self::Infinite => write!(f, "infinite value"),
         }

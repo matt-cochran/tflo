@@ -61,21 +61,23 @@ impl ContextBuilder {
         for (name, value) in self.variables {
             // CEL context expects references, but we need to work around lifetime issues
             // by using the add_variable method which copies values
+            // Conversions from primitive types are infallible; the Result
+            // is only there for fallible custom types we don't pass.
             match value {
                 Value::String(s) => {
-                    let _ = ctx.add_variable(&name, s.to_string());
+                    drop(ctx.add_variable(&name, s.to_string()));
                 }
                 Value::Int(i) => {
-                    let _ = ctx.add_variable(&name, i);
+                    drop(ctx.add_variable(&name, i));
                 }
                 Value::UInt(u) => {
-                    let _ = ctx.add_variable(&name, u as i64);
+                    drop(ctx.add_variable(&name, u as i64));
                 }
                 Value::Float(f) => {
-                    let _ = ctx.add_variable(&name, f);
+                    drop(ctx.add_variable(&name, f));
                 }
                 Value::Bool(b) => {
-                    let _ = ctx.add_variable(&name, b);
+                    drop(ctx.add_variable(&name, b));
                 }
                 _ => {}
             }
@@ -89,19 +91,21 @@ impl IntoCelContext for HashMap<String, serde_json::Value> {
     fn into_cel_context(&self) -> Context<'static> {
         let mut ctx = Context::default();
         for (key, value) in self {
+            // Conversions from primitive types are infallible; the Result
+            // is only there for fallible custom types we don't pass.
             match value {
                 serde_json::Value::String(s) => {
-                    let _ = ctx.add_variable(key, s.clone());
+                    drop(ctx.add_variable(key, s.clone()));
                 }
                 serde_json::Value::Number(n) => {
                     if let Some(i) = n.as_i64() {
-                        let _ = ctx.add_variable(key, i);
+                        drop(ctx.add_variable(key, i));
                     } else if let Some(f) = n.as_f64() {
-                        let _ = ctx.add_variable(key, f);
+                        drop(ctx.add_variable(key, f));
                     }
                 }
                 serde_json::Value::Bool(b) => {
-                    let _ = ctx.add_variable(key, *b);
+                    drop(ctx.add_variable(key, *b));
                 }
                 _ => {}
             }

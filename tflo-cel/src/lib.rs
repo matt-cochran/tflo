@@ -1,4 +1,4 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use))]
 // The `into_cel_context` conversion trait deliberately borrows rather than
 // consuming `self`.
 #![allow(clippy::wrong_self_convention)]

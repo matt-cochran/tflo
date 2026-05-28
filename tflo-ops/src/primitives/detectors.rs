@@ -134,7 +134,9 @@ impl CrossDetector {
     pub fn update_above(&mut self, value: f64, threshold: f64) -> ThresholdCrossEventMode {
         match self.update(value, threshold) {
             ThresholdCrossEventMode::Rising => ThresholdCrossEventMode::Rising,
-            _ => ThresholdCrossEventMode::None,
+            ThresholdCrossEventMode::Falling | ThresholdCrossEventMode::None => {
+                ThresholdCrossEventMode::None
+            }
         }
     }
 
@@ -144,7 +146,9 @@ impl CrossDetector {
     pub fn update_below(&mut self, value: f64, threshold: f64) -> ThresholdCrossEventMode {
         match self.update(value, threshold) {
             ThresholdCrossEventMode::Falling => ThresholdCrossEventMode::Falling,
-            _ => ThresholdCrossEventMode::None,
+            ThresholdCrossEventMode::Rising | ThresholdCrossEventMode::None => {
+                ThresholdCrossEventMode::None
+            }
         }
     }
 

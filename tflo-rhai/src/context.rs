@@ -78,7 +78,15 @@ impl IntoRhaiScope for HashMap<String, serde_json::Value> {
                 serde_json::Value::Bool(b) => {
                     let _ = scope.push(key.clone(), *b);
                 }
-                _ => {}
+                // Null, Array, Object are not representable as primitive
+                // Rhai scope values; skip them. `serde_json::Value` is
+                // marked `#[non_exhaustive]`-by-convention so use an
+                // explicit `Null|Array|Object` to keep this match
+                // honest if upstream ever adds a variant we should think
+                // about.
+                serde_json::Value::Null
+                | serde_json::Value::Array(_)
+                | serde_json::Value::Object(_) => {}
             }
         }
         scope

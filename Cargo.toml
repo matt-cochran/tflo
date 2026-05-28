@@ -215,6 +215,17 @@ unimplemented = "deny"
 string_slice = "deny"
 lossy_float_literal = "deny"
 
+# ── Lint backlog batch 10 (error-quality, denied) ──────────────────────
+# Surface silently-dropped `Result`s and lost error context. Real bugs:
+#   - `let _ = result_returning_fn()` either propagates via `?` or uses
+#     `drop(...)` for an intentional fire-and-forget. (NB: clippy fires
+#     on the *pattern* — `let _: Result<_, _> = ...` does NOT silence
+#     it; only `drop()` or proper handling do.)
+#   - `.map_err(|_| MyError::X)` loses `e`'s debug info; embed it as
+#     `MyError::X { source: e.to_string() }` (or an explicit variant).
+let_underscore_must_use = "deny"
+map_err_ignore = "deny"
+
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
 # Philosophy:

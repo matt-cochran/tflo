@@ -100,7 +100,13 @@ fn log_throttled(counter: &AtomicU64, msg: &str) {
         // the +1 we use for the display index — the occurrence number is
         // human-readable only and capping at u64::MAX is a fine ceiling.
         let display = n.saturating_add(1);
-        eprintln!("[tflo-rego] {msg} (occurrence #{display})");
+        // SAFETY (print_stderr): operator-visible diagnostic for the
+        // REGO-001 throttled-error path. Tracing was deliberately not
+        // pulled in as a dep here; this is the documented fallback.
+        #[allow(clippy::print_stderr)]
+        {
+            eprintln!("[tflo-rego] {msg} (occurrence #{display})");
+        }
     }
 }
 

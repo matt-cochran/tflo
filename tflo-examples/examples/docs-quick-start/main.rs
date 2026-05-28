@@ -119,5 +119,7 @@ fn main() {
     let nodes2 = builder2.into_nodes();
     let mut graph2: CompiledGraph<Reading, f64> =
         CompiledGraph::compile(Arc::new(|x: &Reading| x.ts), nodes2, output_ids2);
-    let _ = graph2.restore(&snapshot);
+    if let Err(e) = graph2.restore(&snapshot) {
+        eprintln!("restore failed: {e}");
+    }
 }

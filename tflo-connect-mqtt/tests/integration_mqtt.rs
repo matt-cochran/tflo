@@ -27,6 +27,8 @@
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
     clippy::items_after_statements,
+    clippy::let_underscore_must_use,
+    clippy::map_err_ignore,
     missing_docs
 )]
 

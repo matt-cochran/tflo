@@ -77,7 +77,7 @@ impl<S: tflo_core::state::AsyncStateStore> KafkaShardRouter<S> {
         Ok(self
             .owned
             .lock()
-            .map_err(|_| "ownership mutex poisoned".to_string())?
+            .map_err(|e| format!("ownership mutex poisoned: {e}"))?
             .iter()
             .cloned()
             .collect())
@@ -95,7 +95,7 @@ impl<S: tflo_core::state::AsyncStateStore> KafkaShardRouter<S> {
         let mut guard = self
             .owned
             .lock()
-            .map_err(|_| "ownership mutex poisoned".to_string())?;
+            .map_err(|e| format!("ownership mutex poisoned: {e}"))?;
         match event {
             RebalanceEvent::Assigned(parts) => {
                 for p in parts {

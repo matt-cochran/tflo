@@ -1,4 +1,4 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use))]
 //! File-based state store backend for tflo checkpoints.
 //!
 //! This crate provides a `StateStore` implementation that persists
@@ -79,12 +79,12 @@ fn atomic_write_helper(path: &Path, data: &[u8]) -> Result<(), String> {
     };
     if let Err(e) = file.write_all(data) {
         drop(file);
-        let _ = fs::remove_file(&tmp);
+        drop(fs::remove_file(&tmp));
         return Err(format!("Failed to write temp file {}: {e}", tmp.display()));
     }
     if let Err(e) = file.sync_all() {
         drop(file);
-        let _ = fs::remove_file(&tmp);
+        drop(fs::remove_file(&tmp));
         return Err(format!("Failed to fsync temp file {}: {e}", tmp.display()));
     }
     drop(file);
@@ -93,7 +93,7 @@ fn atomic_write_helper(path: &Path, data: &[u8]) -> Result<(), String> {
     // sibling path strategy at least keeps the operation cross-volume
     // safe.
     if let Err(e) = fs::rename(&tmp, path) {
-        let _ = fs::remove_file(&tmp);
+        drop(fs::remove_file(&tmp));
         return Err(format!(
             "Failed to rename {} -> {}: {e}",
             tmp.display(),

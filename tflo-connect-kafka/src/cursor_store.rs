@@ -30,7 +30,7 @@ impl CursorStore for InMemoryCursorStore {
         let mut guard = self
             .cursors
             .lock()
-            .map_err(|_| "cursor store mutex poisoned".to_string())?;
+            .map_err(|e| format!("cursor store mutex poisoned: {e}"))?;
         guard.insert(key.to_vec(), cursor.clone());
         Ok(())
     }
@@ -39,7 +39,7 @@ impl CursorStore for InMemoryCursorStore {
         let guard = self
             .cursors
             .lock()
-            .map_err(|_| "cursor store mutex poisoned".to_string())?;
+            .map_err(|e| format!("cursor store mutex poisoned: {e}"))?;
         Ok(guard.get(key).cloned())
     }
 
@@ -47,7 +47,7 @@ impl CursorStore for InMemoryCursorStore {
         let guard = self
             .cursors
             .lock()
-            .map_err(|_| "cursor store mutex poisoned".to_string())?;
+            .map_err(|e| format!("cursor store mutex poisoned: {e}"))?;
         Ok(guard.keys().cloned().collect())
     }
 }

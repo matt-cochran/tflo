@@ -159,8 +159,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             output_count: self.output_ids.len(),
             node_states,
         };
-        let data = postcard::to_stdvec(&graph).map_err(|_| ComputeError::InvalidInput {
-            reason: "snapshot encoding failed",
+        let data = postcard::to_stdvec(&graph).map_err(|e| ComputeError::Decode {
+            context: "snapshot encoding failed",
+            source: e.to_string(),
         })?;
 
         let timestamp_ms: i64 = {
@@ -235,8 +236,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         }
 
         let graph: GraphSnapshot =
-            postcard::from_bytes(&snapshot.data).map_err(|_| ComputeError::InvalidInput {
-                reason: "snapshot data invalid: expected GraphSnapshot format",
+            postcard::from_bytes(&snapshot.data).map_err(|e| ComputeError::Decode {
+                context: "snapshot data invalid: expected GraphSnapshot format",
+                source: e.to_string(),
             })?;
 
         // Verify graph structure compatibility.
@@ -253,8 +255,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
 
         for (index, (node, snap)) in self.nodes.iter_mut().zip(graph.node_states).enumerate() {
             snap.apply_to(&mut node.state, index)
-                .map_err(|_| ComputeError::InvalidInput {
-                    reason: "snapshot node-state mismatch: graph topology has changed",
+                .map_err(|e| ComputeError::Decode {
+                    context: "snapshot node-state mismatch: graph topology has changed",
+                    source: e.to_string(),
                 })?;
         }
 

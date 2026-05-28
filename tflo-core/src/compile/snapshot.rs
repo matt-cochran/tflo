@@ -30,6 +30,8 @@ pub enum SnapshotError {
     Decode {
         /// Position of the offending node.
         index: usize,
+        /// `Display` rendering of the underlying operator error.
+        source: String,
     },
     /// A node in the graph is not snapshottable. Produced eagerly on the
     /// snapshot side rather than written as a partial checkpoint.
@@ -55,8 +57,11 @@ impl std::fmt::Display for SnapshotError {
                 "snapshot variant does not match live node at index {index} \
                  (graph topology changed since snapshot)"
             ),
-            Self::Decode { index } => {
-                write!(f, "custom node at index {index} rejected its checkpoint bytes")
+            Self::Decode { index, source } => {
+                write!(
+                    f,
+                    "custom node at index {index} rejected its checkpoint bytes: {source}"
+                )
             }
             Self::Unsupported { index, kind } => write!(
                 f,
@@ -137,8 +142,10 @@ impl NodeStateSnapshot {
         match (self, &mut *state) {
             (Self::Stateless, NodeState::Stateless) => {}
             (Self::Plugin(bytes), NodeState::Plugin(op)) => {
-                op.load(&bytes)
-                    .map_err(|_| SnapshotError::Decode { index })?;
+                op.load(&bytes).map_err(|e| SnapshotError::Decode {
+                    index,
+                    source: e.to_string(),
+                })?;
             }
             // Snapshot variant did not line up with the live node.
             _ => return Err(SnapshotError::VariantMismatch { index }),

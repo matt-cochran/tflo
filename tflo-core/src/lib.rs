@@ -189,7 +189,7 @@
 #![deny(unsafe_code)]
 // Test code may freely `unwrap`/`expect`/`panic!` — the panic-freedom lints
 // only police production code paths.
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use, clippy::map_err_ignore))]
 // ── Phase 5 intent-allows for the numeric streaming engine ─────────────
 // `tflo-core` is the engine: timestamps cross between `i64` and `usize`
 // constantly, window arithmetic moves integer counts into `f64`, and

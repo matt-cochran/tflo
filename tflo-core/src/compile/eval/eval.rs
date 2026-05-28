@@ -126,7 +126,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             Err(e) => Err(e),
             Ok(v) => match state_slot {
                 NodeState::ScanState(state) => step(state, v),
-                _ => {
+                NodeState::Stateless | NodeState::Scan2State(_) | NodeState::Plugin(_) => {
                     let mut new_state = state_factory();
                     let result = step(&mut new_state, v);
                     *state_slot = NodeState::ScanState(new_state);
@@ -149,7 +149,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                 (Err(e), _) | (Ok(_), Err(e)) => Err(e),
                 (Ok(va), Ok(vb)) => match state_slot {
                     NodeState::Scan2State(state) => step(state, va, vb),
-                    _ => {
+                    NodeState::Stateless | NodeState::ScanState(_) | NodeState::Plugin(_) => {
                         let mut new_state = state_factory();
                         let result = step(&mut new_state, va, vb);
                         *state_slot = NodeState::Scan2State(new_state);
@@ -172,7 +172,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             .collect();
         match state_slot {
             NodeState::Plugin(op) => op.eval(&values, ts),
-            _ => NodeOutput::computed(Err(Absent::WarmingUp)),
+            NodeState::Stateless | NodeState::ScanState(_) | NodeState::Scan2State(_) => {
+                NodeOutput::computed(Err(Absent::WarmingUp))
+            }
         }
     }
 }

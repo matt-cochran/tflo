@@ -541,7 +541,7 @@ async fn main() -> Result<(), String> {
     );
 
     // Cleanup.
-    let _ = std::fs::remove_dir_all(&state_dir);
+    drop(std::fs::remove_dir_all(&state_dir));
     println!("\niot-portal reference deployment: done");
     Ok(())
 }

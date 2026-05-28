@@ -3,7 +3,9 @@
     clippy::expect_used,
     clippy::panic,
     clippy::arithmetic_side_effects,
-    clippy::indexing_slicing
+    clippy::indexing_slicing,
+    clippy::let_underscore_must_use,
+    clippy::map_err_ignore
 )] // SAFETY: test code, indexes into vecs of known size
 //! Integration tests for `CompiledGraph::snapshot` / `restore`.
 //!
