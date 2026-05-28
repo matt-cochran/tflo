@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::map_err_ignore))]
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 //! S3-compatible object store backend for tflo checkpoints.
 //!
 //! # Phase 1 design

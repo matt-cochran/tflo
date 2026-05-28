@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 // `#[wasm_bindgen]` impl blocks require the explicit struct name in return
 // types and field initializers — `Self` confuses the macro's name-resolution
 // for the generated JS class binding. Constructors marked

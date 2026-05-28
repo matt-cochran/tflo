@@ -236,6 +236,43 @@ map_err_ignore = "deny"
 # next compile, not in a silent no-op at runtime.
 wildcard_enum_match_arm = "deny"
 
+# ── Lint backlog batch 12 (small mechanical, denied) ───────────────────
+# `string_to_string`: `.to_string()` on a `String` is a no-op alloc.
+# Usually the underlying call should be `.clone()` or — more often —
+# the surrounding `.map_err(|e| e.to_string())` is itself redundant
+# when the error type already IS `String` and a bare `?` suffices.
+# `print_stderr`: production library code should not write to stderr
+# directly. Sites that need operator-visible warnings (Batcher Drop
+# accounting, REGO throttled-error log) carry per-site `#[allow]` +
+# rationale; example crates extend their existing test-style allows.
+string_to_string = "deny"
+print_stderr = "deny"
+
+# ── Lint backlog batch 13 (print_stdout) ───────────────────────────────
+# Production library code should not write to stdout — output belongs
+# in `Result`s or a tracing layer. Cargo's `[lints]` table does not
+# support inheritance plus per-crate override, so we use the inverted
+# strategy: `allow` at the workspace level, and each library crate's
+# `lib.rs` adds `#![deny(clippy::print_stdout)]` as a crate-level
+# inner attribute. `tflo-examples` (which legitimately uses `println!`
+# for demo output) doesn't add the deny, so its examples build clean.
+print_stdout = "allow"
+
+# ── Lint backlog batch 14 (domain-inappropriate, allowed) ──────────────
+# These two lints were surveyed and intentionally allowed workspace-wide
+# because they fire pervasively on code that is correct-by-domain:
+#   - `float_arithmetic` (434 sites): every line of indicator math is
+#     `f64 + f64`, `f64 * f64`, etc. For a numeric streaming engine
+#     this lint is domain-inappropriate; allowing it workspace-wide
+#     is more honest than 434 per-site allows. NaN/inf propagation is
+#     by design, routed through the typed `Absent` model in
+#     `tflo-core`.
+#   - `str_to_string` (91 sites): `.to_string()` on a `&str` is a
+#     style preference (vs `.to_owned()` or `.into()`), not a bug
+#     class. Allowing keeps the diff readable.
+float_arithmetic = "allow"
+str_to_string = "allow"
+
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
 # Philosophy:

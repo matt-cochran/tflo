@@ -1,4 +1,6 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+// The examples crate is allowed to use `println!` for demo output.
+#![allow(clippy::print_stdout)]
 //! Shared data structures and helpers for tflo-examples.
 //!
 //! Each blog article named `{name}.mdx` has a corresponding example

@@ -1,4 +1,5 @@
 //! # tflo
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 //!
 //! tflo (temporal flow) — a temporal event processing engine for domain-driven
 //! applications. Model your domain events; layer streaming temporal analysis

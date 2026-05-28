@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::map_err_ignore))]
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 // Numeric streaming-engine intent-allows (see tflo-core for rationale).
 #![allow(
     clippy::cast_precision_loss,
@@ -499,17 +500,23 @@ impl<H: InfluxHttpClient> Drop for Batcher<H> {
             if n > 0 {
                 self.dropped_total
                     .fetch_add(n as u64, std::sync::atomic::Ordering::Relaxed);
-                eprintln!(
-                    "[tflo-sink-influx] Batcher dropped with {n} unflushed bytes"
-                );
+                // SAFETY (print_stderr): operator-visible diagnostic for the
+                // INFLUX-002 Drop-with-unflushed-data path. Tracing was
+                // deliberately not pulled in as a dep; stderr is the
+                // documented operator channel for this loss.
+                #[allow(clippy::print_stderr)]
+                {
+                    eprintln!("[tflo-sink-influx] Batcher dropped with {n} unflushed bytes");
+                }
             }
         } else {
             // Lock contention at drop-time means another task still
             // holds the buffer — exceptionally rare. Surface it; we
             // cannot account the loss precisely.
-            eprintln!(
-                "[tflo-sink-influx] Batcher dropped while buffer mutex was held"
-            );
+            #[allow(clippy::print_stderr)] // SAFETY: see comment above
+            {
+                eprintln!("[tflo-sink-influx] Batcher dropped while buffer mutex was held");
+            }
         }
     }
 }

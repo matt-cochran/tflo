@@ -90,7 +90,10 @@ async fn main() {
     let mut graph2: CompiledGraph<Detection, f64> =
         CompiledGraph::compile(Arc::new(|x: &Detection| x.ts), nodes2, output_ids2);
     if let Err(e) = graph2.restore(&snapshot) {
-        eprintln!("restore failed: {e}");
+        #[allow(clippy::print_stderr)] // example: stderr is fine for demo output
+        {
+            eprintln!("restore failed: {e}");
+        }
     }
 
     // ---- Keyed execution (per receiver channel) ----

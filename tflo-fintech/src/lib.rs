@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 // ── Phase 5 intent-allows for the numeric streaming engine ─────────────
 // `tflo-fintech` is the canonical numeric domain plugin. Bit-exact
 // outputs are pinned by the golden-fixture suite; `mul_add` rewriting

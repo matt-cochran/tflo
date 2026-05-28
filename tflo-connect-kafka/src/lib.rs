@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 //! Kafka adapter for tflo keyed execution — **Phase 2 contracts**.
 //!
 //! # Design

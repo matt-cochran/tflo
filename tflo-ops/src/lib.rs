@@ -1,4 +1,5 @@
 //! Operator catalog for the `tflo` CEP engine.
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 //!
 //! `tflo-ops` contains the full catalog of windowed, statistical, stateful,
 //! detector, math, and composite operators. Operators are exposed as extension

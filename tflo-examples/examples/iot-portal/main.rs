@@ -385,8 +385,7 @@ async fn main() -> Result<(), String> {
                 topic: "lifecycle-events".into(),
                 partition: 2,
             },
-        ]))
-        .map_err(|e| e.to_string())?;
+        ]))?;
     println!(
         "[central] router epoch is now {}, owns 3 partitions",
         ShardRouter::<TopicPartition>::assignment_epoch(&router)
@@ -475,8 +474,7 @@ async fn main() -> Result<(), String> {
         .apply_rebalance(&RebalanceEvent::Revoked(vec![TopicPartition {
             topic: "lifecycle-events".into(),
             partition: 1,
-        }]))
-        .map_err(|e| e.to_string())?;
+        }]))?;
     let epoch_after = ShardRouter::<TopicPartition>::assignment_epoch(&router);
     assert!(
         epoch_after > epoch_before,

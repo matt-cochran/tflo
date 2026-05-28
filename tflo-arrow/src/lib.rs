@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use))]
+#![deny(clippy::print_stdout)] // library code must not write to stdout
 // Numeric streaming-engine intent-allows (see tflo-core for rationale).
 #![allow(
     clippy::cast_precision_loss,
