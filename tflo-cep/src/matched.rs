@@ -82,6 +82,11 @@ impl<E> Match<E> {
             .map(|(_, e)| e)
     }
 
+    /// Iterate captures as `(step_name, event)` pairs in capture order.
+    pub fn named(&self) -> impl Iterator<Item = (&str, &E)> {
+        self.events.iter().map(|(n, e)| (n.as_str(), e))
+    }
+
     /// Number of captured events.
     #[must_use]
     pub fn len(&self) -> usize {

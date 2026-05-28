@@ -1,66 +1,60 @@
-//! The [`Pattern`] builder and its compiled form.
+//! The [`Pattern`] builder.
 //!
-//! A pattern is a linear sequence of *steps*:
-//!
-//! - `when(p)` — required first; opens a match when `p(event)` holds.
-//! - `then(p)` — positive: the next event satisfying `p` (within the most
-//!   recent [`within`](Pattern::within) bound, if any) advances the match.
-//! - `not_then(p)` — negative: the match succeeds when **no** event
-//!   satisfying `p` arrives within the [`within`](Pattern::within) bound.
-//!   Always paired with `within`.
-//! - `within(d)` — modifier; attaches a deadline to the most recently added
-//!   `then` / `not_then` step.
-//! - `emit(closure)` — final step; converts a successful match into the
-//!   user's output type.
+//! The builder produces a compiled pattern wrapped around the shared
+//! [`engine::Compiled`] type, instantiated with Arc-based callback types
+//! so the pattern can be shared across threads (the standard Rust use
+//! case). `tflo-cep-wasm` instantiates [`engine`] with `Rc`-based,
+//! JS-function-backed callbacks instead — same engine, single-threaded
+//! callbacks.
 
+use crate::engine::{Compiled, EmitCallback, Predicate, Step, TimestampCallback};
 use crate::matched::Match;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// A predicate over an event of type `E`.
-///
-/// Constructed automatically when the user passes a `Fn(&E) -> bool` to
-/// any of the builder methods.
-pub(crate) type Predicate<E> = Arc<dyn Fn(&E) -> bool + Send + Sync>;
+// ── Arc-based callback wrappers (the default Pattern uses these) ────
 
-/// One step in a pattern.
-pub(crate) enum Step<E> {
-    /// Positive match — advance the partial-match cursor.
-    Positive {
-        name: String,
-        predicate: Predicate<E>,
-        within_ms: Option<i64>,
-    },
-    /// Negative match — succeed when **no** event satisfies `predicate`
-    /// within `within_ms`. `within_ms` is required (validated at `emit`
-    /// time).
-    Negative {
-        name: String,
-        predicate: Predicate<E>,
-        within_ms: Option<i64>,
-    },
+/// Predicate stored as `Arc<dyn Fn + Send + Sync>` — shareable across
+/// threads.
+pub struct ArcPredicate<E> {
+    f: Arc<dyn Fn(&E) -> bool + Send + Sync>,
 }
 
-impl<E> Step<E> {
-    pub(crate) fn name(&self) -> &str {
-        match self {
-            Self::Positive { name, .. } | Self::Negative { name, .. } => name,
-        }
-    }
-    pub(crate) fn within_ms(&self) -> Option<i64> {
-        match self {
-            Self::Positive { within_ms, .. } | Self::Negative { within_ms, .. } => *within_ms,
-        }
-    }
-    pub(crate) fn predicate(&self) -> &Predicate<E> {
-        match self {
-            Self::Positive { predicate, .. } | Self::Negative { predicate, .. } => predicate,
-        }
-    }
-    pub(crate) fn is_negative(&self) -> bool {
-        matches!(self, Self::Negative { .. })
+impl<E> Clone for ArcPredicate<E> {
+    fn clone(&self) -> Self {
+        Self { f: self.f.clone() }
     }
 }
+
+impl<E: 'static> Predicate<E> for ArcPredicate<E> {
+    fn evaluate(&self, event: &E) -> bool {
+        (self.f)(event)
+    }
+}
+
+/// Emit callback stored as `Arc<dyn Fn + Send + Sync>`.
+pub struct ArcEmit<E, M> {
+    f: Arc<dyn Fn(&Match<E>) -> M + Send + Sync>,
+}
+
+impl<E: 'static, M: 'static> EmitCallback<E, M> for ArcEmit<E, M> {
+    fn emit(&self, m: &Match<E>) -> M {
+        (self.f)(m)
+    }
+}
+
+/// Timestamp callback stored as `Arc<dyn Fn + Send + Sync>`.
+pub struct ArcTimestamp<E> {
+    f: Arc<dyn Fn(&E) -> i64 + Send + Sync>,
+}
+
+impl<E: 'static> TimestampCallback<E> for ArcTimestamp<E> {
+    fn timestamp(&self, event: &E) -> i64 {
+        (self.f)(event)
+    }
+}
+
+// ── Errors ──────────────────────────────────────────────────────────
 
 /// Errors surfaced by [`Pattern`] construction at [`emit`](Pattern::emit) time.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,8 +94,46 @@ impl std::fmt::Display for PatternError {
 
 impl std::error::Error for PatternError {}
 
-type EmitFn<E, M> = Arc<dyn Fn(&Match<E>) -> M + Send + Sync>;
-type TsFn<E> = Arc<dyn Fn(&E) -> i64 + Send + Sync>;
+// ── The builder ─────────────────────────────────────────────────────
+
+/// Intermediate step representation used during building (carries the
+/// `is_negative` flag in the same place as `Step` so we can validate
+/// before constructing the final `engine::Step`).
+enum BuilderStep<E> {
+    Positive {
+        name: String,
+        predicate: ArcPredicate<E>,
+        within_ms: Option<i64>,
+    },
+    Negative {
+        name: String,
+        predicate: ArcPredicate<E>,
+        within_ms: Option<i64>,
+    },
+}
+
+impl<E> BuilderStep<E> {
+    fn name(&self) -> &str {
+        match self {
+            Self::Positive { name, .. } | Self::Negative { name, .. } => name,
+        }
+    }
+    fn set_within(&mut self, ms: i64) {
+        match self {
+            Self::Positive { within_ms, .. } | Self::Negative { within_ms, .. } => {
+                *within_ms = Some(ms);
+            }
+        }
+    }
+    fn is_negative(&self) -> bool {
+        matches!(self, Self::Negative { .. })
+    }
+    fn within_ms(&self) -> Option<i64> {
+        match self {
+            Self::Positive { within_ms, .. } | Self::Negative { within_ms, .. } => *within_ms,
+        }
+    }
+}
 
 /// A pattern over events of type `E` that emits values of type `M` on
 /// successful matches.
@@ -109,62 +141,52 @@ type TsFn<E> = Arc<dyn Fn(&E) -> i64 + Send + Sync>;
 /// Build with [`Pattern::new`], chain steps, and finalize with
 /// [`Pattern::emit`]. The emit closure consumes a [`Match<E>`] (capturing
 /// the matched events) and returns the user's chosen output type.
+///
+/// Internally the finalized pattern owns an [`engine::Compiled`] with
+/// Arc-based callbacks — the pattern is `Send + Sync` and can be cloned
+/// cheaply for distribution to worker threads.
 pub struct Pattern<E, M = ()> {
     name: String,
-    timestamp_fn: Option<TsFn<E>>,
-    steps: Vec<Step<E>>,
-    emit_fn: Option<EmitFn<E, M>>,
-    /// Pending name for the next step (set by builder methods that need
-    /// a defaulted name).
-    next_auto_name: u32,
+    timestamp_fn: Option<ArcTimestamp<E>>,
+    steps: Vec<BuilderStep<E>>,
+    compiled: Option<Compiled<E, M, ArcPredicate<E>, ArcEmit<E, M>, ArcTimestamp<E>>>,
 }
 
-impl<E: Clone + 'static> Pattern<E, ()> {
-    /// Begin a new pattern with the given diagnostic name (used by the
-    /// `Match` returned to emit closures).
+impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
+    /// Begin a new pattern with the given diagnostic name.
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             timestamp_fn: None,
             steps: Vec::new(),
-            emit_fn: None,
-            next_auto_name: 0,
+            compiled: None,
         }
     }
-}
 
-impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
-    /// Required: extract the event-time (in milliseconds) from each event.
-    ///
-    /// `within(...)` bounds are interpreted in the same units this function
-    /// returns. Most callers use `Duration::as_millis() as i64` semantics,
-    /// matching the rest of the tflo engine.
+    /// Set the event-time extractor.
     #[must_use]
     pub fn timestamp<F>(mut self, f: F) -> Self
     where
         F: Fn(&E) -> i64 + Send + Sync + 'static,
     {
-        self.timestamp_fn = Some(Arc::new(f));
+        self.timestamp_fn = Some(ArcTimestamp { f: Arc::new(f) });
         self
     }
 
-    /// Required first step: open a match when `p(event)` returns true.
-    ///
-    /// Subsequent calls overwrite the previous `when` — `Pattern` is a
-    /// linear sequence with exactly one starting step.
+    /// Initial match step.
     #[must_use]
     pub fn when<F>(mut self, p: F) -> Self
     where
         F: Fn(&E) -> bool + Send + Sync + 'static,
     {
         let name = self.alloc_name("when");
-        let step = Step::Positive {
+        let predicate = ArcPredicate { f: Arc::new(p) };
+        let step = BuilderStep::Positive {
             name,
-            predicate: Arc::new(p),
+            predicate,
             within_ms: None,
         };
-        // `when` is always step 0; replace if user calls it twice.
         if self.steps.is_empty() {
             self.steps.push(step);
         } else {
@@ -173,102 +195,70 @@ impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
         self
     }
 
-    /// Add a positive sequential step.
-    ///
-    /// On a partial match advanced to this step, the next event satisfying
-    /// `p` (within the bound set by a following [`within`](Self::within),
-    /// if any) advances the match.
+    /// Positive sequential step.
     #[must_use]
     pub fn then<F>(self, p: F) -> Self
     where
         F: Fn(&E) -> bool + Send + Sync + 'static,
     {
-        let name = self.next_auto_name("then");
+        let name = format!("then_{}", self.steps.len());
         self.then_named(name, p)
     }
 
-    /// Same as [`then`](Self::then) but with an explicit step name (used by
-    /// `Match::at("name")` to look up the captured event).
+    /// Positive sequential step with an explicit name.
     #[must_use]
     pub fn then_named<F>(mut self, name: impl Into<String>, p: F) -> Self
     where
         F: Fn(&E) -> bool + Send + Sync + 'static,
     {
-        self.steps.push(Step::Positive {
+        self.steps.push(BuilderStep::Positive {
             name: name.into(),
-            predicate: Arc::new(p),
+            predicate: ArcPredicate { f: Arc::new(p) },
             within_ms: None,
         });
         self
     }
 
-    /// Add a negative terminal step.
-    ///
-    /// The pattern succeeds when no event satisfying `p` arrives within the
-    /// deadline (set by a following [`within`](Self::within), which is
-    /// required for negative steps). The match resolves the moment the
-    /// deadline passes — the emitted `Match<E>` carries the preceding
-    /// positive captures but no capture for the negative step itself.
+    /// Negative terminal step.
     #[must_use]
     pub fn not_then<F>(self, p: F) -> Self
     where
         F: Fn(&E) -> bool + Send + Sync + 'static,
     {
-        let name = self.next_auto_name("not_then");
+        let name = format!("not_then_{}", self.steps.len());
         self.not_then_named(name, p)
     }
 
-    /// Same as [`not_then`](Self::not_then) with an explicit step name.
+    /// Negative terminal step with an explicit name.
     #[must_use]
     pub fn not_then_named<F>(mut self, name: impl Into<String>, p: F) -> Self
     where
         F: Fn(&E) -> bool + Send + Sync + 'static,
     {
-        self.steps.push(Step::Negative {
+        self.steps.push(BuilderStep::Negative {
             name: name.into(),
-            predicate: Arc::new(p),
+            predicate: ArcPredicate { f: Arc::new(p) },
             within_ms: None,
         });
         self
     }
 
     /// Attach a time bound to the most recently added step.
-    ///
-    /// For a positive step, the bound is a relaxation: events arriving more
-    /// than `d` after the previous capture without satisfying the step's
-    /// predicate cause the partial match to be dropped.
-    ///
-    /// For a negative step, the bound is the deadline at which absence of
-    /// the matching event resolves the pattern successfully.
-    ///
-    /// Calling `within` on a fresh pattern (no steps yet) is a no-op so the
-    /// builder API can stay safe to call in any order.
     #[must_use]
     pub fn within(mut self, d: Duration) -> Self {
         let ms = d.as_millis().try_into().unwrap_or(i64::MAX);
         if let Some(last) = self.steps.last_mut() {
-            match last {
-                Step::Positive { within_ms, .. } | Step::Negative { within_ms, .. } => {
-                    *within_ms = Some(ms);
-                }
-            }
+            last.set_within(ms);
         }
         self
     }
 
     /// Finalize the pattern with an emit closure.
     ///
-    /// Returns the compiled pattern ready to feed an iterator adapter via
-    /// [`PatternIter::match_pattern`](crate::PatternIter::match_pattern),
-    /// or a [`PatternError`] if the builder state is invalid (missing
-    /// `when`, missing `within` on a negative step, etc.).
-    ///
     /// # Errors
     ///
     /// Returns [`PatternError`] when the builder state is structurally
-    /// invalid: no initial `when` step, a `not_then` without a
-    /// corresponding `within` bound, or a `not_then` followed by another
-    /// step.
+    /// invalid (see [`PatternError`]).
     pub fn emit<F, M2: 'static>(self, f: F) -> Result<Pattern<E, M2>, PatternError>
     where
         F: Fn(&Match<E>) -> M2 + Send + Sync + 'static,
@@ -276,57 +266,67 @@ impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
         if self.steps.is_empty() {
             return Err(PatternError::NoWhenStep);
         }
-        // not_then validity: requires within, must be terminal.
         for (i, step) in self.steps.iter().enumerate() {
-            if let Step::Negative { name, within_ms, .. } = step {
-                if within_ms.is_none() {
+            if step.is_negative() {
+                if step.within_ms().is_none() {
                     return Err(PatternError::NotThenMissingWithin {
-                        step_name: name.clone(),
+                        step_name: step.name().to_string(),
                     });
                 }
                 if i != self.steps.len() - 1 {
                     return Err(PatternError::NotThenNotTerminal {
-                        step_name: name.clone(),
+                        step_name: step.name().to_string(),
                     });
                 }
             }
         }
+
+        // Convert builder steps into engine steps.
+        let engine_steps: Vec<Step<E, ArcPredicate<E>>> = self
+            .steps
+            .into_iter()
+            .map(|s| match s {
+                BuilderStep::Positive {
+                    name,
+                    predicate,
+                    within_ms,
+                } => Step::positive(name, predicate, within_ms),
+                BuilderStep::Negative {
+                    name,
+                    predicate,
+                    within_ms,
+                } => Step::negative(name, predicate, within_ms),
+            })
+            .collect();
+
+        let emit_fn = ArcEmit { f: Arc::new(f) };
+        let compiled = Compiled::new(self.name.clone(), engine_steps, emit_fn, self.timestamp_fn);
+
         Ok(Pattern {
             name: self.name,
-            timestamp_fn: self.timestamp_fn,
-            steps: self.steps,
-            emit_fn: Some(Arc::new(f)),
-            next_auto_name: self.next_auto_name,
+            timestamp_fn: None,
+            steps: Vec::new(),
+            compiled: Some(compiled),
         })
     }
 
-    // --- internal accessors used by the runtime ---
+    fn alloc_name(&self, prefix: &str) -> String {
+        format!("{prefix}_{}", self.steps.len())
+    }
 
+    // ── internal accessors used by the runtime ──
+
+    /// Take ownership of the compiled engine pattern. Returns `None` if
+    /// the builder has not been finalized via [`emit`](Self::emit).
+    pub(crate) fn take_compiled(
+        &mut self,
+    ) -> Option<Compiled<E, M, ArcPredicate<E>, ArcEmit<E, M>, ArcTimestamp<E>>> {
+        self.compiled.take()
+    }
+
+    /// Pattern name (for diagnostics).
+    #[allow(dead_code)]
     pub(crate) fn name_str(&self) -> &str {
         &self.name
-    }
-    pub(crate) fn steps(&self) -> &[Step<E>] {
-        &self.steps
-    }
-    pub(crate) fn timestamp_of(&self, e: &E) -> Option<i64> {
-        self.timestamp_fn.as_ref().map(|f| f(e))
-    }
-    pub(crate) fn emit_with(&self, m: &Match<E>) -> Option<M> {
-        self.emit_fn.as_ref().map(|f| f(m))
-    }
-
-    fn alloc_name(&mut self, prefix: &str) -> String {
-        let n = self.next_auto_name;
-        self.next_auto_name = self.next_auto_name.saturating_add(1);
-        format!("{prefix}_{n}")
-    }
-    fn next_auto_name(&self, prefix: &str) -> String {
-        // Builder methods that take `self` by move can't update the counter
-        // before constructing the step; we synthesize without bumping. The
-        // caller (`then_named` / `not_then_named`) is what owns the name in
-        // the steps Vec, so collisions only happen if a user writes two
-        // anonymous steps at the same index, which they can't — the builder
-        // pushes monotonically.
-        format!("{prefix}_{}", self.steps.len())
     }
 }

@@ -13,20 +13,24 @@
 //! - [`WasmPatternRuntime`] — the streaming state machine. Push events one
 //!   at a time, collect emitted signals.
 //!
-//! ## Why a parallel runtime
+//! ## Thin wrapper, single engine
 //!
-//! The Rust `Pattern<E, M>` requires `Send + Sync` predicates because it
-//! supports multi-threaded use upstream. WASM is single-threaded, and
-//! `js_sys::Function` is not `Send`. The bindings replicate the small
-//! state machine using `Rc<RefCell<...>>` and `js_sys::Function` directly —
-//! ~150 lines that parallel `tflo-cep`'s `runtime.rs` without taking a
-//! direct dependency on its internal types.
+//! All matching logic lives in `tflo-cep::engine`. This crate just
+//! supplies WASM-friendly `Predicate` / `EmitCallback` /
+//! `TimestampCallback` impls that wrap `js_sys::Function` (via `Rc`,
+//! since wasm32 is single-threaded and `js_sys::Function` is `!Send`),
+//! then drives `engine::Runtime` directly. No duplicate state machine.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use js_sys::{Array, Function};
 use wasm_bindgen::prelude::*;
+
+use tflo_cep::engine::{
+    Compiled, EmitCallback, Predicate, Runtime, Step, TimestampCallback,
+};
+use tflo_cep::Match;
 
 /// Initialize the panic hook for better error messages in the browser
 /// console. Idempotent — safe to call multiple times.
@@ -35,40 +39,69 @@ pub fn start() {
     console_error_panic_hook::set_once();
 }
 
-/// Maximum simultaneous in-flight partial matches per runtime. Mirrors
-/// the Rust crate's `MAX_IN_FLIGHT`.
-const MAX_IN_FLIGHT: usize = 1024;
-
-// ── Internal step representation ─────────────────────────────────────
+// ── JS-callback adapters that implement the engine's traits ─────────
 
 #[derive(Clone)]
-struct Step {
+struct JsPredicate(Rc<Function>);
+
+impl Predicate<JsValue> for JsPredicate {
+    fn evaluate(&self, event: &JsValue) -> bool {
+        match self.0.call1(&JsValue::NULL, event) {
+            Ok(v) => v.is_truthy(),
+            Err(_) => false,
+        }
+    }
+}
+
+/// `EmitCallback` adapter for a JS `Function`.
+///
+/// The closure receives a JS-side `Match` object — see [`build_match_object`].
+struct JsEmit(Rc<Function>);
+
+impl EmitCallback<JsValue, JsValue> for JsEmit {
+    fn emit(&self, m: &Match<JsValue>) -> JsValue {
+        let match_obj = build_match_object(m);
+        self.0.call1(&JsValue::NULL, &match_obj).unwrap_or(JsValue::UNDEFINED)
+    }
+}
+
+/// `TimestampCallback` adapter for a JS `Function`. The function must
+/// return a number; non-number returns are treated as `0`.
+#[derive(Clone)]
+struct JsTimestamp(Rc<Function>);
+
+impl TimestampCallback<JsValue> for JsTimestamp {
+    fn timestamp(&self, event: &JsValue) -> i64 {
+        match self.0.call1(&JsValue::NULL, event) {
+            Ok(v) => v.as_f64().map(|n| n as i64).unwrap_or(0),
+            Err(_) => 0,
+        }
+    }
+}
+
+// ── Builder state held by WasmPattern during construction ───────────
+
+#[derive(Clone)]
+struct BuilderStep {
     name: String,
-    predicate: Function,
-    /// Within-bound in milliseconds. Capped at `i32::MAX` (~24.8 days) so
-    /// the JS-facing parameter is `number`, not `bigint`. Longer bounds
-    /// are not the v0.1 sweet spot for browser analytics.
+    predicate: JsPredicate,
     within_ms: Option<i32>,
     is_negative: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct PatternState {
     name: String,
-    steps: Vec<Step>,
-    timestamp_fn: Option<Function>,
-    emit_fn: Option<Function>,
+    steps: Vec<BuilderStep>,
+    timestamp_fn: Option<JsTimestamp>,
     auto_name_counter: u32,
 }
 
 impl PatternState {
-    fn new(name: String) -> Self {
+    fn with_name(name: String) -> Self {
         Self {
             name,
-            steps: Vec::new(),
-            timestamp_fn: None,
-            emit_fn: None,
-            auto_name_counter: 0,
+            ..Self::default()
         }
     }
 
@@ -91,22 +124,22 @@ impl WasmPattern {
     #[wasm_bindgen(constructor)]
     pub fn new(name: String) -> WasmPattern {
         WasmPattern {
-            inner: Rc::new(RefCell::new(PatternState::new(name))),
+            inner: Rc::new(RefCell::new(PatternState::with_name(name))),
         }
     }
 
     /// Set the event-time extractor. Required for correct `within(...)`
     /// behavior; without it, every event is treated as ts=0.
     pub fn timestamp(self, f: Function) -> WasmPattern {
-        self.inner.borrow_mut().timestamp_fn = Some(f);
+        self.inner.borrow_mut().timestamp_fn = Some(JsTimestamp(Rc::new(f)));
         self
     }
 
     pub fn when(self, p: Function) -> WasmPattern {
         let name = self.inner.borrow_mut().next_name("when");
-        let step = Step {
+        let step = BuilderStep {
             name,
-            predicate: p,
+            predicate: JsPredicate(Rc::new(p)),
             within_ms: None,
             is_negative: false,
         };
@@ -128,9 +161,9 @@ impl WasmPattern {
 
     #[wasm_bindgen(js_name = thenNamed)]
     pub fn then_named(self, name: String, p: Function) -> WasmPattern {
-        self.inner.borrow_mut().steps.push(Step {
+        self.inner.borrow_mut().steps.push(BuilderStep {
             name,
-            predicate: p,
+            predicate: JsPredicate(Rc::new(p)),
             within_ms: None,
             is_negative: false,
         });
@@ -145,9 +178,9 @@ impl WasmPattern {
 
     #[wasm_bindgen(js_name = notThenNamed)]
     pub fn not_then_named(self, name: String, p: Function) -> WasmPattern {
-        self.inner.borrow_mut().steps.push(Step {
+        self.inner.borrow_mut().steps.push(BuilderStep {
             name,
-            predicate: p,
+            predicate: JsPredicate(Rc::new(p)),
             within_ms: None,
             is_negative: true,
         });
@@ -155,7 +188,8 @@ impl WasmPattern {
     }
 
     /// Attach a within-bound (milliseconds) to the most recently added
-    /// step. Saturating-cast to a 32-bit value (max ~24.8 days).
+    /// step. Capped at `i32::MAX` (~24.8 days) so the JS-facing param is
+    /// `number`, not `bigint`.
     pub fn within(self, ms: i32) -> WasmPattern {
         if let Some(last) = self.inner.borrow_mut().steps.last_mut() {
             last.within_ms = Some(ms);
@@ -167,7 +201,7 @@ impl WasmPattern {
     /// invalid (no `when`, `not_then` without `within`, `not_then` not
     /// terminal).
     pub fn emit(self, f: Function) -> Result<WasmCompiledPattern, JsError> {
-        let mut s = self.inner.borrow_mut();
+        let s = self.inner.borrow();
         if s.steps.is_empty() {
             return Err(JsError::new("pattern is missing the initial .when(...) step"));
         }
@@ -187,294 +221,123 @@ impl WasmPattern {
                 }
             }
         }
-        s.emit_fn = Some(f);
+
+        let engine_steps: Vec<Step<JsValue, JsPredicate>> = s
+            .steps
+            .iter()
+            .map(|bs| {
+                let within = bs.within_ms.map(i64::from);
+                if bs.is_negative {
+                    Step::negative(bs.name.clone(), bs.predicate.clone(), within)
+                } else {
+                    Step::positive(bs.name.clone(), bs.predicate.clone(), within)
+                }
+            })
+            .collect();
+
+        let emit = JsEmit(Rc::new(f));
+        let ts_fn = s.timestamp_fn.as_ref().map(|t| JsTimestamp(t.0.clone()));
+        let name = s.name.clone();
         drop(s);
+
+        let compiled = Compiled::new(name, engine_steps, emit, ts_fn);
         Ok(WasmCompiledPattern {
-            inner: self.inner.clone(),
+            compiled: Some(compiled),
         })
     }
 }
 
 #[wasm_bindgen]
 pub struct WasmCompiledPattern {
-    inner: Rc<RefCell<PatternState>>,
+    compiled: Option<Compiled<JsValue, JsValue, JsPredicate, JsEmit, JsTimestamp>>,
 }
 
 #[wasm_bindgen]
 impl WasmCompiledPattern {
     #[wasm_bindgen(getter)]
     pub fn name(&self) -> String {
-        self.inner.borrow().name.clone()
+        self.compiled
+            .as_ref()
+            .map(|c| c.name.clone())
+            .unwrap_or_default()
     }
 }
 
-// ── Runtime state machine ────────────────────────────────────────────
-
-struct PartialMatch {
-    captures: Vec<(String, JsValue)>,
-    next_step: usize,
-    deadline_ts: Option<i64>,
-}
+// ── Runtime — thin wrapper around engine::Runtime ───────────────────
 
 #[wasm_bindgen]
 pub struct WasmPatternRuntime {
-    state: Rc<RefCell<PatternState>>,
-    in_flight: Vec<PartialMatch>,
-    exhausted: bool,
-    drained_negatives: bool,
+    inner: Runtime<JsValue, JsValue, JsPredicate, JsEmit, JsTimestamp>,
 }
 
 #[wasm_bindgen]
 impl WasmPatternRuntime {
     #[wasm_bindgen(constructor)]
-    pub fn new(pattern: WasmCompiledPattern) -> WasmPatternRuntime {
-        WasmPatternRuntime {
-            state: pattern.inner,
-            in_flight: Vec::new(),
-            exhausted: false,
-            drained_negatives: false,
-        }
+    pub fn new(mut pattern: WasmCompiledPattern) -> Result<WasmPatternRuntime, JsError> {
+        let compiled = pattern
+            .compiled
+            .take()
+            .ok_or_else(|| JsError::new("compiled pattern already consumed"))?;
+        Ok(WasmPatternRuntime {
+            inner: Runtime::new(compiled),
+        })
     }
 
     /// Push one event through the runtime. Returns a JS array of any
     /// signals emitted by this event.
-    ///
-    /// Throws `JsError` if a predicate or emit callback throws. JS
-    /// predicate truthiness rules apply — anything other than `false`,
-    /// `0`, `""`, `null`, `undefined`, or `NaN` is treated as match.
-    pub fn push(&mut self, event: JsValue) -> Result<Array, JsError> {
-        let signals = Array::new();
-        let ts = self.timestamp_of(&event)?;
-        self.advance_deadlines(ts, &signals)?;
-        self.advance_partials(&event, ts, &signals)?;
-        self.try_open_new(&event, ts, &signals)?;
-        Ok(signals)
+    pub fn push(&mut self, event: JsValue) -> Array {
+        let emitted = self.inner.push(event);
+        let arr = Array::new();
+        for v in emitted {
+            arr.push(&v);
+        }
+        arr
     }
 
-    /// Signal end of input. Drains any pending negative-step matches whose
-    /// deadlines have not yet been reached — semantically, a stream that
-    /// ends is the same as a deadline that never closed. Returns the
-    /// emitted signals.
-    pub fn flush(&mut self) -> Result<Array, JsError> {
-        let signals = Array::new();
-        if !self.exhausted {
-            self.exhausted = true;
+    /// Signal end of input. Drains any pending negative-step matches.
+    pub fn flush(&mut self) -> Array {
+        let emitted = self.inner.flush();
+        let arr = Array::new();
+        for v in emitted {
+            arr.push(&v);
         }
-        if !self.drained_negatives {
-            self.drain_negatives(&signals)?;
-            self.drained_negatives = true;
-        }
-        Ok(signals)
+        arr
     }
 
     /// Reset to the just-constructed state. The compiled pattern is kept;
     /// in-flight partial matches are dropped.
     pub fn reset(&mut self) {
-        self.in_flight.clear();
-        self.exhausted = false;
-        self.drained_negatives = false;
-    }
-
-    // ── Internal helpers ──────────────────────────────────────────────
-
-    fn timestamp_of(&self, e: &JsValue) -> Result<i64, JsError> {
-        let s = self.state.borrow();
-        let Some(f) = s.timestamp_fn.as_ref() else {
-            return Ok(0);
-        };
-        let result = f
-            .call1(&JsValue::NULL, e)
-            .map_err(|e| JsError::new(&format!("timestamp callback threw: {e:?}")))?;
-        result
-            .as_f64()
-            .map(|v| v as i64)
-            .ok_or_else(|| JsError::new("timestamp callback did not return a number"))
-    }
-
-    fn predicate_holds(&self, predicate: &Function, event: &JsValue) -> Result<bool, JsError> {
-        let result = predicate
-            .call1(&JsValue::NULL, event)
-            .map_err(|e| JsError::new(&format!("predicate threw: {e:?}")))?;
-        Ok(result.is_truthy())
-    }
-
-    fn next_deadline_for(&self, step_idx: usize, ref_ts: i64) -> Option<i64> {
-        let s = self.state.borrow();
-        if step_idx >= s.steps.len() {
-            return None;
-        }
-        s.steps[step_idx]
-            .within_ms
-            .map(|ms| ref_ts.saturating_add(i64::from(ms)))
-    }
-
-    fn advance_deadlines(&mut self, ts: i64, signals: &Array) -> Result<(), JsError> {
-        let mut i = 0;
-        while i < self.in_flight.len() {
-            let expired = match self.in_flight[i].deadline_ts {
-                Some(d) => ts > d,
-                None => false,
-            };
-            if !expired {
-                i = i.saturating_add(1);
-                continue;
-            }
-            let step_idx = self.in_flight[i].next_step;
-            let is_negative = {
-                let s = self.state.borrow();
-                s.steps[step_idx].is_negative
-            };
-            if is_negative {
-                let pm = self.in_flight.remove(i);
-                self.complete(pm, signals)?;
-            } else {
-                self.in_flight.remove(i);
-            }
-        }
-        Ok(())
-    }
-
-    fn advance_partials(
-        &mut self,
-        event: &JsValue,
-        ts: i64,
-        signals: &Array,
-    ) -> Result<(), JsError> {
-        let mut to_remove: Vec<usize> = Vec::new();
-        let mut completions: Vec<PartialMatch> = Vec::new();
-        for idx in (0..self.in_flight.len()).rev() {
-            let (step_idx, step_name, is_negative, predicate) = {
-                let pm = &self.in_flight[idx];
-                let s = self.state.borrow();
-                let step = &s.steps[pm.next_step];
-                (
-                    pm.next_step,
-                    step.name.clone(),
-                    step.is_negative,
-                    step.predicate.clone(),
-                )
-            };
-            let matches = self.predicate_holds(&predicate, event)?;
-            if !matches {
-                continue;
-            }
-            if is_negative {
-                to_remove.push(idx);
-                continue;
-            }
-            let new_next_step = step_idx.saturating_add(1);
-            let new_deadline = self.next_deadline_for(new_next_step, ts);
-            {
-                let pm = &mut self.in_flight[idx];
-                pm.captures.push((step_name, event.clone()));
-                pm.next_step = new_next_step;
-                pm.deadline_ts = new_deadline;
-            }
-            let total_steps = self.state.borrow().steps.len();
-            if new_next_step >= total_steps {
-                completions.push(self.in_flight.remove(idx));
-            }
-        }
-        for idx in to_remove {
-            self.in_flight.remove(idx);
-        }
-        for pm in completions {
-            self.complete(pm, signals)?;
-        }
-        Ok(())
-    }
-
-    fn try_open_new(
-        &mut self,
-        event: &JsValue,
-        ts: i64,
-        signals: &Array,
-    ) -> Result<(), JsError> {
-        let (when_pred, when_name, total_steps) = {
-            let s = self.state.borrow();
-            (
-                s.steps[0].predicate.clone(),
-                s.steps[0].name.clone(),
-                s.steps.len(),
-            )
-        };
-        if !self.predicate_holds(&when_pred, event)? {
-            return Ok(());
-        }
-        let new_pm = PartialMatch {
-            captures: vec![(when_name, event.clone())],
-            next_step: 1,
-            deadline_ts: self.next_deadline_for(1, ts),
-        };
-        if total_steps == 1 {
-            self.complete(new_pm, signals)?;
-        } else {
-            self.in_flight.push(new_pm);
-            if self.in_flight.len() > MAX_IN_FLIGHT {
-                self.in_flight.remove(0);
-            }
-        }
-        Ok(())
-    }
-
-    fn drain_negatives(&mut self, signals: &Array) -> Result<(), JsError> {
-        let mut i = 0;
-        while i < self.in_flight.len() {
-            let is_negative = {
-                let s = self.state.borrow();
-                s.steps[self.in_flight[i].next_step].is_negative
-            };
-            if is_negative {
-                let pm = self.in_flight.remove(i);
-                self.complete(pm, signals)?;
-            } else {
-                i = i.saturating_add(1);
-            }
-        }
-        Ok(())
-    }
-
-    fn complete(&self, pm: PartialMatch, signals: &Array) -> Result<(), JsError> {
-        let m = build_match_object(&self.state.borrow().name, &pm.captures);
-        let emit_fn = {
-            let s = self.state.borrow();
-            s.emit_fn
-                .clone()
-                .ok_or_else(|| JsError::new("compiled pattern is missing emit callback"))?
-        };
-        let signal = emit_fn
-            .call1(&JsValue::NULL, &m)
-            .map_err(|e| JsError::new(&format!("emit callback threw: {e:?}")))?;
-        signals.push(&signal);
-        Ok(())
+        self.inner.reset();
     }
 }
 
 /// Build a plain JS object for `Match<E>` to pass to the emit callback.
 ///
 /// Surface: `{ patternName, length, first(), last(), all(), at(name) }`.
-/// Implemented as object methods rather than as a class to keep the
-/// allocation-per-emit cost low and stay portable across JS runtimes.
-fn build_match_object(pattern_name: &str, captures: &[(String, JsValue)]) -> JsValue {
+/// Methods are bound closures so the JS caller sees a method-style
+/// interface.
+fn build_match_object(m: &Match<JsValue>) -> JsValue {
     let obj = js_sys::Object::new();
     let _ = js_sys::Reflect::set(
         &obj,
         &JsValue::from_str("patternName"),
-        &JsValue::from_str(pattern_name),
+        &JsValue::from_str(m.pattern_name()),
     );
     let _ = js_sys::Reflect::set(
         &obj,
         &JsValue::from_str("length"),
-        &JsValue::from_f64(captures.len() as f64),
+        &JsValue::from_f64(m.len() as f64),
     );
-    // `first` / `last` / `all` / `at` exposed as bound closures so the JS
-    // caller sees a method-style interface.
-    let captures_rc = Rc::new(captures.to_vec());
+
+    // Collect captures via the public Match API (first/last/all/at).
+    let all_vec: Vec<JsValue> = m.all().into_iter().cloned().collect();
+    let captures_rc = Rc::new(all_vec);
+
     let first_captures = captures_rc.clone();
     let first = Closure::<dyn Fn() -> JsValue>::new(move || {
         first_captures
             .first()
-            .map(|(_, v)| v.clone())
+            .cloned()
             .unwrap_or(JsValue::UNDEFINED)
     });
     let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("first"), first.as_ref());
@@ -484,16 +347,16 @@ fn build_match_object(pattern_name: &str, captures: &[(String, JsValue)]) -> JsV
     let last = Closure::<dyn Fn() -> JsValue>::new(move || {
         last_captures
             .last()
-            .map(|(_, v)| v.clone())
+            .cloned()
             .unwrap_or(JsValue::UNDEFINED)
     });
     let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("last"), last.as_ref());
     last.forget();
 
-    let all_captures = captures_rc.clone();
+    let all_captures = captures_rc;
     let all = Closure::<dyn Fn() -> JsValue>::new(move || {
         let arr = Array::new();
-        for (_, v) in all_captures.iter() {
+        for v in all_captures.iter() {
             arr.push(v);
         }
         arr.into()
@@ -501,9 +364,16 @@ fn build_match_object(pattern_name: &str, captures: &[(String, JsValue)]) -> JsV
     let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("all"), all.as_ref());
     all.forget();
 
-    let at_captures = captures_rc;
+    // For step-name lookup, use Match::named() to iterate (name, event)
+    // pairs directly.
+    let pairs: Rc<Vec<(String, JsValue)>> = Rc::new(
+        m.named()
+            .map(|(n, v)| (n.to_string(), v.clone()))
+            .collect(),
+    );
+    let at_pairs = pairs;
     let at = Closure::<dyn Fn(String) -> JsValue>::new(move |name: String| {
-        at_captures
+        at_pairs
             .iter()
             .find(|(n, _)| n == &name)
             .map(|(_, v)| v.clone())

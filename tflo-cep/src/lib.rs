@@ -60,12 +60,13 @@
 //!
 //! See [`Pattern`] for the full builder surface.
 
+pub mod engine;
 mod matched;
 mod pattern;
 mod runtime;
 
 pub use matched::Match;
-pub use pattern::{Pattern, PatternError};
+pub use pattern::{ArcEmit, ArcPredicate, ArcTimestamp, Pattern, PatternError};
 pub use runtime::{MatchPatternIter, PatternIter};
 
 /// Re-exports for convenient `use tflo_cep::prelude::*;` access.
