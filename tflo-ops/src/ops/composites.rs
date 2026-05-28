@@ -166,6 +166,13 @@ pub trait Composites<R> {
     fn calibrate(&self, gain: f64, offset: f64) -> Comp<R, f64>;
 }
 
+// SAFETY: every `+ - *` in this `impl` block is a `Comp` operator-overload
+// (graph-builder), not integer arithmetic. The arithmetic is wrapped in
+// closures that fire per-sample on `f64` data at runtime; overflow there is
+// `f64::INFINITY` / `NaN`, mapped to `Absent::WarmingUp` /
+// `Absent::DivideByZero` by `finite_or_warming` and the explicit
+// `SafeDivOp`. There is no integer arithmetic to overflow here.
+#[allow(clippy::arithmetic_side_effects)]
 impl<R: 'static> Composites<R> for Comp<R, f64> {
     fn deviation_band(
         &self,

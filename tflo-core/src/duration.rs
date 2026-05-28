@@ -96,15 +96,17 @@ impl IntoDuration for u64 {
     }
 
     fn mins(self) -> Duration {
-        Duration::from_secs(self * 60)
+        // Saturate: a pathological `u64` minutes value (≈ 2.9 × 10^17
+        // years) clamps at `u64::MAX` seconds rather than panicking.
+        Duration::from_secs(self.saturating_mul(60))
     }
 
     fn hours(self) -> Duration {
-        Duration::from_secs(self * 3600)
+        Duration::from_secs(self.saturating_mul(3600))
     }
 
     fn days(self) -> Duration {
-        Duration::from_secs(self * 86400)
+        Duration::from_secs(self.saturating_mul(86400))
     }
 
     fn us(self) -> Duration {

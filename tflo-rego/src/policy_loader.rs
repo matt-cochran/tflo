@@ -56,7 +56,12 @@ impl PolicyEngine {
             let file_path = entry.path();
             if file_path.extension().is_some_and(|e| e == "rego") {
                 self.add_policy_from_file(&file_path)?;
-                count += 1;
+                // SAFETY: bounded by directory entry count; no overflow
+                // possible at any realistic filesystem size.
+                #[allow(clippy::arithmetic_side_effects)]
+                {
+                    count += 1;
+                }
             }
         }
         Ok(count)

@@ -131,8 +131,14 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
         let w: Window = window.into();
         let highest = self.max(w);
         let lowest = self.min(w);
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (zero range yields `inf`/`NaN` by design).
+        // The lint flags them anyway because `Comp` overloads `Sub`/`Div`.
+        #[allow(clippy::arithmetic_side_effects)]
         let range = &highest - &lowest;
-        ((self - &lowest) / &range) * 100.0
+        #[allow(clippy::arithmetic_side_effects)]
+        let k = ((self - &lowest) / &range) * 100.0;
+        k
     }
 
     fn stochastic_n(&self, k_period: usize, d_period: usize) -> (Self, Self) {
@@ -150,7 +156,11 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
     ) -> (Self, Self) {
         let highest = high.max(k_period);
         let lowest = low.min(k_period);
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (zero range yields `inf`/`NaN` by design).
+        #[allow(clippy::arithmetic_side_effects)]
         let range = &highest - &lowest;
+        #[allow(clippy::arithmetic_side_effects)]
         let fast_k = ((self - &lowest) / &range) * 100.0;
         let slow_k = fast_k.sma(d_period);
         let slow_d = slow_k.sma(d_period);
@@ -160,15 +170,25 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
     fn williams_r_n(&self, n: usize) -> Self {
         let highest = self.max(n);
         let lowest = self.min(n);
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (zero range yields `inf`/`NaN` by design).
+        #[allow(clippy::arithmetic_side_effects)]
         let range = &highest - &lowest;
-        ((&highest - self) / &range) * -100.0
+        #[allow(clippy::arithmetic_side_effects)]
+        let r = ((&highest - self) / &range) * -100.0;
+        r
     }
 
     fn williams_r_ohlc_n(&self, high: &Self, low: &Self, n: usize) -> Self {
         let highest = high.max(n);
         let lowest = low.min(n);
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (zero range yields `inf`/`NaN` by design).
+        #[allow(clippy::arithmetic_side_effects)]
         let range = &highest - &lowest;
-        ((&highest - self) / &range) * -100.0
+        #[allow(clippy::arithmetic_side_effects)]
+        let r = ((&highest - self) / &range) * -100.0;
+        r
     }
 
     fn cci_n(&self, n: usize) -> Self {
@@ -196,8 +216,13 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
 
     fn true_range(&self, high: &Self, low: &Self) -> Self {
         let prev_close = self.prev();
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (NaN propagates).
+        #[allow(clippy::arithmetic_side_effects)]
         let hl = high - low;
+        #[allow(clippy::arithmetic_side_effects)]
         let hpc = (high - &prev_close).abs();
+        #[allow(clippy::arithmetic_side_effects)]
         let lpc = (low - &prev_close).abs();
         let max_gap = hpc.map2_f64(&lpc, f64::max);
         hl.map2_f64(&max_gap, f64::max)
@@ -233,15 +258,25 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
     }
 
     fn typical_price(&self, high: &Self, low: &Self) -> Self {
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (NaN propagates).
+        #[allow(clippy::arithmetic_side_effects)]
         let sum = high + low;
-        (&sum + self) / 3.0
+        #[allow(clippy::arithmetic_side_effects)]
+        let tp = (&sum + self) / 3.0;
+        tp
     }
 
     fn vwap(&self, volume: &Self) -> Self {
+        // SAFETY: `Comp<R, f64>` arithmetic operates on `f64` streams; the
+        // overloads cannot panic (NaN/inf propagates if `vol_sum == 0`).
+        #[allow(clippy::arithmetic_side_effects)]
         let pv = self * volume;
         let pv_sum = pv.cumsum();
         let vol_sum = volume.cumsum();
-        &pv_sum / &vol_sum
+        #[allow(clippy::arithmetic_side_effects)]
+        let result = &pv_sum / &vol_sum;
+        result
     }
 
     fn obv(&self, volume: &Self) -> Self {
@@ -293,7 +328,14 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
             let diff = value - prev;
             let gain = if diff > 0.0 { diff } else { 0.0 };
             let loss = if diff < 0.0 { -diff } else { 0.0 };
-            state.count += 1;
+            // SAFETY: `state.count` is bounded by the input stream length
+            // observed in a single `tflo` pipeline run; saturating against
+            // `usize::MAX` is defensive — at 1 increment per record, reaching
+            // saturation would require an effectively unbounded stream that
+            // CMO would never produce a meaningful value for. Using
+            // `saturating_add` keeps the comparison `state.count <= period`
+            // well-defined even at the (unreachable) ceiling.
+            state.count = state.count.saturating_add(1);
 
             if state.count <= period {
                 state.sum_gain += gain;
@@ -304,8 +346,15 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
                 state.avg_gain = state.sum_gain / period as f64;
                 state.avg_loss = state.sum_loss / period as f64;
             } else {
-                state.avg_gain = (state.avg_gain * (period - 1) as f64 + gain) / period as f64;
-                state.avg_loss = (state.avg_loss * (period - 1) as f64 + loss) / period as f64;
+                // SAFETY: the `state.count <= period` branch above means
+                // reaching this `else` requires `period >= 1` (otherwise
+                // `state.count <= 0` could never hold with `count >= 1`),
+                // so `period - 1` cannot underflow. The `if period == 0`
+                // guard at the top of the closure also rules it out.
+                #[allow(clippy::arithmetic_side_effects)]
+                let pm1 = period - 1;
+                state.avg_gain = (state.avg_gain * pm1 as f64 + gain) / period as f64;
+                state.avg_loss = (state.avg_loss * pm1 as f64 + loss) / period as f64;
             }
 
             let denom = state.avg_gain + state.avg_loss;

@@ -150,7 +150,11 @@ fn main() {
             let alarm_limit = t.constant(103.0);
             let above = level.gt(&alarm_limit);
             let below = level.lt(&alarm_limit);
-            above - &below
+            // SAFETY: graph-node combinator (Comp<R> Sub overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                above - &below
+            }
         })
         .collect();
     let pos_count = compars.iter().filter(|v| **v > 0.0).count();

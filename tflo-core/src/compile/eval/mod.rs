@@ -120,12 +120,20 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     where
         O: ExtractOutput,
     {
-        self.records_seen += 1;
+        // Saturating: a stream long enough to push `records_seen` past
+        // `usize::MAX` would have run for geological time on any 64-bit
+        // host; pinning at the ceiling keeps `is_warmed_up()` correct
+        // (still warm) without panicking.
+        self.records_seen = self.records_seen.saturating_add(1);
 
         // Check warmup status
         if self.records_seen < self.min_warmup {
             return StepResult::WarmingUp {
-                remaining: self.min_warmup - self.records_seen,
+                // Saturating: `records_seen < min_warmup` is checked
+                // above, so the subtraction is always nonneg in
+                // practice — keep `saturating_sub` for belt-and-braces
+                // (and to satisfy the lint without an `#[allow]`).
+                remaining: self.min_warmup.saturating_sub(self.records_seen),
                 reason: crate::compile::Absent::WarmingUp,
             };
         }
@@ -206,7 +214,8 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     #[doc(hidden)]
     pub fn step_raw(&mut self, record: &R) -> i64 {
         let ts = (self.timestamp_fn)(record);
-        self.records_seen += 1;
+        // Saturating — see `step_with_context` for rationale.
+        self.records_seen = self.records_seen.saturating_add(1);
 
         // Clear previous values
         self.store.clear();

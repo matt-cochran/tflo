@@ -83,11 +83,20 @@ impl WmaCountWindow {
 
         // Weight increases with recency: oldest gets weight 1, newest gets weight n
         for (i, &value) in self.buffer.iter().enumerate() {
+            // SAFETY: `i` is bounded by `self.buffer.len() == n`, which is
+            // itself bounded by `self.max_count` (a constructor-supplied
+            // `usize`). `i + 1` cannot overflow a `usize` here.
+            #[allow(clippy::arithmetic_side_effects)]
             let weight = (i + 1) as f64;
             weighted_sum += weight * value;
         }
 
         // Sum of weights: 1 + 2 + ... + n = n*(n+1)/2
+        // SAFETY: `n <= self.max_count` (constructor-supplied `usize`). The
+        // triangular sum `n * (n + 1)` is converted to `f64` immediately; for
+        // a `usize` window large enough to overflow this product, the buffer
+        // itself could not have been allocated. `+ 1` cannot overflow.
+        #[allow(clippy::arithmetic_side_effects)]
         let weight_sum = (n * (n + 1)) as f64 / 2.0;
 
         weighted_sum / weight_sum
@@ -126,8 +135,11 @@ impl WmaTimeWindow {
         // Add new value
         self.buffer.push_back((ts, value));
 
-        // Evict old values
-        let cutoff = ts - self.window_ms;
+        // Evict old values.
+        // SAFETY: `ts - window_ms` is the standard time-cutoff pattern.
+        // Underflow ("clamp to before time zero") is a meaningful semantic for
+        // the eviction check below; `saturating_sub` makes that explicit.
+        let cutoff = ts.saturating_sub(self.window_ms);
         while let Some(&(old_ts, _)) = self.buffer.front() {
             if old_ts < cutoff {
                 let _ = self.buffer.pop_front();
@@ -168,7 +180,11 @@ impl WmaTimeWindow {
         let Some(&(newest_ts, _)) = self.buffer.back() else {
             return f64::NAN;
         };
-        let time_span = (newest_ts - oldest_ts) as f64;
+        // SAFETY: timestamps in the buffer are inserted in monotonic order
+        // by `push`, so `newest_ts >= oldest_ts`. `saturating_sub` preserves
+        // the "no span" semantic without panicking on the impossible reverse
+        // case.
+        let time_span = newest_ts.saturating_sub(oldest_ts) as f64;
 
         if time_span <= 0.0 {
             // All at same timestamp - use equal weights (simple average)
@@ -180,8 +196,12 @@ impl WmaTimeWindow {
         let mut weight_sum = 0.0;
 
         for &(ts, value) in &self.buffer {
-            // Weight increases with recency: 0 at oldest, 1 at newest
-            let relative_time = (ts - oldest_ts) as f64 / time_span;
+            // Weight increases with recency: 0 at oldest, 1 at newest.
+            // SAFETY: `oldest_ts` is the front of the buffer (per the
+            // `front()` extract above); subsequent timestamps are pushed in
+            // order so `ts >= oldest_ts`. `saturating_sub` collapses any
+            // out-of-order sample to weight 0 rather than panicking.
+            let relative_time = ts.saturating_sub(oldest_ts) as f64 / time_span;
             let weight = relative_time + 0.001; // Small epsilon to avoid zero weight
             weighted_sum += weight * value;
             weight_sum += weight;

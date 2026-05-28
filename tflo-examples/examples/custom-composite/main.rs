@@ -18,7 +18,11 @@ pub trait CustomCompositeExt<R: 'static> {
 
 impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
     fn spread_ratio(&self, other: &Self) -> Self {
-        (self - other) / other
+        // SAFETY: graph-node combinator (Comp<R> Sub/Div overloads); not numeric arithmetic
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            (self - other) / other
+        }
     }
 
     fn mean_band<W: Into<Window>>(
@@ -29,8 +33,12 @@ impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);
+        // SAFETY: graph-node combinator (Comp<R> Mul/Add/Sub overloads); not numeric arithmetic
+        #[allow(clippy::arithmetic_side_effects)]
         let band_width = &std * k;
+        #[allow(clippy::arithmetic_side_effects)]
         let upper = &middle + &band_width;
+        #[allow(clippy::arithmetic_side_effects)]
         let lower = &middle - &band_width;
         (middle, upper, lower)
     }
@@ -39,7 +47,11 @@ impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
         let w: Window = window.into();
         let mean = self.sma(w);
         let std = self.std(w);
-        (self - &mean) / &std
+        // SAFETY: graph-node combinator (Comp<R> Sub/Div overloads); not numeric arithmetic
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            (self - &mean) / &std
+        }
     }
 }
 

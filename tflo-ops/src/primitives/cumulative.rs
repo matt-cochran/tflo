@@ -244,7 +244,10 @@ impl CumulativeMean {
 
     /// Add a value and return the new cumulative mean.
     pub fn push(&mut self, value: f64) -> f64 {
-        self.count += 1;
+        // SAFETY: `self.count` is a `u64` observation counter. Saturating at
+        // `u64::MAX` is the only behavior that survives 1.8e19 pushes; under
+        // saturation the running mean simply freezes — no panic.
+        self.count = self.count.saturating_add(1);
         let delta = value - self.mean;
         self.mean += delta / self.count as f64;
         self.mean

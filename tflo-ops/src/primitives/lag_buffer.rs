@@ -68,7 +68,10 @@ impl LagBuffer {
             let _ = self.buffer.pop_front();
         }
 
-        let target_ts = ts - self.lag_ms;
+        // SAFETY: `ts - lag_ms` is the standard time-cutoff pattern;
+        // underflow ("clamp to before time zero") is a meaningful semantic
+        // for the lookup logic below.
+        let target_ts = ts.saturating_sub(self.lag_ms);
 
         // Clean up values we definitely don't need anymore
         // Keep values that might be useful for interpolation
@@ -94,7 +97,10 @@ impl LagBuffer {
     /// Get the lagged value for a given timestamp without adding a new value.
     #[must_use]
     pub fn get_at(&self, ts: i64) -> Option<f64> {
-        let target_ts = ts - self.lag_ms;
+        // SAFETY: `ts - lag_ms` is the standard time-cutoff pattern;
+        // underflow ("clamp to before time zero") is a meaningful semantic
+        // for the lookup logic below.
+        let target_ts = ts.saturating_sub(self.lag_ms);
 
         // Find the value at or before target_ts
         let mut result = None;

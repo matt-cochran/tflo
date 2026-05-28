@@ -49,7 +49,10 @@ fn main() {
     let load = builder.prop(|x| x.load_mw);
     let sma = load.sma(3usize);
     let std = load.std(3usize);
+    // SAFETY: graph-node combinator (Comp<R> Sub/Div overloads); not numeric arithmetic
+    #[allow(clippy::arithmetic_side_effects)]
     let diff = &load - &sma;
+    #[allow(clippy::arithmetic_side_effects)]
     let zscore = &diff / &std;
     println!("Nodes created:");
     println!("  - prop:  load");

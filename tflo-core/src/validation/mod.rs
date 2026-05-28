@@ -168,7 +168,10 @@ impl TimestampValidator {
     pub fn check(&mut self, ts: i64) -> bool {
         let valid = self.last_ts.is_none_or(|last| ts >= last);
         if !valid {
-            self.violations += 1;
+            // Saturate: a long-running stream could in principle exceed
+            // `usize::MAX` violations; pinning at the ceiling is more
+            // informative than panicking.
+            self.violations = self.violations.saturating_add(1);
         }
         self.last_ts = Some(ts);
         valid
@@ -208,12 +211,17 @@ impl WarmupTracker {
 
     /// Record that a new record has been processed.
     pub const fn record(&mut self) {
-        self.records_seen += 1;
+        // Saturate so a long-running stream pins at `usize::MAX` rather
+        // than wrapping/panicking. `is_warmed_up` only checks `>=
+        // min_required`, so pinning is semantically correct (still warm).
+        self.records_seen = self.records_seen.saturating_add(1);
     }
 
     /// Record warmup for a specific node.
     pub fn record_node(&mut self, node_id: usize) {
-        *self.by_node.entry(node_id).or_insert(0) += 1;
+        let entry = self.by_node.entry(node_id).or_insert(0);
+        // Saturate per-node count for the same reason as `record()`.
+        *entry = entry.saturating_add(1);
     }
 
     /// Check if globally warmed up.
@@ -265,13 +273,14 @@ impl ValueValidator {
     /// Check a value and return whether it's valid.
     pub const fn check(&mut self, value: f64) -> bool {
         if value.is_nan() {
-            self.nan_count += 1;
+            // Saturating count — see `WarmupTracker::record` for rationale.
+            self.nan_count = self.nan_count.saturating_add(1);
             if self.options.reject_nan {
                 return false;
             }
         }
         if value.is_infinite() {
-            self.inf_count += 1;
+            self.inf_count = self.inf_count.saturating_add(1);
             if self.options.reject_inf {
                 return false;
             }
@@ -299,14 +308,15 @@ impl ValueValidator {
     /// is enabled and the value matches.
     pub fn check_strict(&mut self, value: f64) -> Result<bool, TFloError> {
         if value.is_nan() {
-            self.nan_count += 1;
+            // Saturating count — see `WarmupTracker::record` for rationale.
+            self.nan_count = self.nan_count.saturating_add(1);
             if self.options.error_on_nan {
                 return Err(TFloError::NaN);
             }
             return Ok(!self.options.reject_nan);
         }
         if value.is_infinite() {
-            self.inf_count += 1;
+            self.inf_count = self.inf_count.saturating_add(1);
             if self.options.error_on_inf {
                 return Err(TFloError::Infinite);
             }

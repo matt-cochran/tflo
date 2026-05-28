@@ -67,7 +67,11 @@ impl WelfordAccumulator {
 
     /// Add a new value to the accumulator.
     pub fn push(&mut self, value: f64) {
-        self.count += 1;
+        // SAFETY: `self.count` is a `u64` observation counter. Saturating at
+        // `u64::MAX` is the only behavior that survives the absurd case of
+        // 1.8e19 pushes; under saturation the mean / variance formulas degrade
+        // gracefully to "stuck on the running estimate" rather than panic.
+        self.count = self.count.saturating_add(1);
         let delta = value - self.mean;
         self.mean += delta / self.count as f64;
         let delta2 = value - self.mean;
@@ -96,10 +100,14 @@ impl WelfordAccumulator {
         }
 
         let delta = value - self.mean;
-        self.mean = (self.mean * self.count as f64 - value) / (self.count - 1) as f64;
+        // SAFETY: the early-returns above ensure `self.count >= 2` here, so
+        // `count - 1 >= 1` cannot underflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let new_count = self.count - 1;
+        self.mean = (self.mean * self.count as f64 - value) / new_count as f64;
         let delta2 = value - self.mean;
         self.m2 -= delta * delta2;
-        self.count -= 1;
+        self.count = new_count;
     }
 
     /// Get the number of values.
@@ -142,7 +150,11 @@ impl WelfordAccumulator {
         if self.count < 2 {
             f64::NAN
         } else {
-            (self.m2 / (self.count - 1) as f64).max(0.0)
+            // SAFETY: the `count < 2` guard above ensures `count >= 2`, so
+            // `count - 1 >= 1` cannot underflow.
+            #[allow(clippy::arithmetic_side_effects)]
+            let denom = (self.count - 1) as f64;
+            (self.m2 / denom).max(0.0)
         }
     }
 
@@ -181,7 +193,11 @@ impl WelfordAccumulator {
             return;
         }
 
-        let combined_count = self.count + other.count;
+        // SAFETY: saturating to keep numerical-stability properties under the
+        // absurd merge case (two accumulators each near `u64::MAX`); the
+        // saturated count then merely "freezes" the mean update — same
+        // graceful degradation as `push`.
+        let combined_count = self.count.saturating_add(other.count);
         let delta = other.mean - self.mean;
         let combined_mean = self.mean + delta * (other.count as f64 / combined_count as f64);
 
@@ -237,14 +253,22 @@ impl WelfordWindow {
     pub fn push(&mut self, ts: i64, value: f64) {
         self.buffer.push_back((ts, value));
         self.accumulator.push(value);
-        self.ops_since_recompute += 1;
+        // SAFETY: bounded counter — `ops_since_recompute` is reset to 0 every
+        // `recompute_interval` increments by the `recompute()` call below, so
+        // it never exceeds `recompute_interval` (a `usize` configuration value
+        // that is itself bounded by `usize::MAX`).
+        self.ops_since_recompute = self.ops_since_recompute.saturating_add(1);
 
-        let cutoff = ts - self.window_ms;
+        // SAFETY: `ts - window_ms` is the standard time-cutoff pattern.
+        // Underflow ("clamp to before time zero") is a meaningful semantic for
+        // the eviction check below; `saturating_sub` makes that explicit.
+        let cutoff = ts.saturating_sub(self.window_ms);
         while let Some(&(old_ts, old_val)) = self.buffer.front() {
             if old_ts < cutoff {
                 let _ = self.buffer.pop_front();
                 self.accumulator.remove(old_val);
-                self.ops_since_recompute += 1;
+                // SAFETY: same bounded counter as the increment above.
+                self.ops_since_recompute = self.ops_since_recompute.saturating_add(1);
             } else {
                 break;
             }

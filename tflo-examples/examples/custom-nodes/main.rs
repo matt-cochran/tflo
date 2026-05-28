@@ -14,7 +14,8 @@ impl RateOfChange {
     fn new(period: usize) -> Self {
         Self {
             period,
-            buffer: VecDeque::with_capacity(period + 1),
+            // SAFETY: period is a small ROC window (e.g. 5–50); +1 cannot overflow usize
+            buffer: VecDeque::with_capacity(period.saturating_add(1)),
         }
     }
 }
@@ -27,10 +28,11 @@ impl Operator for RateOfChange {
         };
         self.buffer.push_back(current);
 
-        if self.buffer.len() > self.period + 1 {
+        // SAFETY: period is a small ROC window; saturating add cannot overflow usize
+        if self.buffer.len() > self.period.saturating_add(1) {
             self.buffer.pop_front();
         }
-        if self.buffer.len() < self.period + 1 {
+        if self.buffer.len() < self.period.saturating_add(1) {
             return NodeOutput::computed(Err(Absent::WarmingUp)); // still warming up
         }
 

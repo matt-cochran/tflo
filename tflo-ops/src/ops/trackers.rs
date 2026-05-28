@@ -156,7 +156,11 @@ impl TrackStep<AccelerationState> for AccelerationStep {
         // Inner velocity: a private `NaN` sentinel marks "no sample yet".
         let current_velocity = match (state.inner.prev_ts, state.inner.prev_value) {
             (Some(pt), Some(pv)) => {
-                let dt = (ts - pt) as f64;
+                // SAFETY: `pt` was captured from a prior `ts`; under
+                // monotonic timestamps `ts >= pt`. `saturating_sub` collapses
+                // an out-of-order sample to `dt == 0`, which the `dt > 0.0`
+                // guard already treats as `NaN`.
+                let dt = ts.saturating_sub(pt) as f64;
                 if dt > 0.0 {
                     (value - pv) / dt * 1000.0
                 } else {
@@ -170,7 +174,8 @@ impl TrackStep<AccelerationState> for AccelerationStep {
 
         let accel = match (state.prev_ts, state.prev_velocity) {
             (Some(pt), Some(pv)) if !current_velocity.is_nan() => {
-                let dt = (ts - pt) as f64;
+                // SAFETY: same monotonic-timestamp invariant as above.
+                let dt = ts.saturating_sub(pt) as f64;
                 if dt > 0.0 {
                     Ok((current_velocity - pv) / dt * 1000.0)
                 } else {
@@ -194,7 +199,11 @@ impl TrackStep<AccelerationState> for AccelerationStep {
 fn derivative(prev_ts: Option<i64>, prev_value: Option<f64>, value: f64, ts: i64) -> Computed {
     match (prev_ts, prev_value) {
         (Some(pt), Some(pv)) => {
-            let dt = (ts - pt) as f64;
+            // SAFETY: `pt` was captured from a prior `ts`; under monotonic
+            // timestamps `ts >= pt`. `saturating_sub` collapses an
+            // out-of-order sample to `dt == 0`, which the `dt > 0.0` guard
+            // below converts to `ZeroTimeDelta`.
+            let dt = ts.saturating_sub(pt) as f64;
             if dt > 0.0 {
                 Ok((value - pv) / dt * 1000.0)
             } else {

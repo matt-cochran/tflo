@@ -33,7 +33,12 @@ fn main() {
     let samples: Vec<CpuSample> = sample_cpu_load()
         .into_iter()
         .enumerate()
-        .map(|(i, cpu_pct)| CpuSample::new((i as i64 + 1) * 1000, cpu_pct))
+        .map(|(i, cpu_pct)| {
+            // SAFETY: i bounded by sample_cpu_load().len() (≈15); (i+1)*1000 fits in i64
+            #[allow(clippy::arithmetic_side_effects)]
+            let ts = (i as i64 + 1) * 1000;
+            CpuSample::new(ts, cpu_pct)
+        })
         .collect();
 
     // ---- Count-based RSI(14) ----

@@ -96,7 +96,11 @@ fn evaluate<T: IntoRegoInput>(
 fn log_throttled(counter: &AtomicU64, msg: &str) {
     let n = counter.fetch_add(1, Ordering::Relaxed);
     if n % 64 == 0 {
-        eprintln!("[tflo-rego] {msg} (occurrence #{})", n + 1);
+        // `fetch_add` wraps on overflow, so `n` may be `u64::MAX`; saturate
+        // the +1 we use for the display index — the occurrence number is
+        // human-readable only and capping at u64::MAX is a fine ceiling.
+        let display = n.saturating_add(1);
+        eprintln!("[tflo-rego] {msg} (occurrence #{display})");
     }
 }
 

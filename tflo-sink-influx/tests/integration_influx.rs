@@ -18,7 +18,12 @@
 //!   and CI-friendly on hosts without Docker.
 
 #![cfg(all(feature = "integration-tests", feature = "async"))]
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::arithmetic_side_effects // test code: deadline math, counters, fixture sizing
+)]
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

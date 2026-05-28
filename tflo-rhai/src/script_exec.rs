@@ -55,7 +55,12 @@ impl ScriptEngine {
             if path.extension().is_some_and(|e| e == "rhai") {
                 if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                     self.load_file(name, &path)?;
-                    count += 1;
+                    // SAFETY: bounded by directory entry count; no overflow
+                    // possible at any realistic filesystem size.
+                    #[allow(clippy::arithmetic_side_effects)]
+                    {
+                        count += 1;
+                    }
                 }
             }
         }

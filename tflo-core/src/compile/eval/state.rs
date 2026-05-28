@@ -10,7 +10,13 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     /// Get the total number of nodes in the graph.
     #[must_use]
     pub const fn node_count(&self) -> usize {
-        self.nodes.len() + self.composition_nodes.len()
+        // SAFETY: both `Vec::len()` values are bounded by the graph's
+        // node count, which is itself bounded by available memory.
+        // Summing them cannot overflow `usize` in any realizable graph.
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            self.nodes.len() + self.composition_nodes.len()
+        }
     }
 
     /// Get a debug representation of the graph structure.

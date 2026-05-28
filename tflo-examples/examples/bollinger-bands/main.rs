@@ -44,8 +44,12 @@ fn main() {
             let celsius = t.prop(|x| x.celsius);
             let middle = celsius.sma(4usize);
             let std = celsius.std(4usize);
+            // SAFETY: graph-node combinator (Comp<R> Mul/Add/Sub overloads); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
             let band_width = &std * 2.0;
+            #[allow(clippy::arithmetic_side_effects)]
             let upper = &middle + &band_width;
+            #[allow(clippy::arithmetic_side_effects)]
             let lower = &middle - &band_width;
             (middle, upper, lower)
         })
@@ -73,8 +77,12 @@ fn main() {
             let celsius = t.prop(|x| x.celsius);
             let middle = celsius.ema(4usize);
             let std = celsius.std(4usize);
+            // SAFETY: graph-node combinator (Comp<R> Mul/Add/Sub overloads); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
             let band_width = &std * 2.0;
+            #[allow(clippy::arithmetic_side_effects)]
             let upper = &middle + &band_width;
+            #[allow(clippy::arithmetic_side_effects)]
             let lower = &middle - &band_width;
             (middle, upper, lower)
         })
@@ -90,8 +98,12 @@ fn main() {
             let celsius = t.prop(|x| x.celsius);
             let middle = celsius.sma(4usize);
             let std = celsius.std(4usize);
+            // SAFETY: graph-node combinator (Comp<R> Mul/Add/Sub overloads); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
             let band_width = &std * 3.0;
+            #[allow(clippy::arithmetic_side_effects)]
             let upper = &middle + &band_width;
+            #[allow(clippy::arithmetic_side_effects)]
             let lower = &middle - &band_width;
             (middle, upper, lower)
         })
@@ -105,6 +117,8 @@ fn main() {
             t.timestamp(|x| x.ts);
             let celsius = t.prop(|x| x.celsius);
             let (_middle, upper, lower) = celsius.bollinger_bands(4usize, 2.0);
+            // SAFETY: graph-node combinator (Comp<R> Sub overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
             let band_width = &upper - &lower;
             let thresh = t.constant(10.0);
             band_width.lt(&thresh)

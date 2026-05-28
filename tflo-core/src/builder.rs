@@ -34,7 +34,13 @@ impl<R> Default for BuilderState<R> {
 impl<R> BuilderState<R> {
     pub(crate) const fn next_id(&mut self) -> NodeId {
         let id = NodeId(self.next_node_id);
-        self.next_node_id += 1;
+        // SAFETY: graph size is bounded by available memory (each node
+        // pushed into `self.nodes` long before this could wrap usize);
+        // a graph with `usize::MAX` nodes is physically impossible.
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            self.next_node_id += 1;
+        }
         id
     }
 }
@@ -115,11 +121,15 @@ impl<R: 'static> TFlowBuilder<R> {
     /// Set the timestamp extractor with timestamps in seconds.
     ///
     /// Automatically converts seconds to milliseconds.
+    ///
+    /// Uses `saturating_mul` so a pathologically large seconds value
+    /// (e.g. uninitialized sensor garbage) clamps at `i64::MAX` ms
+    /// instead of panicking inside the timestamp extractor.
     pub fn timestamp_secs<F>(&mut self, f: F) -> &mut Self
     where
         F: Fn(&R) -> i64 + Send + Sync + 'static,
     {
-        self.timestamp_fn = Some(Arc::new(move |r| f(r) * 1000));
+        self.timestamp_fn = Some(Arc::new(move |r| f(r).saturating_mul(1000)));
         self
     }
 

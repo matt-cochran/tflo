@@ -15,7 +15,12 @@ fn main() {
     let ticks: Vec<Tick> = sample_rsi_prices()
         .into_iter()
         .enumerate()
-        .map(|(i, price)| Tick::new((i as i64 + 1) * 1000, price))
+        .map(|(i, price)| {
+            // SAFETY: i bounded by sample_rsi_prices().len() (small fixture); (i+1)*1000 fits in i64
+            #[allow(clippy::arithmetic_side_effects)]
+            let ts = (i as i64 + 1) * 1000;
+            Tick::new(ts, price)
+        })
         .collect();
 
     let rsi_values: Vec<f64> = ticks
@@ -62,8 +67,12 @@ fn main() {
             let price = t.prop(|x| x.price);
             let middle = price.sma(4usize);
             let std = price.std(4usize);
+            // SAFETY: graph-node combinator (Comp<R> Mul/Add/Sub overloads); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
             let band_width = &std * 2.0;
+            #[allow(clippy::arithmetic_side_effects)]
             let upper = &middle + &band_width;
+            #[allow(clippy::arithmetic_side_effects)]
             let lower = &middle - &band_width;
             (middle, upper, lower)
         })

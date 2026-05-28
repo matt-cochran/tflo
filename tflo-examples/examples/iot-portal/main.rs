@@ -267,6 +267,8 @@ async fn main() -> Result<(), String> {
     let readings: Vec<Reading> = (0..30)
         .map(|i| {
             let device_id = format!("dev-{:02}", i % 3);
+            // SAFETY: i bounded by 0..30; (1.7e12) + 30*100 nowhere near i64::MAX (ms-since-epoch arithmetic)
+            #[allow(clippy::arithmetic_side_effects)]
             let ts_ms = 1_700_000_000_000 + i as i64 * 100;
             // Drift a sine wave with a low-frequency trend so threshold
             // crossings actually happen.
@@ -310,7 +312,11 @@ async fn main() -> Result<(), String> {
     while let Some(msg) = mqtt_broker.poll().await? {
         if let Some(pid) = msg.packet_id {
             if !cursor.observe_qos2(pid) {
-                edge_dedup_drops += 1;
+                // SAFETY: dedup drop counter bounded by simulated 30 messages; cannot overflow u64
+                #[allow(clippy::arithmetic_side_effects)]
+                {
+                    edge_dedup_drops += 1;
+                }
                 continue;
             }
         }
@@ -324,7 +330,11 @@ async fn main() -> Result<(), String> {
             }
         };
         if let Some(ev) = detect_threshold(&mut history, &reading, 60.0, 2.0) {
-            edge_detected += 1;
+            // SAFETY: detected-event counter bounded by simulated 30 messages; cannot overflow u64
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                edge_detected += 1;
+            }
             // Republish to Kafka.
             let payload = serde_json::to_vec(&ev).map_err(|e| e.to_string())?;
             mqtt_broker
@@ -386,11 +396,19 @@ async fn main() -> Result<(), String> {
         };
         // Ownership + epoch fence.
         if !router.owns(&tp) {
-            stale_drops += 1;
+            // SAFETY: stale-drop counter bounded by simulated 30 messages; cannot overflow u64
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                stale_drops += 1;
+            }
             router.record_stale_event();
             continue;
         }
-        consumed += 1;
+        // SAFETY: consumed counter bounded by simulated 30 messages; cannot overflow u64
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            consumed += 1;
+        }
 
         // Write to Influx via line-protocol.
         let payload = msg.payload.as_deref().ok_or_else(|| "tombstone message".to_string())?;

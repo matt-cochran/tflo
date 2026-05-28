@@ -171,7 +171,11 @@ impl<K: Hash + Eq + Clone> TimestampedPrevByTracker<K> {
     /// Calculate the rate of change for a key.
     pub fn rate(&mut self, key: K, ts: i64, value: f64) -> Option<f64> {
         let result = self.prev.get(&key).and_then(|(prev_ts, prev_val)| {
-            let dt = (ts - *prev_ts) as f64;
+            // SAFETY: `prev_ts` was captured from a prior `ts` for the same
+            // key; under monotonic timestamps `ts >= *prev_ts`.
+            // `saturating_sub` collapses an out-of-order sample to `dt == 0`,
+            // which the `dt > 0.0` guard below treats as "no rate".
+            let dt = ts.saturating_sub(*prev_ts) as f64;
             if dt > 0.0 {
                 Some((value - *prev_val) / dt)
             } else {

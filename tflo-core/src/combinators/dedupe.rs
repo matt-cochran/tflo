@@ -95,13 +95,17 @@ where
             let key: K = (self.key_fn)(&item);
             let ts: i64 = (self.ts_fn)(&item);
 
-            // Clean up old entries
-            let cutoff = ts - self.window_ms;
+            // Clean up old entries. Saturating: if `ts < window_ms`
+            // (start of stream, or small epoch), the cutoff clamps at
+            // `i64::MIN` and the retain becomes a no-op — correct.
+            let cutoff = ts.saturating_sub(self.window_ms);
             self.seen.retain(|_, &mut last_ts| last_ts >= cutoff);
 
-            // Check if we've seen this key recently
+            // Check if we've seen this key recently. Saturating: out-of-
+            // order records (ts < last_ts) clamp at 0, which compares as
+            // < window_ms so we correctly treat as duplicate-within-window.
             if let Some(&last_ts) = self.seen.get(&key) {
-                if ts - last_ts < self.window_ms {
+                if ts.saturating_sub(last_ts) < self.window_ms {
                     // Duplicate - skip
                     continue;
                 }

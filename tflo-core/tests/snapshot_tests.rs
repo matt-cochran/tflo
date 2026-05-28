@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::arithmetic_side_effects
+)]
 //! Integration tests for `CompiledGraph::snapshot` / `restore`.
 //!
 //! Covers: checkpointable graphs round-trip exactly; non-checkpointable

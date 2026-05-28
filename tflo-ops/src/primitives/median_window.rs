@@ -109,8 +109,12 @@ impl MedianCountWindow {
             return self.sorted[0];
         }
 
-        // Linear interpolation method (same as pandas default)
-        let pos = q * (n - 1) as f64;
+        // Linear interpolation method (same as pandas default).
+        // SAFETY: the `is_empty` and `n == 1` early-returns above guarantee
+        // `n >= 2`, so `n - 1 >= 1` cannot underflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let last_idx_f = (n - 1) as f64;
+        let pos = q * last_idx_f;
         let lower = pos.floor() as usize;
         let upper = pos.ceil() as usize;
         let frac = pos - lower as f64;
@@ -148,7 +152,12 @@ impl MedianCountWindow {
         if let Some(&current) = self.buffer.back() {
             // Count how many values are less than current
             let less_than = self.sorted.iter().filter(|&&v| v < current).count();
-            less_than as f64 / (self.sorted.len() - 1).max(1) as f64
+            // SAFETY: the `self.sorted.is_empty()` guard above ensures
+            // `len >= 1`; `len - 1` therefore cannot underflow, and `.max(1)`
+            // protects the divisor in the single-element edge case.
+            #[allow(clippy::arithmetic_side_effects)]
+            let denom = (self.sorted.len() - 1).max(1) as f64;
+            less_than as f64 / denom
         } else {
             f64::NAN
         }
@@ -196,8 +205,11 @@ impl MedianTimeWindow {
         // Add new value
         self.buffer.push_back((ts, value));
 
-        // Evict old values
-        let cutoff = ts - self.window_ms;
+        // Evict old values.
+        // SAFETY: `ts - window_ms` is the standard time-cutoff pattern;
+        // underflow ("clamp to before time zero") is a meaningful semantic
+        // for the eviction check below.
+        let cutoff = ts.saturating_sub(self.window_ms);
         while let Some(&(old_ts, _)) = self.buffer.front() {
             if old_ts < cutoff {
                 let _ = self.buffer.pop_front();
@@ -248,8 +260,12 @@ impl MedianTimeWindow {
             return values[0];
         }
 
-        // Linear interpolation method
-        let pos = q * (n - 1) as f64;
+        // Linear interpolation method.
+        // SAFETY: the `is_empty` and `n == 1` early-returns above guarantee
+        // `n >= 2`, so `n - 1 >= 1` cannot underflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let last_idx_f = (n - 1) as f64;
+        let pos = q * last_idx_f;
         let lower = pos.floor() as usize;
         let upper = pos.ceil() as usize;
         let frac = pos - lower as f64;
@@ -282,7 +298,12 @@ impl MedianTimeWindow {
 
         if let Some(&(_, current)) = self.buffer.back() {
             let less_than = self.buffer.iter().filter(|(_, v)| *v < current).count();
-            less_than as f64 / (self.buffer.len() - 1).max(1) as f64
+            // SAFETY: the `self.buffer.is_empty()` guard above ensures
+            // `len >= 1`; `len - 1` therefore cannot underflow, and `.max(1)`
+            // protects the divisor in the single-element edge case.
+            #[allow(clippy::arithmetic_side_effects)]
+            let denom = (self.buffer.len() - 1).max(1) as f64;
+            less_than as f64 / denom
         } else {
             f64::NAN
         }

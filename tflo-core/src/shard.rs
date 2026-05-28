@@ -48,7 +48,12 @@ impl AssignmentEpoch {
     /// Bump the epoch — used by routers when their assignment changes.
     /// Returns the new value.
     pub fn bump(&self) -> u64 {
-        self.0.fetch_add(1, Ordering::AcqRel) + 1
+        // SAFETY: `fetch_add(1)` returns the previous value; `+ 1` would
+        // only overflow after 2^64 rebalances (≈ centuries at any
+        // plausible rate). Saturating is functionally equivalent at that
+        // ceiling and avoids the lint without changing observable
+        // behavior.
+        self.0.fetch_add(1, Ordering::AcqRel).saturating_add(1)
     }
 }
 

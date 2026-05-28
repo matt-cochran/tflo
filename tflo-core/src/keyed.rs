@@ -256,7 +256,15 @@ where
                 let pos = self.pending.partition_point(|(bts, _)| *bts <= ts);
                 self.pending.insert(pos, (ts, record));
                 self.max_ts_seen = Some(self.max_ts_seen.map_or(ts, |m| m.max(ts)));
-                let watermark = self.max_ts_seen.unwrap_or(ts) - max_lateness_ms;
+                // Saturating: if `max_ts_seen < max_lateness_ms` (early
+                // in the stream, or a small timestamp epoch), the
+                // watermark clamps at `i64::MIN` — semantically "no
+                // records are late yet", which is exactly the right
+                // behavior for `drain_until` (nothing flushes).
+                let watermark = self
+                    .max_ts_seen
+                    .unwrap_or(ts)
+                    .saturating_sub(max_lateness_ms);
                 self.drain_until(watermark, &key)
             }
         }

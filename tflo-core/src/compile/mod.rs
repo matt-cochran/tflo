@@ -231,6 +231,11 @@ where
     where
         O2: ExtractOutput,
     {
+        // SAFETY: `max_node_id() + 1` and the `n.id.0 + offset` /
+        // `e.id.0 + offset` sites below are all `usize` arithmetic on
+        // graph-bounded indices. Two graphs being zipped each fit in
+        // memory, so their combined index space also fits in `usize`.
+        #[allow(clippy::arithmetic_side_effects)]
         let offset = self.max_node_id() + 1;
 
         // Offset all node IDs from other graph
@@ -238,7 +243,10 @@ where
             .nodes
             .into_iter()
             .map(|mut n| {
-                n.id = NodeId(n.id.0 + offset);
+                #[allow(clippy::arithmetic_side_effects)] // see SAFETY above
+                {
+                    n.id = NodeId(n.id.0 + offset);
+                }
                 n.offset_input_ids(offset);
                 n
             })
@@ -249,7 +257,10 @@ where
             .composition_nodes
             .into_iter()
             .map(|mut e| {
-                e.id = NodeId(e.id.0 + offset);
+                #[allow(clippy::arithmetic_side_effects)] // see SAFETY above
+                {
+                    e.id = NodeId(e.id.0 + offset);
+                }
                 e
             })
             .collect();
@@ -292,6 +303,10 @@ where
         O2: ExtractOutput,
         F: Fn(O) -> O2 + Send + Sync + 'static,
     {
+        // SAFETY: `max_node_id() + 1` — graph-bounded `usize`; cannot
+        // overflow on any realizable graph (see `zip` for the full
+        // rationale).
+        #[allow(clippy::arithmetic_side_effects)]
         let new_id = NodeId(self.max_node_id() + 1);
         let input_ids = self.output_ids.clone();
 
@@ -380,6 +395,9 @@ where
         Acc: ExtractOutput + Clone,
         F: Fn(Acc, O) -> Acc + Send + Sync + 'static,
     {
+        // SAFETY: see `map` / `zip` — `max_node_id() + 1` cannot
+        // overflow on any realizable graph.
+        #[allow(clippy::arithmetic_side_effects)]
         let new_id = NodeId(self.max_node_id() + 1);
         let input_ids = self.output_ids.clone();
         let state: Arc<Mutex<Box<dyn Any + Send + Sync>>> = Arc::new(Mutex::new(Box::new(initial)));

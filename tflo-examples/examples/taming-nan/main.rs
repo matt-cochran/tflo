@@ -61,7 +61,11 @@ fn main() {
             let moisture = t.prop(|x| x.moisture_pct);
             let sma = moisture.sma(3usize);
 
-            &sma * 2.0
+            // SAFETY: graph-node combinator (Comp<R> Mul<f64> overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                &sma * 2.0
+            }
         })
         .collect();
     for (reading, val) in soil_with_dropouts.iter().zip(&permissive) {
@@ -81,7 +85,11 @@ fn main() {
             let moisture = t.prop(|x| x.moisture_pct);
             let sma = moisture.sma(3usize);
 
-            &sma * 2.0
+            // SAFETY: graph-node combinator (Comp<R> Mul<f64> overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                &sma * 2.0
+            }
         })
         .collect();
     for (reading, result) in soil_with_dropouts.iter().zip(&strict) {

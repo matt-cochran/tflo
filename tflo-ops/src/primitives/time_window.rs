@@ -64,8 +64,11 @@ impl TimeWindow {
         self.sum += value;
         self.sum_sq += value * value;
 
-        // Evict old values
-        let cutoff = ts - self.window_ms;
+        // Evict old values.
+        // SAFETY: `ts - window_ms` is the standard time-cutoff pattern;
+        // underflow ("clamp to before time zero") is a meaningful semantic
+        // for the eviction check below.
+        let cutoff = ts.saturating_sub(self.window_ms);
         while let Some(&(old_ts, old_val)) = self.buffer.front() {
             if old_ts < cutoff {
                 let _ = self.buffer.pop_front();

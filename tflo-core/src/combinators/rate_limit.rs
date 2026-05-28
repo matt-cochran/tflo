@@ -87,7 +87,10 @@ where
                     self.last_output_ts = Some(ts);
                     return Some(item);
                 }
-                Some(last) if ts - last >= self.interval_ms => {
+                // Saturating: out-of-order records (ts < last) clamp at
+                // 0, which compares as < interval_ms so they are
+                // correctly rate-limited.
+                Some(last) if ts.saturating_sub(last) >= self.interval_ms => {
                     self.last_output_ts = Some(ts);
                     return Some(item);
                 }
@@ -166,7 +169,8 @@ where
                             self.last_output_ts = Some(ts);
                             return Some(item);
                         }
-                        Some(last) if ts - last >= self.interval_ms => {
+                        // Saturating — same rationale as `RateLimit::next`.
+                        Some(last) if ts.saturating_sub(last) >= self.interval_ms => {
                             // Can output - first check if we have a pending item
                             if let Some((pending_ts, pending_item)) = self.pending.take() {
                                 // Output pending, store current as new pending

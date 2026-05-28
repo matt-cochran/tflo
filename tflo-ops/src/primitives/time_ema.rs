@@ -66,7 +66,11 @@ impl TimeEma {
         }
 
         if let Some(last) = self.last_ts {
-            let elapsed_ms = (ts - last) as f64;
+            // SAFETY: `last` was set from a prior `ts` argument; under
+            // monotonic timestamps `ts >= last`. `saturating_sub` collapses an
+            // out-of-order sample to `elapsed_ms == 0`, which the guard below
+            // already treats as "no update" — no panic, no overflow.
+            let elapsed_ms = ts.saturating_sub(last) as f64;
 
             if elapsed_ms > 0.0 {
                 // Decay factor: α = 1 - e^(-Δt / halflife)
@@ -168,7 +172,10 @@ impl CountEma {
     ///
     /// Returns the current EMA value after incorporating the new observation.
     pub fn push(&mut self, value: f64) -> f64 {
-        self.count += 1;
+        // SAFETY: bounded `usize` seed counter — once `count >= period` we
+        // flip `initialized = true` and never touch this counter again, so
+        // overflow is structurally impossible for any non-zero `period`.
+        self.count = self.count.saturating_add(1);
 
         if !self.initialized {
             self.seed_sum += value;

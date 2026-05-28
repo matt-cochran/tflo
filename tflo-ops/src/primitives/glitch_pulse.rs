@@ -180,7 +180,13 @@ impl GlitchFilter {
                 // Falling edge - check if pulse was long enough
                 self.state = GlitchState::Low;
                 if let Some(start_ts) = self.pulse_start_ts.take() {
-                    let duration = ts_ms - start_ts;
+                    // SAFETY: `start_ts` was captured from a prior `ts_ms` on
+                    // the rising edge; under monotonic timestamps
+                    // `ts_ms >= start_ts`. `saturating_sub` collapses any
+                    // out-of-order falling edge to duration 0, which the
+                    // `>= min_duration_ms` check below correctly treats as
+                    // "too short" — no panic, no overflow.
+                    let duration = ts_ms.saturating_sub(start_ts);
                     Some(duration >= self.min_duration_ms)
                 } else {
                     Some(false)
@@ -201,7 +207,11 @@ impl GlitchFilter {
     /// Returns `None` if not currently in a pulse.
     #[must_use]
     pub fn current_pulse_duration(&self, current_ts_ms: i64) -> Option<i64> {
-        self.pulse_start_ts.map(|start| current_ts_ms - start)
+        // SAFETY: `start` is captured on a rising edge; under monotonic
+        // timestamps `current_ts_ms >= start`. `saturating_sub` clamps an
+        // out-of-order query to duration 0 rather than panicking.
+        self.pulse_start_ts
+            .map(|start| current_ts_ms.saturating_sub(start))
     }
 
     /// Reset the filter state.
@@ -263,7 +273,12 @@ impl PulseWidthDetector {
                 // Falling edge - measure width
                 self.state = PulseWidthState::Low;
                 if let Some(start_ts) = self.pulse_start_ts.take() {
-                    let width_ms = ts_ms - start_ts;
+                    // SAFETY: `start_ts` was captured from a prior `ts_ms` on
+                    // the rising edge; under monotonic timestamps
+                    // `ts_ms >= start_ts`. `saturating_sub` collapses any
+                    // out-of-order falling edge to width 0, which
+                    // `classify_width` returns as `TooShort`.
+                    let width_ms = ts_ms.saturating_sub(start_ts);
                     Some(self.classify_width(width_ms))
                 } else {
                     None
@@ -292,7 +307,11 @@ impl PulseWidthDetector {
     /// Get the current pulse duration if in a pulse.
     #[must_use]
     pub fn current_width(&self, current_ts_ms: i64) -> Option<i64> {
-        self.pulse_start_ts.map(|start| current_ts_ms - start)
+        // SAFETY: `start` is captured on a rising edge; under monotonic
+        // timestamps `current_ts_ms >= start`. `saturating_sub` clamps an
+        // out-of-order query to duration 0 rather than panicking.
+        self.pulse_start_ts
+            .map(|start| current_ts_ms.saturating_sub(start))
     }
 
     /// Reset the detector state.

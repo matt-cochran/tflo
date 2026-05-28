@@ -100,7 +100,11 @@ where
                     let ts: i64 = (self.key_fn)(&item).into();
                     // SAFETY: `self.interval_ms` is saturated to >= 1 in
                     // `batch_by_time()` above, so this division cannot panic.
-                    #[allow(clippy::integer_division)]
+                    // The multiplication `(ts / interval_ms) * interval_ms`
+                    // is the truncate-to-interval-boundary identity: its
+                    // result is in `[ts - interval_ms + 1, ts]`, so it
+                    // cannot overflow `i64`.
+                    #[allow(clippy::integer_division, clippy::arithmetic_side_effects)]
                     let boundary = (ts / self.interval_ms) * self.interval_ms;
 
                     match self.current_boundary {

@@ -119,7 +119,10 @@ pub(super) fn ema_series(data: &[f64], period: usize) -> Vec<Option<f64>> {
     }
     let alpha = 2.0 / (period as f64 + 1.0);
     let mut val = data[..period].iter().sum::<f64>() / period as f64;
-    out[period - 1] = Some(val);
+    // SAFETY: `period >= 1` (guarded above), so `period - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
+    let seed_idx = period - 1;
+    out[seed_idx] = Some(val);
     for i in period..n {
         if data[i].is_nan() {
             continue;
@@ -136,6 +139,8 @@ pub(super) fn trima_last(data: &[f64], period: usize) -> f64 {
         return f64::NAN;
     }
 
+    // SAFETY: `n >= period` (guarded above), so `n - period` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let window = &data[n - period..n];
     // SAFETY: `period == 0` is rejected by the guard above, so this
     // division cannot panic. The integer-division precision-loss is the
@@ -146,6 +151,10 @@ pub(super) fn trima_last(data: &[f64], period: usize) -> f64 {
     let mut weight_sum = 0.0;
 
     for (i, value) in window.iter().enumerate() {
+        // SAFETY: `i < window.len() == period` from enumerate; `i + 1`
+        // cannot overflow usize for any realistic `period`, and
+        // `period - i` is positive because `i < period`.
+        #[allow(clippy::arithmetic_side_effects)]
         let weight = if period % 2 == 0 {
             if i < half { i + 1 } else { period - i }
         } else if i <= half {
@@ -171,22 +180,36 @@ pub(super) fn trima_last(data: &[f64], period: usize) -> f64 {
 
 pub(super) fn dema_last(data: &[f64], period: usize) -> f64 {
     let n = data.len();
-    if period == 0 || n < 2 * period - 1 {
+    if period == 0 {
+        return f64::NAN;
+    }
+    // SAFETY: `period >= 1` (guarded immediately above); `2 * period`
+    // fits in usize for any realistic indicator period; `2 * period - 1 >= 1`.
+    #[allow(clippy::arithmetic_side_effects)]
+    let min_n = 2 * period - 1;
+    if n < min_n {
         return f64::NAN;
     }
 
     let ema1 = ema_series(data, period);
-    let ema1_last = match ema1[n - 1] {
+    // SAFETY: `n >= 2*period - 1 >= 1`, so `n - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
+    let last_idx = n - 1;
+    let ema1_last = match ema1[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
     };
 
+    // SAFETY: `period >= 1`, so `period - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema1_start = period - 1;
     let ema1_values: Vec<f64> = ema1[ema1_start..]
         .iter()
         .map(|v| v.unwrap_or(f64::NAN))
         .collect();
     let ema2 = ema_series(&ema1_values, period);
+    // SAFETY: `n >= 2*period - 1 >= period`, so `n - period` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema2_idx = n - period;
     let ema2_last = match ema2.get(ema2_idx).copied().flatten() {
         Some(v) => v,
@@ -198,34 +221,53 @@ pub(super) fn dema_last(data: &[f64], period: usize) -> f64 {
 
 pub(super) fn tema_last(data: &[f64], period: usize) -> f64 {
     let n = data.len();
-    if period == 0 || n < 3 * period - 2 {
+    if period == 0 {
+        return f64::NAN;
+    }
+    // SAFETY: `period >= 1` (guarded immediately above);
+    // `3 * period - 2 >= 1` for any realistic indicator period.
+    #[allow(clippy::arithmetic_side_effects)]
+    let min_n = 3 * period - 2;
+    if n < min_n {
         return f64::NAN;
     }
 
     let ema1 = ema_series(data, period);
-    let ema1_last = match ema1[n - 1] {
+    // SAFETY: `n >= 3*period - 2 >= 1`, so `n - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
+    let last_idx = n - 1;
+    let ema1_last = match ema1[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
     };
 
+    // SAFETY: `period >= 1`, so `period - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema1_start = period - 1;
     let ema1_values: Vec<f64> = ema1[ema1_start..]
         .iter()
         .map(|v| v.unwrap_or(f64::NAN))
         .collect();
     let ema2 = ema_series(&ema1_values, period);
+    // SAFETY: `n >= 3*period - 2 >= period`, so `n - period` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema2_idx = n - period;
     let ema2_last = match ema2.get(ema2_idx).copied().flatten() {
         Some(v) => v,
         None => return f64::NAN,
     };
 
+    // SAFETY: `period >= 1`, so `period - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema2_start = period - 1;
     let ema2_values: Vec<f64> = ema2[ema2_start..]
         .iter()
         .map(|v| v.unwrap_or(f64::NAN))
         .collect();
     let ema3 = ema_series(&ema2_values, period);
+    // SAFETY: `n >= 3*period - 2 = period + (2*period - 1)`, so
+    // `n - (2 * period - 1)` cannot underflow; `2 * period - 1 >= 1`.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema3_idx = n - (2 * period - 1);
     let ema3_last = match ema3.get(ema3_idx).copied().flatten() {
         Some(v) => v,
@@ -247,11 +289,14 @@ pub(super) fn ppo_last(data: &[f64], fast: usize, slow: usize) -> f64 {
     }
     let fast_ema = ema_series(data, fast);
     let slow_ema = ema_series(data, slow);
-    let fast_last = match fast_ema[n - 1] {
+    // SAFETY: `n >= max(fast, slow) >= 1`, so `n - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
+    let last_idx = n - 1;
+    let fast_last = match fast_ema[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
     };
-    let slow_last = match slow_ema[n - 1] {
+    let slow_last = match slow_ema[last_idx] {
         Some(v) => v,
         None => return f64::NAN,
     };
@@ -270,11 +315,21 @@ pub(super) fn macd_last(
     output: usize,
 ) -> f64 {
     let n = data.len();
-    if n == 0 || slow == 0 || signal == 0 || n < slow + signal - 1 {
+    if n == 0 || slow == 0 || signal == 0 {
+        return f64::NAN;
+    }
+    // SAFETY: `slow >= 1` and `signal >= 1` (guarded immediately above);
+    // `slow + signal` fits in usize for any realistic indicator periods;
+    // `slow + signal - 1 >= 1`.
+    #[allow(clippy::arithmetic_side_effects)]
+    let min_n = slow + signal - 1;
+    if n < min_n {
         return f64::NAN;
     }
     let fast_ema = ema_series(data, fast);
     let slow_ema = ema_series(data, slow);
+    // SAFETY: `slow >= 1` (guarded above), so `slow - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let macd_start = slow - 1;
     let mut line_raw = Vec::with_capacity(n.saturating_sub(macd_start));
     for i in macd_start..n {
@@ -303,27 +358,50 @@ pub(super) fn macd_last(
 
 pub(super) fn trix_last(data: &[f64], period: usize) -> f64 {
     let n = data.len();
-    if n < period * 3 - 2 || period == 0 {
+    // NOTE: the `period == 0` branch is checked after the size compare; for
+    // `period == 0` the subtraction `0 * 3 - 2` would underflow, so move the
+    // zero-period gate first.
+    if period == 0 {
+        return f64::NAN;
+    }
+    // SAFETY: `period >= 1` (guarded immediately above), so `period * 3 >= 3`
+    // and `period * 3 - 2 >= 1`. The multiplication fits in usize for any
+    // realistic indicator period.
+    #[allow(clippy::arithmetic_side_effects)]
+    let min_n = period * 3 - 2;
+    if n < min_n {
         return f64::NAN;
     }
     let ema1 = ema_series(data, period);
     let flat1: Vec<f64> = ema1.iter().map(|v| v.unwrap_or(f64::NAN)).collect();
+    // SAFETY: `period >= 1` (guarded above), so `period - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema2_start = period - 1;
     if flat1.len() <= ema2_start {
         return f64::NAN;
     }
     let ema2_vals = ema_series(&flat1[ema2_start..], period);
     let flat2: Vec<f64> = ema2_vals.iter().map(|v| v.unwrap_or(f64::NAN)).collect();
+    // SAFETY: `period >= 1` (guarded above), so `period - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let ema3_start = period - 1;
     if flat2.len() <= ema3_start {
         return f64::NAN;
     }
     let ema3_vals = ema_series(&flat2[ema3_start..], period);
+    // SAFETY: `n >= 3*period - 2 = 2*(period - 1) + 1`, so
+    // `n - (period - 1) - (period - 1) - 1 >= 0`. All subtractions are
+    // well-defined because each intermediate stays non-negative.
+    #[allow(clippy::arithmetic_side_effects)]
     let idx = n - (period - 1) - (period - 1) - 1;
     if idx == 0 || idx >= ema3_vals.len() {
         return f64::NAN;
     }
-    match (ema3_vals[idx - 1], ema3_vals[idx]) {
+    // SAFETY: `idx >= 1` (the `idx == 0` early-return guarantees this),
+    // so `idx - 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
+    let prev_idx = idx - 1;
+    match (ema3_vals[prev_idx], ema3_vals[idx]) {
         (Some(prev), Some(cur)) if prev != 0.0 => (cur - prev) / prev * 100.0,
         _ => f64::NAN,
     }
@@ -332,22 +410,48 @@ pub(super) fn trix_last(data: &[f64], period: usize) -> f64 {
 pub(super) fn rsi_series(data: &[f64], period: usize) -> Vec<Option<f64>> {
     let n = data.len();
     let mut out = vec![None; n];
-    if n < period + 1 || period == 0 {
+    // SAFETY: `period + 1` cannot overflow usize for any realistic indicator
+    // period (well under usize::MAX).
+    #[allow(clippy::arithmetic_side_effects)]
+    let min_n = period + 1;
+    if n < min_n || period == 0 {
         return out;
     }
-    let mut gains = Vec::with_capacity(n - 1);
-    let mut losses = Vec::with_capacity(n - 1);
+    // SAFETY: `n >= period + 1 >= 2` (combined with `period != 0` guard),
+    // so `n - 1 >= 1` cannot underflow.
+    #[allow(clippy::arithmetic_side_effects)]
+    let cap = n - 1;
+    let mut gains = Vec::with_capacity(cap);
+    let mut losses = Vec::with_capacity(cap);
     for i in 1..n {
-        let d = data[i] - data[i - 1];
+        // SAFETY: `i >= 1` from the `1..n` range, so `i - 1` cannot
+        // underflow; `i < n` from the range bound.
+        #[allow(clippy::arithmetic_side_effects)]
+        let prev = i - 1;
+        let d = data[i] - data[prev];
         gains.push(if d > 0.0 { d } else { 0.0 });
         losses.push(if d < 0.0 { -d } else { 0.0 });
     }
     let mut avg_gain = gains[..period].iter().sum::<f64>() / period as f64;
     let mut avg_loss = losses[..period].iter().sum::<f64>() / period as f64;
     out[period] = Some(rsi_value(avg_gain, avg_loss));
-    for i in (period + 1)..n {
-        avg_gain = (avg_gain * (period - 1) as f64 + gains[i - 1]) / period as f64;
-        avg_loss = (avg_loss * (period - 1) as f64 + losses[i - 1]) / period as f64;
+    // SAFETY: `period + 1` cannot overflow (same as above).
+    #[allow(clippy::arithmetic_side_effects)]
+    let start = period + 1;
+    // The loop body indexes multiple arrays (`gains`, `losses`, `out`) at
+    // related but distinct offsets; converting to `enumerate()` over `out`
+    // would obscure that.
+    #[allow(clippy::needless_range_loop)]
+    for i in start..n {
+        // SAFETY: `period >= 1`, so `period - 1` cannot underflow. `i >= 1`
+        // because `i >= period + 1 >= 2`, so `i - 1` cannot underflow.
+        // `i - 1 < n - 1`, so `gains[i - 1]` is in bounds.
+        #[allow(clippy::arithmetic_side_effects)]
+        let pm1 = period - 1;
+        #[allow(clippy::arithmetic_side_effects)]
+        let im1 = i - 1;
+        avg_gain = (avg_gain * pm1 as f64 + gains[im1]) / period as f64;
+        avg_loss = (avg_loss * pm1 as f64 + losses[im1]) / period as f64;
         out[i] = Some(rsi_value(avg_gain, avg_loss));
     }
     out
@@ -375,8 +479,21 @@ pub(super) fn stochrsi_last(
         return f64::NAN;
     }
     let mut fast_k_raw = vec![f64::NAN; n_def];
-    for i in (fastk - 1)..n_def {
-        let slice = &defined[i + 1 - fastk..=i];
+    // SAFETY: `n_def >= fastk` (guarded above); `rsi_series` returns NaN
+    // for `period == 0`, and reaching here implies `fastk >= 1` because
+    // `n_def >= fastk` is consistent only when `fastk == 0` and the loop
+    // would also be skipped; for `fastk == 0` we would still want
+    // `fastk - 1` to short-circuit. We rely on caller `stochrsi_n` always
+    // passing `fastk >= 1`.
+    #[allow(clippy::arithmetic_side_effects)]
+    let start = fastk.saturating_sub(1);
+    for i in start..n_def {
+        // SAFETY: `i >= fastk - 1`, so `i + 1 >= fastk` and
+        // `i + 1 - fastk <= i < n_def`. No overflow possible because
+        // `i < n_def` and `fastk >= 1`.
+        #[allow(clippy::arithmetic_side_effects)]
+        let win_start = i + 1 - fastk;
+        let slice = &defined[win_start..=i];
         let mn = slice.iter().copied().fold(f64::INFINITY, f64::min);
         let mx = slice.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let rng = mx - mn;
@@ -389,9 +506,21 @@ pub(super) fn stochrsi_last(
     if output == 0 {
         return *fast_k_raw.last().unwrap_or(&f64::NAN);
     }
-    if n_def < fastk + fastd - 1 {
+    // SAFETY: `fastk + fastd` fits in usize for any realistic indicator
+    // periods; `fastk + fastd - 1 >= 1` whenever `fastk >= 1` (which the
+    // earlier loop relies on) and `fastd >= 1`.
+    #[allow(clippy::arithmetic_side_effects)]
+    let min_n = fastk + fastd - 1;
+    if n_def < min_n {
         return f64::NAN;
     }
+    // SAFETY: `n_def >= fastk + fastd - 1 >= 1`, so `n_def - 1` cannot
+    // underflow.
+    #[allow(clippy::arithmetic_side_effects)]
     let i = n_def - 1;
-    fast_k_raw[i + 1 - fastd..=i].iter().sum::<f64>() / fastd as f64
+    // SAFETY: `i + 1 = n_def >= fastk + fastd - 1 >= fastd`, so
+    // `i + 1 - fastd <= i` and indexing is in bounds.
+    #[allow(clippy::arithmetic_side_effects)]
+    let d_start = i + 1 - fastd;
+    fast_k_raw[d_start..=i].iter().sum::<f64>() / fastd as f64
 }

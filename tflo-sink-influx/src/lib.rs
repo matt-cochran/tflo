@@ -383,8 +383,15 @@ impl<H: InfluxHttpClient> Batcher<H> {
     /// `max_buffer_bytes`, or when an auto-triggered flush fails.
     pub async fn push(&self, line: &str) -> Result<(), String> {
         let mut buf = self.buffered.lock().await;
+        // SAFETY: `line.len()` is bounded by `MAX_BUFFER_BYTES` (16 MB) at
+        // any realistic call site; `+ 1` for the newline cannot overflow
+        // `usize` even on 32-bit. Same reasoning for `buf.0.len() + added`
+        // — buffer size is capped at `max_buffer_bytes` (also <= 16 MB).
+        #[allow(clippy::arithmetic_side_effects)]
         let added = line.len() + 1;
-        if buf.0.len() + added > self.max_buffer_bytes {
+        #[allow(clippy::arithmetic_side_effects)]
+        let would_be = buf.0.len() + added;
+        if would_be > self.max_buffer_bytes {
             self.dropped_total
                 .fetch_add(added as u64, std::sync::atomic::Ordering::Relaxed);
             return Err(format!(

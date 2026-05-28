@@ -18,6 +18,13 @@ pub struct CompiledNode<R> {
 
 impl<R> CompiledNode<R> {
     /// Offset all input IDs by a given amount.
+    //
+    // SAFETY (for every `id.0 + offset` site below): `offset` is
+    // `self.max_node_id() + 1` in the only call site (`zip`), and both
+    // operands are `usize` indices into a graph whose node count is
+    // bounded by available memory. A sum of two graph-bounded indices
+    // cannot overflow `usize` on any realizable target.
+    #[allow(clippy::arithmetic_side_effects)]
     pub(crate) fn offset_input_ids(&mut self, offset: usize) {
         match &mut self.op {
             NodeOp::Prop(_) | NodeOp::Const(_) => {}
@@ -45,6 +52,9 @@ impl<R> CompiledNode<R> {
 }
 
 /// Helper function to offset node IDs.
+// SAFETY: same as `offset_input_ids` — `offset` and `id.0` are both
+// graph-bounded `usize` indices that cannot overflow when summed.
+#[allow(clippy::arithmetic_side_effects)]
 pub fn offset_node_ids(ids: &[NodeId], offset: usize) -> Vec<NodeId> {
     ids.iter().map(|id| NodeId(id.0 + offset)).collect()
 }

@@ -106,8 +106,11 @@ impl TimeDcRemover {
 
     /// Process a new timestamped sample and return the DC-removed value.
     pub fn update(&mut self, value: f64, ts_ms: i64) -> f64 {
-        // Evict old samples
-        let cutoff = ts_ms - self.window_ms;
+        // Evict old samples.
+        // SAFETY: `ts_ms - window_ms` is the standard time-cutoff pattern;
+        // underflow ("clamp to before time zero") is a meaningful semantic
+        // for the eviction check below.
+        let cutoff = ts_ms.saturating_sub(self.window_ms);
         while let Some(&(old_ts, old_val)) = self.buffer.front() {
             if old_ts < cutoff {
                 let _ = self.buffer.pop_front();
@@ -223,8 +226,12 @@ impl BaselineCorrector {
         }
 
         let n = self.sorted.len();
-        let idx = ((n - 1) as f64 * self.percentile).floor() as usize;
-        let idx = idx.min(n - 1);
+        // SAFETY: the `self.sorted.is_empty()` guard above ensures `n >= 1`,
+        // so `n - 1` cannot underflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let last_idx = n - 1;
+        let idx = (last_idx as f64 * self.percentile).floor() as usize;
+        let idx = idx.min(last_idx);
 
         self.sorted[idx]
     }

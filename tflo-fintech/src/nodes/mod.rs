@@ -244,7 +244,11 @@ impl Operator for AtrNode {
         let n = self.close.len();
         let period = self.period;
 
-        if n < period + 1 {
+        // SAFETY: `period + 1` cannot overflow usize for any realistic
+        // indicator period.
+        #[allow(clippy::arithmetic_side_effects)]
+        let min_n = period + 1;
+        if n < min_n {
             return NodeOutput::computed(Err(Absent::WarmingUp));
         }
 
@@ -252,7 +256,12 @@ impl Operator for AtrNode {
         if !self.seeded {
             let mut sum_tr = 0.0;
             for i in 0..period {
-                sum_tr += true_range(self.high[i + 1], self.low[i + 1], self.close[i]);
+                // SAFETY: `i < period` and `n >= period + 1`, so
+                // `i + 1 <= period < n`, in-bounds for `high`/`low` (which
+                // are `n` long after the pushes above).
+                #[allow(clippy::arithmetic_side_effects)]
+                let i1 = i + 1;
+                sum_tr += true_range(self.high[i1], self.low[i1], self.close[i]);
             }
             self.prev_atr = sum_tr / period as f64;
             self.seeded = true;
@@ -260,7 +269,12 @@ impl Operator for AtrNode {
         }
 
         // Ongoing: Wilder smoothing — ATR = (prev_ATR * (period - 1) + TR) / period.
-        let prev_tr = true_range(high, low, self.close[n - 2]);
+        // SAFETY: `n >= period + 1 >= 2` once we are past the seeding branch
+        // (`self.seeded` only flips after the first call with `n == period + 1`),
+        // so `n - 2 >= 0` cannot underflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let prev_close_idx = n - 2;
+        let prev_tr = true_range(high, low, self.close[prev_close_idx]);
         self.prev_atr = (self.prev_atr * (period as f64 - 1.0) + prev_tr) / period as f64;
         NodeOutput::computed(Ok(self.prev_atr))
     }

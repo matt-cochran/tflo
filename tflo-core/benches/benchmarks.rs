@@ -1,5 +1,7 @@
 //! Performance benchmarks for tflow.
 
+#![allow(clippy::arithmetic_side_effects)]
+
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tflo_core::prelude::*;
 

@@ -122,7 +122,11 @@ fn main() {
             let above = amplitude.gt(&alarm_limit);
             let below = amplitude.lt(&alarm_limit);
             // Combine: +1 for above, -1 for below, 0 for equal
-            above - &below
+            // SAFETY: graph-node combinator (Comp<R> Sub overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                above - &below
+            }
         })
         .collect();
     for (ts, val) in vibration.iter().map(|s| s.ts).zip(&comparisons) {

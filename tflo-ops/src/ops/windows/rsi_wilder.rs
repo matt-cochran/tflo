@@ -54,7 +54,11 @@ impl RsiWilder {
         self.prev = Some(value);
 
         if !self.initialized {
-            self.count += 1;
+            // SAFETY: bounded `usize` seed counter — once `count >= period`
+            // we flip `initialized = true` and never touch it again, so
+            // overflow is structurally impossible for any non-zero `period`
+            // (the `period == 0` case is handled by the early return above).
+            self.count = self.count.saturating_add(1);
             self.sum_gain += gain;
             self.sum_loss += loss;
             if self.count < self.period {
@@ -64,10 +68,13 @@ impl RsiWilder {
             self.avg_loss = self.sum_loss / self.period as f64;
             self.initialized = true;
         } else {
-            self.avg_gain =
-                (self.avg_gain * (self.period - 1) as f64 + gain) / self.period as f64;
-            self.avg_loss =
-                (self.avg_loss * (self.period - 1) as f64 + loss) / self.period as f64;
+            // SAFETY: the `self.period == 0` early-return at the top of
+            // `update` guarantees `self.period >= 1`, so `period - 1` cannot
+            // underflow.
+            #[allow(clippy::arithmetic_side_effects)]
+            let prev_weight = (self.period - 1) as f64;
+            self.avg_gain = (self.avg_gain * prev_weight + gain) / self.period as f64;
+            self.avg_loss = (self.avg_loss * prev_weight + loss) / self.period as f64;
         }
 
         if self.avg_loss == 0.0 {
