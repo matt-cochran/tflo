@@ -4,7 +4,7 @@
 use crate::{KafkaMessage, KafkaOffset, RebalanceEvent};
 
 /// Minimal async Kafka consumer trait. A concrete `rdkafka` impl lives
-/// under [`crate::rdkafka_backend`] (feature `rdkafka-backend`); test code
+/// under `crate::rdkafka_backend` (feature `rdkafka-backend`); test code
 /// uses a hand-rolled in-memory mock (see the integration tests).
 #[cfg(feature = "async")]
 #[async_trait::async_trait]

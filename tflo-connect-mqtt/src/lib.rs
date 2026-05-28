@@ -223,7 +223,7 @@ pub struct MqttPublish {
 // ── MqttConsumer / MqttProducer ────────────────────────────────────────
 
 /// Minimal async MQTT consumer trait. A concrete `rumqttc` impl lives in
-/// [`rumqttc_backend`] (feature `rumqttc-backend`).
+/// the `rumqttc_backend` module (feature `rumqttc-backend`).
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
 pub trait MqttConsumer: Send + Sync {
