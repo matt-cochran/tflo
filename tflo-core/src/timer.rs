@@ -33,7 +33,7 @@ use std::collections::BinaryHeap;
 pub(crate) struct TimerEntry {
     /// Event-time, in milliseconds, at which this timer becomes due.
     pub(crate) fire_ts: i64,
-    /// The node that registered this timer; the engine routes the on_timer
+    /// The node that registered this timer; the engine routes the `on_timer`
     /// callback back to that node's operator.
     pub(crate) node_id: NodeId,
     /// Monotonic per-key sequence number. Tie-breaks fires when several
@@ -77,7 +77,7 @@ pub(crate) struct TimerService {
 impl TimerService {
     /// Register a timer that fires when the per-key watermark reaches
     /// `fire_ts`. The `node_id` is the registering node; the engine
-    /// routes the eventual on_timer back to that node's operator.
+    /// routes the eventual `on_timer` back to that node's operator.
     pub(crate) fn register(&mut self, fire_ts: i64, node_id: NodeId) {
         let seq = self.next_seq;
         // Saturating: 2^64 registrations on one key in one process lifetime
@@ -117,14 +117,21 @@ impl TimerService {
         let _ = tombstoned;
     }
 
-    /// Pop the next due timer (fire_ts <= watermark). Skips tombstones.
+    /// Pop the next due timer (`fire_ts` <= watermark). Skips tombstones.
     /// Returns `None` when no due, non-tombstoned timer exists.
     pub(crate) fn pop_due(&mut self, watermark: i64) -> Option<TimerEntry> {
         while let Some(Reverse(entry)) = self.heap.peek().copied() {
             if entry.fire_ts > watermark {
                 return None;
             }
-            let popped = self.heap.pop().expect("peek-then-pop is total").0;
+            // We just peeked successfully — `pop()` is guaranteed `Some`.
+            // The `let Some(Reverse(popped)) = ... else { unreachable }` form
+            // would also work but `unreachable!` is denied; matching is
+            // the same intent without panicking.
+            let popped = match self.heap.pop() {
+                Some(Reverse(p)) => p,
+                None => return None, // peek-then-pop race is statically impossible
+            };
             if !popped.deleted {
                 return Some(popped);
             }
@@ -205,7 +212,7 @@ pub struct TimerCtx<'a> {
     pub(crate) current_ts: i64,
 }
 
-impl<'a> std::fmt::Debug for TimerCtx<'a> {
+impl std::fmt::Debug for TimerCtx<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TimerCtx")
             .field("current_node_id", &self.current_node_id)
@@ -214,7 +221,7 @@ impl<'a> std::fmt::Debug for TimerCtx<'a> {
     }
 }
 
-impl<'a> TimerCtx<'a> {
+impl TimerCtx<'_> {
     /// Register an event-time timer for the calling node. The timer fires
     /// when the per-key watermark next reaches `fire_ts` (i.e., when a
     /// record arrives with timestamp `>= fire_ts`, or

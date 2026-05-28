@@ -89,7 +89,7 @@
 //!
 //! For algorithms that cannot be expressed cleanly as composites — custom
 //! formulas, state machines, or time-decayed filters — `tflo-core` provides
-//! closure-based functional graph primitives on [`Comp`]`<R, f64>`:
+//! closure-based functional graph primitives on `Comp<R, f64>` (see [`Comp`]):
 //!
 //! | Method | Signature | Purpose |
 //! |---|---|---|

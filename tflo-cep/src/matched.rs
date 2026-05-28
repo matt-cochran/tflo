@@ -50,6 +50,12 @@ impl<E> Match<E> {
     ///
     /// Never — a `Match<E>` always carries at least the `when` capture.
     #[must_use]
+    #[allow(
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        reason = "Match invariant: the engine never constructs an empty Match. \
+                  See `# Panics` above."
+    )]
     pub fn first(&self) -> &E {
         &self.events[0].1
     }
@@ -62,6 +68,11 @@ impl<E> Match<E> {
     ///
     /// Never — a `Match<E>` always carries at least one event.
     #[must_use]
+    #[allow(
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        reason = "Match invariant: see `# Panics` above."
+    )]
     pub fn last(&self) -> &E {
         &self.events[self.events.len() - 1].1
     }
@@ -89,20 +100,25 @@ impl<E> Match<E> {
 
     /// Number of captured events.
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.events.len()
     }
 
     /// True when no captured events. A constructed `Match<E>` is never
     /// empty; this exists for completeness with [`len`](Self::len).
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
 }
 
 impl<E> Index<usize> for Match<E> {
     type Output = E;
+    #[allow(
+        clippy::indexing_slicing,
+        reason = "Index<usize> is documented as a panic API by convention — \
+                  matching `Vec`/`slice` semantics."
+    )]
     fn index(&self, idx: usize) -> &E {
         &self.events[idx].1
     }

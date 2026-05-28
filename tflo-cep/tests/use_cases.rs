@@ -1,3 +1,10 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::missing_const_for_fn,
+    reason = "integration tests"
+)]
 //! Integration tests modeled on the browser-analytics use cases from the
 //! design discussion: `abandoned_cart`, `engaged_with_product`, and a
 //! rage-click shape expressed as repeated `then`-within steps.
@@ -13,11 +20,19 @@ struct Event {
 }
 
 fn ev(ts: i64, action: &'static str) -> Event {
-    Event { ts, action, target_id: "" }
+    Event {
+        ts,
+        action,
+        target_id: "",
+    }
 }
 
 fn ev_target(ts: i64, action: &'static str, target_id: &'static str) -> Event {
-    Event { ts, action, target_id }
+    Event {
+        ts,
+        action,
+        target_id,
+    }
 }
 
 #[test]

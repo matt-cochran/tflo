@@ -1,3 +1,9 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::wildcard_enum_match_arm
+)]
 //! End-to-end tests for the Phase 1 event-time timer service.
 //!
 //! Covers:

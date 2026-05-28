@@ -1,3 +1,17 @@
+// The state machine indexes `steps[next_step]` and partial-match captures
+// at positions the engine itself controls. Every index is bounded by
+// invariants the same module enforces (next_step ≤ steps.len(), captures
+// grow monotonically). Per-site `.get(...)` would obscure the engine's
+// own contracts; allowing here with rationale is clearer.
+#![allow(
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::missing_const_for_fn,
+    reason = "engine internal: indices are bounded by state-machine invariants \
+              enforced in this module; saturating `usize` ops on small step \
+              counts cannot overflow."
+)]
+
 //! Generic streaming state machine for event-pattern matching.
 //!
 //! This is the **single** implementation of the matching logic. The
@@ -61,7 +75,7 @@ pub struct Step<E, P> {
     pub within_ms: Option<i64>,
     /// `true` for `not_then` steps (negative terminal).
     pub is_negative: bool,
-    /// PhantomData to keep `E` in the type.
+    /// `PhantomData` to keep `E` in the type.
     _marker: core::marker::PhantomData<fn(&E) -> bool>,
 }
 
@@ -107,7 +121,7 @@ pub struct Compiled<E, M, P, Em, Ts> {
     pub emit_fn: Em,
     /// Optional timestamp extractor — `None` means "treat every event as ts=0."
     pub timestamp_fn: Option<Ts>,
-    /// PhantomData for M.
+    /// `PhantomData` for M.
     _marker: core::marker::PhantomData<fn() -> M>,
 }
 

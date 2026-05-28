@@ -100,10 +100,17 @@ pub trait PatternIter: Iterator + Sized {
         Self::Item: Clone + 'static,
         M: 'static,
     {
+        // `Pattern::emit` returns `Result<Pattern<E, M2>, _>`; only the
+        // `Ok` path can reach here through the public API, so the
+        // compiled handle is always present.
+        #[allow(
+            clippy::expect_used,
+            reason = "Pattern::emit() is the only public producer of a \
+                      Pattern<E, M> with M != () and always populates `compiled`."
+        )]
         let compiled = pattern
             .take_compiled()
             .expect("pattern not finalized — call .emit(...) before .match_pattern");
-        let _ = pattern; // suppress unused-mut warning when name_str is not used
         MatchPatternIter::new(self, compiled)
     }
 }

@@ -36,7 +36,7 @@ pub(crate) struct SessionSumOp {
     acc: f64,
     /// Whether we currently have an open session.
     open: bool,
-    /// The timer fire_ts we've registered with the engine; used to
+    /// The timer `fire_ts` we've registered with the engine; used to
     /// delete the previous registration when a new record arrives and
     /// to recognize stale fires after flush.
     pending_timer_fire_ts: Option<i64>,
@@ -133,7 +133,7 @@ pub(crate) struct TumblingSumOp {
     /// emissions so an empty bucket (no records, only a timer fire on
     /// flush) does not emit a spurious `Some(0.0)`.
     open: bool,
-    /// The timer fire_ts for the in-progress bucket edge.
+    /// The timer `fire_ts` for the in-progress bucket edge.
     pending_timer_fire_ts: Option<i64>,
 }
 
@@ -150,8 +150,14 @@ impl TumblingSumOp {
     /// Compute the next bucket edge `> ts` for the given bucket size.
     /// Buckets are aligned to multiples of `size` (epoch-origin); a record
     /// at `ts` belongs to the bucket ending at `ceil((ts + 1) / size) * size`.
+    #[allow(
+        clippy::arithmetic_side_effects,
+        reason = "saturating_div/mul are total over i64; size==0 collapses to i64::MAX. \
+                  Clippy flags the `size` argument as arithmetic-bearing even though \
+                  the method contract handles it."
+    )]
     const fn next_bucket_edge(ts: i64, size: i64) -> i64 {
-        // saturating ops: edge cases at i64::MIN/MAX collapse to the bound;
+        // Edge cases at i64::MIN/MAX collapse to the bound;
         // a 64-bit-second budget is geological scale.
         let next_bucket = ts.saturating_div(size).saturating_add(1);
         next_bucket.saturating_mul(size)
@@ -222,6 +228,12 @@ pub trait EmitWindowOps<R> {
 }
 
 impl<R: 'static> EmitWindowOps<R> for Comp<R, f64> {
+    #[allow(
+        clippy::panic,
+        clippy::wildcard_enum_match_arm,
+        reason = "builder-time validation; mirrors `panic_emit_trigger_on_sliding` \
+                  in windows/mod.rs. Misuse means graph wiring is wrong."
+    )]
     fn session_sum(&self, window: Window) -> Comp<R, Option<f64>> {
         let gap_ms = match window {
             Window::Session { gap } => duration_to_ms(gap),
@@ -237,6 +249,11 @@ impl<R: 'static> EmitWindowOps<R> for Comp<R, f64> {
         })
     }
 
+    #[allow(
+        clippy::panic,
+        clippy::wildcard_enum_match_arm,
+        reason = "builder-time validation; mirrors `panic_emit_trigger_on_sliding`."
+    )]
     fn tumbling_sum(&self, window: Window) -> Comp<R, Option<f64>> {
         let size_ms = match window {
             Window::Tumbling { size } => duration_to_ms(size),

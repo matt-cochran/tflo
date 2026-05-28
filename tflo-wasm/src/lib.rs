@@ -220,7 +220,12 @@ pub fn compute_bollinger(input_json: &str, config_json: &str) -> String {
             let value = t.prop(|x| x.value);
             let sma = value.sma(config.period);
             let std = value.std(config.period);
+            // Bollinger arithmetic on the streaming graph nodes: `+ -` here
+            // dispatch to overloaded `Add` / `Sub` impls on `Comp` that
+            // compose nodes, not numeric ops. The lint can't see through.
+            #[allow(clippy::arithmetic_side_effects)]
             let upper = sma.clone() + (&std * config.multiplier);
+            #[allow(clippy::arithmetic_side_effects)]
             let lower = sma.clone() - (&std * config.multiplier);
             (sma, upper, lower)
         })

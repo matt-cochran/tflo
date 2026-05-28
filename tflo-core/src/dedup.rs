@@ -65,7 +65,7 @@ mod imp {
 
     impl<K> Deduplicator<K>
     where
-        K: Eq + Hash + Clone + AsRef<[u8]>,
+        K: Eq + Hash + Clone + AsRef<[u8]> + Send + Sync,
     {
         /// Construct a deduplicator. `namespace` qualifies the
         /// store-key under which seen markers are persisted, so
@@ -89,8 +89,24 @@ mod imp {
         /// Returns an error string when the underlying store call
         /// fails. Treat the error as transient — see
         /// [`ComputeError::kind`](crate::error::ComputeError::kind).
+        ///
+        /// # Panics
+        ///
+        /// Panics only if the in-process cache `Mutex` is poisoned —
+        /// which means a prior holder of the lock panicked. Lock
+        /// poisoning is unrecoverable here because the cache is shared
+        /// global state; the process is already in an inconsistent
+        /// state and continuing would mask the original panic.
         pub async fn should_emit(&self, key: &K) -> Result<bool, String> {
-            if self.cache.lock().expect("cache lock").contains(key) {
+            // Scope the mutex guard tightly so static analysis can see it
+            // released before any `.await`. A poisoned lock indicates a
+            // prior panic in the cache — fail loudly rather than mask it.
+            let cache_hit = {
+                #[allow(clippy::expect_used)]
+                let guard = self.cache.lock().expect("cache mutex poisoned");
+                guard.contains(key)
+            };
+            if cache_hit {
                 return Ok(false);
             }
             let store_key = self.compose_key(key);
@@ -108,6 +124,11 @@ mod imp {
         /// Returns an error string when the store write fails. The
         /// in-process cache is **not** updated on store failure so a
         /// retry observes the same `should_emit == true`.
+        ///
+        /// # Panics
+        ///
+        /// Panics only if the in-process cache `Mutex` is poisoned (see
+        /// [`should_emit`](Self::should_emit) for the same rationale).
         pub async fn mark_emitted(&self, key: &K) -> Result<(), String> {
             let store_key = self.compose_key(key);
             let snapshot = StateSnapshot {
@@ -115,14 +136,24 @@ mod imp {
                 metadata: crate::keyed::SnapshotMetadata::default(),
             };
             self.store.save(&store_key, &snapshot).await?;
-            self.cache.lock().expect("cache lock").insert(key.clone());
+            #[allow(clippy::expect_used)]
+            self.cache
+                .lock()
+                .expect("cache mutex poisoned")
+                .insert(key.clone());
             Ok(())
         }
 
         /// Compose the store-side key as `namespace || ":" || key_bytes`.
         fn compose_key(&self, key: &K) -> Vec<u8> {
             let key_bytes = key.as_ref();
-            let mut out = Vec::with_capacity(self.namespace.len() + 1 + key_bytes.len());
+            // The capacity computation is bounded by the sum of two
+            // user-controlled slice lengths plus one — both come from
+            // `&[u8]` so `usize` overflow is impossible in practice
+            // (would require ~16 EB total). Annotating the intent.
+            #[allow(clippy::arithmetic_side_effects)]
+            let capacity = self.namespace.len() + 1 + key_bytes.len();
+            let mut out = Vec::with_capacity(capacity);
             out.extend_from_slice(&self.namespace);
             out.push(b':');
             out.extend_from_slice(key_bytes);

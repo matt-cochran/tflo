@@ -145,10 +145,10 @@ impl WasmPattern {
         };
         {
             let mut s = self.inner.borrow_mut();
-            if s.steps.is_empty() {
-                s.steps.push(step);
+            if let Some(first) = s.steps.first_mut() {
+                *first = step;
             } else {
-                s.steps[0] = step;
+                s.steps.push(step);
             }
         }
         self
@@ -200,11 +200,19 @@ impl WasmPattern {
     /// Finalize the pattern. Throws a `JsError` if the builder state is
     /// invalid (no `when`, `not_then` without `within`, `not_then` not
     /// terminal).
+    ///
+    /// # Errors
+    ///
+    /// Throws a JS-side `Error` when: (a) no `.when(...)` step was added,
+    /// (b) a `.notThen(...)` step has no paired `.within(...)`, or (c) a
+    /// `.notThen(...)` step is followed by another step (it must be
+    /// terminal).
     pub fn emit(self, f: Function) -> Result<WasmCompiledPattern, JsError> {
         let s = self.inner.borrow();
         if s.steps.is_empty() {
             return Err(JsError::new("pattern is missing the initial .when(...) step"));
         }
+        let last_idx = s.steps.len().saturating_sub(1);
         for (i, step) in s.steps.iter().enumerate() {
             if step.is_negative {
                 if step.within_ms.is_none() {
@@ -213,7 +221,7 @@ impl WasmPattern {
                         step.name
                     )));
                 }
-                if i != s.steps.len() - 1 {
+                if i != last_idx {
                     return Err(JsError::new(&format!(
                         "step `{}` is notThen and must be the last step",
                         step.name
@@ -272,6 +280,12 @@ pub struct WasmPatternRuntime {
 
 #[wasm_bindgen]
 impl WasmPatternRuntime {
+    /// Wrap a finalized compiled pattern in a streaming runtime.
+    ///
+    /// # Errors
+    ///
+    /// Throws if the compiled pattern was already consumed (each
+    /// `WasmCompiledPattern` produces exactly one runtime).
     #[wasm_bindgen(constructor)]
     pub fn new(mut pattern: WasmCompiledPattern) -> Result<WasmPatternRuntime, JsError> {
         let compiled = pattern
@@ -318,16 +332,16 @@ impl WasmPatternRuntime {
 /// interface.
 fn build_match_object(m: &Match<JsValue>) -> JsValue {
     let obj = js_sys::Object::new();
-    let _ = js_sys::Reflect::set(
+    drop(js_sys::Reflect::set(
         &obj,
         &JsValue::from_str("patternName"),
         &JsValue::from_str(m.pattern_name()),
-    );
-    let _ = js_sys::Reflect::set(
+    ));
+    drop(js_sys::Reflect::set(
         &obj,
         &JsValue::from_str("length"),
         &JsValue::from_f64(m.len() as f64),
-    );
+    ));
 
     // Collect captures via the public Match API (first/last/all/at).
     let all_vec: Vec<JsValue> = m.all().into_iter().cloned().collect();
@@ -340,7 +354,7 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
             .cloned()
             .unwrap_or(JsValue::UNDEFINED)
     });
-    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("first"), first.as_ref());
+    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("first"), first.as_ref()));
     first.forget();
 
     let last_captures = captures_rc.clone();
@@ -350,7 +364,7 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
             .cloned()
             .unwrap_or(JsValue::UNDEFINED)
     });
-    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("last"), last.as_ref());
+    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("last"), last.as_ref()));
     last.forget();
 
     let all_captures = captures_rc;
@@ -361,7 +375,7 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
         }
         arr.into()
     });
-    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("all"), all.as_ref());
+    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("all"), all.as_ref()));
     all.forget();
 
     // For step-name lookup, use Match::named() to iterate (name, event)
@@ -379,7 +393,7 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
             .map(|(_, v)| v.clone())
             .unwrap_or(JsValue::UNDEFINED)
     });
-    let _ = js_sys::Reflect::set(&obj, &JsValue::from_str("at"), at.as_ref());
+    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("at"), at.as_ref()));
     at.forget();
 
     obj.into()

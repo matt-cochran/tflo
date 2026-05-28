@@ -325,11 +325,13 @@ where
             .peek()
             .is_some_and(|Reverse(e)| e.ts <= watermark)
         {
-            let entry = self
-                .pending
-                .pop()
-                .expect("peek-then-pop is total over BinaryHeap")
-                .0;
+            // Peek confirmed an element is present; pop returns Some. We
+            // express this without `expect` (denied) so the path stays
+            // panic-free even if the type ever switches to a fallible
+            // peek variant.
+            let Some(Reverse(entry)) = self.pending.pop() else {
+                break;
+            };
             self.last_ts = Some(entry.ts);
             released.extend(self.run_one(&entry.record, entry.ts, key.clone())?);
         }
@@ -376,7 +378,7 @@ where
                 // Bound `max_lateness_ms` at construction-of-use time. A
                 // value above `MAX_LATENESS_MS` would let an adversary grow
                 // the per-key heap and arbitrarily delay timer fires.
-                if max_lateness_ms < 0 || max_lateness_ms > MAX_LATENESS_MS {
+                if !(0..=MAX_LATENESS_MS).contains(&max_lateness_ms) {
                     return Err(ComputeError::InvalidInput {
                         reason: "max_lateness_ms must be in [0, 24h]; \
                                  use OutOfOrderPolicy::Drop for looser semantics",
@@ -581,12 +583,13 @@ where
         // immutably at the same time.
         let keys: Vec<K> = self.graphs.keys().cloned().collect();
         for key in keys {
-            // SAFETY-of-unwrap: the key came from `self.graphs.keys()`
-            // immediately above, so it must still be present.
-            let graph_state = self
-                .graphs
-                .get_mut(&key)
-                .expect("key just obtained from self.graphs.keys()");
+            // The key came from `self.graphs.keys()` immediately above,
+            // so it must still be present. `let Some(...) else { continue }`
+            // expresses the invariant without panicking if the
+            // `HashMap` ever invalidates iteration semantics.
+            let Some(graph_state) = self.graphs.get_mut(&key) else {
+                continue;
+            };
             match graph_state.advance_event_time_watermark(ts, key.clone()) {
                 Ok(items) => self.ready_queue.extend(items.into_iter().map(Ok)),
                 Err(e) => return Err(e),

@@ -41,6 +41,11 @@ use rsi_wilder::RsiWilder;
 /// fail-fast choice; the corresponding `session_*` / `tumbling_*`
 /// operators (Phase 2 of the closure plan) accept the emit-trigger
 /// variants.
+#[allow(
+    clippy::panic,
+    reason = "builder-time validation: a misuse means the graph wiring is wrong, \
+              not that a runtime input is bad. Fail-fast is correct here."
+)]
 fn panic_emit_trigger_on_sliding(operator: &'static str) -> ! {
     panic!(
         "sliding-aggregation operator `{operator}` does not accept \

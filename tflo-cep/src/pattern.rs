@@ -118,17 +118,17 @@ impl<E> BuilderStep<E> {
             Self::Positive { name, .. } | Self::Negative { name, .. } => name,
         }
     }
-    fn set_within(&mut self, ms: i64) {
+    const fn set_within(&mut self, ms: i64) {
         match self {
             Self::Positive { within_ms, .. } | Self::Negative { within_ms, .. } => {
                 *within_ms = Some(ms);
             }
         }
     }
-    fn is_negative(&self) -> bool {
+    const fn is_negative(&self) -> bool {
         matches!(self, Self::Negative { .. })
     }
-    fn within_ms(&self) -> Option<i64> {
+    const fn within_ms(&self) -> Option<i64> {
         match self {
             Self::Positive { within_ms, .. } | Self::Negative { within_ms, .. } => *within_ms,
         }
@@ -142,9 +142,9 @@ impl<E> BuilderStep<E> {
 /// [`Pattern::emit`]. The emit closure consumes a [`Match<E>`] (capturing
 /// the matched events) and returns the user's chosen output type.
 ///
-/// Internally the finalized pattern owns an [`engine::Compiled`] with
-/// Arc-based callbacks — the pattern is `Send + Sync` and can be cloned
-/// cheaply for distribution to worker threads.
+/// Internally the finalized pattern owns an [`crate::engine::Compiled`]
+/// with Arc-based callbacks — the pattern is `Send + Sync` and can be
+/// cloned cheaply for distribution to worker threads.
 pub struct Pattern<E, M = ()> {
     name: String,
     timestamp_fn: Option<ArcTimestamp<E>>,
@@ -187,10 +187,10 @@ impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
             predicate,
             within_ms: None,
         };
-        if self.steps.is_empty() {
-            self.steps.push(step);
+        if let Some(first) = self.steps.first_mut() {
+            *first = step;
         } else {
-            self.steps[0] = step;
+            self.steps.push(step);
         }
         self
     }
@@ -273,7 +273,7 @@ impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
                         step_name: step.name().to_string(),
                     });
                 }
-                if i != self.steps.len() - 1 {
+                if i != self.steps.len().saturating_sub(1) {
                     return Err(PatternError::NotThenNotTerminal {
                         step_name: step.name().to_string(),
                     });
@@ -318,7 +318,7 @@ impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
 
     /// Take ownership of the compiled engine pattern. Returns `None` if
     /// the builder has not been finalized via [`emit`](Self::emit).
-    pub(crate) fn take_compiled(
+    pub(crate) const fn take_compiled(
         &mut self,
     ) -> Option<Compiled<E, M, ArcPredicate<E>, ArcEmit<E, M>, ArcTimestamp<E>>> {
         self.compiled.take()

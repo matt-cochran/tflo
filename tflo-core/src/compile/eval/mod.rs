@@ -151,7 +151,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             };
             // Split-borrow: nodes vs store. Both come from self.
             let (nodes, store) = (&mut self.nodes, &mut self.store);
-            let node = &mut nodes[node_idx];
+            let Some(node) = nodes.get_mut(node_idx) else {
+                continue;
+            };
             let output_opt = match &mut node.state {
                 crate::compile::NodeState::Plugin(op) => {
                     let mut ctx = crate::timer::TimerCtx {
@@ -161,7 +163,9 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     };
                     Some(op.on_timer(entry.fire_ts, &mut ctx))
                 }
-                _ => None,
+                crate::compile::NodeState::Stateless
+                | crate::compile::NodeState::ScanState(_)
+                | crate::compile::NodeState::Scan2State(_) => None,
             };
             if let Some(output) = output_opt {
                 store.store_value(node.id, output);
@@ -206,7 +210,19 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     // Build inputs list, then dispatch with TimerCtx.
                     let inputs_ids = match &node.op {
                         crate::compile::NodeOp::Plugin { inputs } => inputs.clone(),
-                        _ => Vec::new(),
+                        // Non-`Plugin` ops paired with a `Plugin` state are
+                        // structurally impossible (the builder pairs them),
+                        // but we don't `unreachable!()` because the lint
+                        // family forbids it. An empty input list collapses
+                        // gracefully into the operator's WarmingUp path.
+                        crate::compile::NodeOp::Prop(_)
+                        | crate::compile::NodeOp::Const(_)
+                        | crate::compile::NodeOp::MapF64(..)
+                        | crate::compile::NodeOp::Map2F64(..)
+                        | crate::compile::NodeOp::FilterF64(..)
+                        | crate::compile::NodeOp::FilterMapF64(..)
+                        | crate::compile::NodeOp::ScanF64(..)
+                        | crate::compile::NodeOp::Scan2F64(..) => Vec::new(),
                     };
                     let values: Vec<crate::compile::Computed> = inputs_ids
                         .iter()
@@ -219,7 +235,11 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
                     };
                     op.eval_with_ctx(&values, ts, &mut ctx_inner)
                 }
-                _ => Self::eval_node(node, record, ts, &self.store),
+                crate::compile::NodeState::Stateless
+                | crate::compile::NodeState::ScanState(_)
+                | crate::compile::NodeState::Scan2State(_) => {
+                    Self::eval_node(node, record, ts, &self.store)
+                }
             };
             self.store.store_value(node.id, value);
         }
