@@ -79,7 +79,17 @@ impl ContextBuilder {
                 Value::Bool(b) => {
                     drop(ctx.add_variable(&name, b));
                 }
-                _ => {}
+                // List/Map/Function/Bytes/Duration/Timestamp/Null are not
+                // representable as primitive CEL scope values via this
+                // builder; skip them. Listed explicitly so a future
+                // cel-interpreter variant addition would surface in CI.
+                Value::List(_)
+                | Value::Map(_)
+                | Value::Function(_, _)
+                | Value::Bytes(_)
+                | Value::Duration(_)
+                | Value::Timestamp(_)
+                | Value::Null => {}
             }
         }
         ctx
@@ -107,7 +117,12 @@ impl IntoCelContext for HashMap<String, serde_json::Value> {
                 serde_json::Value::Bool(b) => {
                     drop(ctx.add_variable(key, *b));
                 }
-                _ => {}
+                // Null/Array/Object don't map to primitive CEL values;
+                // listed explicitly so a future serde_json variant
+                // would surface in CI.
+                serde_json::Value::Null
+                | serde_json::Value::Array(_)
+                | serde_json::Value::Object(_) => {}
             }
         }
         ctx

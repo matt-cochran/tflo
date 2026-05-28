@@ -226,6 +226,16 @@ lossy_float_literal = "deny"
 let_underscore_must_use = "deny"
 map_err_ignore = "deny"
 
+# ── Lint backlog batch 11 (enum exhaustiveness, denied) ────────────────
+# Forbid `_ =>` arms on enum matches so a newly-added enum variant
+# triggers a build failure instead of being silently routed to the
+# fallback arm. Production code lists each variant explicitly; for
+# external `#[non_exhaustive]`-style enums (`cel_interpreter::Value`,
+# `serde_json::Value`) we enumerate the known variants as the next
+# best thing — variant additions upstream will then surface on the
+# next compile, not in a silent no-op at runtime.
+wildcard_enum_match_arm = "deny"
+
 # ── Build Profiles ─────────────────────────────────────────────────────
 #
 # Philosophy:
