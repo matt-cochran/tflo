@@ -5,6 +5,115 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — event-pattern matching + browser SDK] — 2026-05-28
+
+Two new sibling crates plus a companion TypeScript SDK. The matching
+engine has a single shared implementation across Rust and WebAssembly.
+
+### Added — `tflo-cep`
+
+- New crate. Closure-based event-pattern matching: composes typed
+  signals into multi-event domain signals like *abandoned_cart* (added
+  to cart, not purchased within T), *engaged_with_product* (viewed,
+  then scrolled deep within T), *rage_click* (three identical clicks
+  within T).
+- Six-method builder: `Pattern::new(name).timestamp(fn).when(p).then(p).
+  not_then(p).within(Duration).emit(|m| ...)`. Mirrors the closure
+  style of `tflo-cel` / `tflo-rhai` / `tflo-rego`.
+- `Match<E>` interface: `first`, `last`, `all`, `at(name)`, `named()`,
+  `Index<usize>`.
+- Bounded by construction: in-flight partial matches capped at
+  `MAX_IN_FLIGHT = 1024` per pattern.
+- End-of-stream resolves any pending `not_then` matches whose
+  deadlines haven't elapsed — closing the tab still emits cart-
+  abandonment signals.
+- Iterator adapter `events.into_iter().match_pattern(p).collect()`.
+- 10/10 integration tests + doctest pass.
+
+### Added — generic engine module
+
+- `tflo_cep::engine` ships the single state machine for matching,
+  parameterized over three callback traits: `Predicate<E>`,
+  `EmitCallback<E, M>`, `TimestampCallback<E>`. No `Send + Sync` bound
+  at the engine layer — each consumer picks its own threading
+  contract via the concrete callback types it plugs in.
+- `tflo-cep` wraps `engine::Runtime` with `Arc`-based, `Send + Sync`
+  callbacks (multi-thread by default).
+- `tflo-cep-wasm` wraps the same `engine::Runtime` with `Rc`-based,
+  `js_sys::Function`-backed callbacks (single-threaded WASM).
+- **One state machine, two surfaces.** Future feature additions
+  (quantifiers, CEL-string predicates, iterative conditions) land in
+  one place.
+
+### Added — `tflo-cep-wasm`
+
+- New crate. WebAssembly bindings for `tflo-cep`.
+- Three `#[wasm_bindgen]` classes: `WasmPattern`, `WasmCompiledPattern`,
+  `WasmPatternRuntime`. JS-idiomatic push API
+  (`runtime.push(event) -> Array`).
+- `Match` exposed to emit closures as a plain JS object with method-
+  style `first / last / all / at(name)` accessors.
+- `wasm-pack --target web` produces ~41 KB optimized `.wasm` +
+  generated TS declarations + JS glue.
+
+### Added — `@tflo/events-browser` (companion repo)
+
+Independent npm package wrapping `tflo-cep-wasm`:
+
+- `TFloBrowser` top-level class wiring capture → patterns → sinks.
+- `capture(...)` for general DOM events (with optional throttling)
+  and `captureViewport(...)` for `IntersectionObserver`-backed
+  time-on-section tracking (`viewport:enter`, `viewport:exit`, and
+  `viewport:dwell` with pre-computed `durationMs`).
+- Pluggable `Sink` interface; the package bundles `ConsoleSink`,
+  `EdgeSink` (HTTP POST with batching + `sendBeacon` unload fallback),
+  and `GA4Sink` (gracefully no-ops without `gtag.js`). The matching
+  engine has zero analytics-vendor knowledge.
+- 26/26 vitest tests pass (10 sinks, 4 capture, 6 viewport, 6
+  pattern-runtime driving the real WASM end-to-end).
+- Total wire weight: ~25 KB gzip.
+
+### Lint cleanup
+
+- Brought new files (`tflo-core/src/{timer,dedup,metrics}.rs`,
+  `tflo-ops/src/ops/session_tumbling.rs`) up to the same lint
+  discipline as the prior 14 batches: `expect_used`,
+  `wildcard_enum_match_arm`, `indexing_slicing`,
+  `arithmetic_side_effects`, `missing_panics_doc`, `doc_markdown`,
+  `manual_range_contains`, `let_underscore_must_use`,
+  `elidable_lifetime_names`, `missing_const_for_fn`.
+- `tflo-cep/Cargo.toml` gained `[lints] workspace = true` (was missing,
+  meaning type_complexity and other workspace allows weren't applied).
+- `Deduplicator<K>` trait bound tightened to `K: Send + Sync` so its
+  async methods produce `Send` futures.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+
+### Site
+
+- New `/docs/patterns` page with side-by-side Rust and TypeScript
+  worked examples (`abandoned_cart`, `engaged_with_product`,
+  `rage_click`).
+- New `/docs/browser-analytics` page walking the end-to-end browser
+  workflow (capture → derive → route) and explaining why the WASM
+  bridge matters as a product story.
+- Existing pages updated: `/docs/architecture` (new Pattern matching
+  layer + crate cards), `/docs/concepts` (pattern matching section),
+  `/docs/wasm` (CEP bridge section), `/release-notes` (new top
+  section), landing page (two new feature cards), footer Resources.
+- 42 pages, builds clean.
+
+### Verification at end of phase
+
+- `cargo clippy --workspace --all-targets -- -D warnings` clean.
+- 650 Rust tests pass.
+- 26 TypeScript tests pass.
+- `cargo doc --workspace --no-deps` — only the two pre-existing
+  `rdkafka_backend` / `rumqttc_backend` feature-flag warnings remain.
+- `wasm-pack --target web` and `wasm-pack --target nodejs` both produce
+  clean artifacts.
+
+---
+
 ## [Unreleased — Phases 2–6 connectors, lint cleanup, reference deployment] — 2026-05-23
 
 Same day as the Phase 1 contracts cut; the rest of the production

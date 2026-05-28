@@ -246,11 +246,20 @@ docs.
 | `tflo-connect-mqtt` | MQTT adapter (reference implementation) |
 | `tflo-sink-influx` | InfluxDB write sink |
 | `tflo-arrow` | Arrow / Parquet I/O for batch and replay |
-| `tflo-wasm` | WASM bindings for `tflo-core` |
+| `tflo-cep` | Closure-based event-pattern matching ("A then B within T", bounded sequences) |
+| `tflo-cep-wasm` | WebAssembly bindings for `tflo-cep` — same engine, JS callbacks |
+| `tflo-wasm` | WASM bindings for `tflo-ops` / `tflo-fintech` |
 
 Financial indicators are intentionally a *separate* crate:
 `tflo-core` is a generic temporal event-processing engine, and
 finance is one domain plugin among many.
+
+Companion TypeScript SDK
+[`@tflo/events-browser`](https://github.com/matt-cochran/tflo-events-browser)
+wraps `tflo-cep-wasm` with a DOM capture layer
+(`IntersectionObserver`-backed viewport tracking, throttled
+listeners), a pluggable `Sink` interface (Console, Edge, GA4, custom),
+and end-of-session flush via `sendBeacon`. ~25 KB gzip total.
 
 Deferred sibling crates with captured designs (built on user
 demand) are listed in
