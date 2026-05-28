@@ -1,4 +1,4 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 //! MQTT adapter for tflo (Phase 3) — edge-friendly Source/Sink + a
 //! bounded QoS-2 dedup cursor.
 //!

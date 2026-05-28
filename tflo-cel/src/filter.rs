@@ -343,7 +343,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    #![allow(deprecated, clippy::indexing_slicing)]
+    #![allow(deprecated)]
     use super::*;
     use cel_interpreter::Context;
 

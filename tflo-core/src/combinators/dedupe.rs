@@ -120,7 +120,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::indexing_slicing)] // SAFETY: test code, indexes into vecs of known size
 
     use super::*;
 
