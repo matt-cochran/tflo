@@ -304,6 +304,22 @@ impl PulseWidthDetector {
         self.state == PulseWidthState::High
     }
 
+    /// Maximum valid pulse width, in milliseconds. Exposed so callers
+    /// (e.g. the `PulseWidthOp` plugin) can register absence-of-event
+    /// timers at `pulse_start_ts + max_width_ms`.
+    #[must_use]
+    pub const fn max_width_ms(&self) -> i64 {
+        self.max_width_ms
+    }
+
+    /// Force the detector into the Low state with no in-flight pulse,
+    /// emitting nothing. Used by the `PulseWidthOp` plugin after a timer
+    /// fires `TooLong` so the next-record handling sees a clean slate.
+    pub const fn force_close(&mut self) {
+        self.state = PulseWidthState::Low;
+        self.pulse_start_ts = None;
+    }
+
     /// Get the current pulse duration if in a pulse.
     #[must_use]
     pub fn current_width(&self, current_ts_ms: i64) -> Option<i64> {

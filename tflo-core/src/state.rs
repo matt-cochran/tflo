@@ -263,7 +263,7 @@ impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> Checkpointer<C, S, X
     ///
     /// `circuit_threshold` opens the circuit breaker after that many
     /// consecutive failed checkpoints. Subsequent calls return
-    /// [`CheckpointError::CircuitOpen`] until [`reset_circuit`] is called.
+    /// [`CheckpointError::CircuitOpen`] until [`Self::reset_circuit`] is called.
     /// Pass `u32::MAX` to disable.
     pub const fn new(
         state: S,
@@ -357,6 +357,18 @@ impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> Checkpointer<C, S, X
     /// Wrap an async operation in the configured deadline. The outer
     /// `Result` reports `Timeout`; the inner `Result<T, E>` reports the
     /// operation's own success/failure.
+    ///
+    /// The deadline is enforced via `futures_timer::Delay`, which is
+    /// runtime-agnostic (works under tokio, async-std, smol). This
+    /// avoids locking the engine to a specific async runtime.
+    ///
+    /// Note: the entire `state` module is gated `#[cfg(feature = "async")]`
+    /// at `lib.rs`, so this code only compiles when the `async` feature
+    /// is enabled — `futures` and `futures-timer` are guaranteed
+    /// available. If a future sync `Checkpointer` is ever needed for
+    /// no-tokio embedded use cases, it should be added as a separate
+    /// type (e.g. `SyncCheckpointer` with a `SyncStateStore` trait),
+    /// not by feature-gating the async one.
     async fn with_deadline<F, T, E>(
         &self,
         stage: &'static str,
@@ -365,38 +377,15 @@ impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> Checkpointer<C, S, X
     where
         F: std::future::Future<Output = Result<T, E>>,
     {
-        // We deliberately use `futures::future::FutureExt` style without
-        // pulling tokio::time::timeout — that would lock us to tokio. The
-        // implementation lives on the caller's runtime via a generic
-        // `select!`-based timer. For Phase 1 we use a portable
-        // poll-once + race-with-sleep idiom via the `futures` crate when
-        // the `async` feature is enabled; otherwise we degrade to "no
-        // deadline" (the deadline still appears in the public API but is
-        // not enforced).
-        //
-        // Real runtime selection lands in Phase 1.5 once the time feature
-        // flags exist — this is the intentional gap noted in CHANGELOG.
-        #[cfg(feature = "async")]
-        {
-            use futures::FutureExt;
-            let timer = futures_timer::Delay::new(self.deadline);
-            futures::select! {
-                res = std::pin::pin!(fut.fuse()) => Ok(res),
-                _ = std::pin::pin!(timer.fuse()) => {
-                    self.timeouts_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    self.record_failure();
-                    Err(CheckpointError::Timeout { stage, deadline: self.deadline })
-                }
+        use futures::FutureExt;
+        let timer = futures_timer::Delay::new(self.deadline);
+        futures::select! {
+            res = std::pin::pin!(fut.fuse()) => Ok(res),
+            _ = std::pin::pin!(timer.fuse()) => {
+                self.timeouts_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.record_failure();
+                Err(CheckpointError::Timeout { stage, deadline: self.deadline })
             }
-        }
-        #[cfg(not(feature = "async"))]
-        {
-            // Without the async feature we can't run the future at all —
-            // this function is unreachable in practice (the trait bound is
-            // an `async fn`). Returning Ok of the awaited future is the
-            // only sensible path.
-            let _ = stage;
-            Ok(fut.await)
         }
     }
 

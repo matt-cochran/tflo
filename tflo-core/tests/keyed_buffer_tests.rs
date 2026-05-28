@@ -153,11 +153,12 @@ proptest! {
         raw in prop::collection::vec(0i64..10_000, 1..40)
     ) {
         let data: Vec<Ev> = raw.iter().map(|&t| ev("k", t)).collect();
+        // Phase 3a capped `max_lateness_ms` at 24h. The proptest input
+        // range is 0..10_000 (ms), so 1h (3_600_000) safely covers every
+        // input ordering.
         let out = run(
             data,
-            // SAFETY: compile-time constant division; no runtime panic.
-            #[allow(clippy::integer_division)]
-            OutOfOrderPolicy::Buffer { max_lateness_ms: i64::MAX / 2 },
+            OutOfOrderPolicy::Buffer { max_lateness_ms: 60 * 60 * 1000 },
         );
         let mut expected = raw.clone();
         expected.sort_unstable();

@@ -6,7 +6,7 @@
 //!
 //! Following the contracts-in-core / impls-in-separate-crates rule, this
 //! crate exposes a small *Kafka-client-shaped* trait surface
-//! ([`KafkaConsumer`] / [`KafkaProducer`] / [`RebalanceListener`]) plus the
+//! ([`KafkaConsumer`] / [`KafkaProducer`] / [`RebalanceEvent`]) plus the
 //! concrete [`KafkaShardRouter`] (driving
 //! [`tflo_core::shard::ShardRouter`]). Users plug in their preferred
 //! client implementation. An optional `rdkafka-backend` feature wires
@@ -23,7 +23,7 @@
 //!   [`tflo_core::adapter::Cursor`].
 //! - [`KafkaConsumer`] / [`KafkaProducer`] — minimal async traits a client
 //!   library must satisfy.
-//! - [`KafkaShardRouter`] — [`ShardRouter`] impl driven by rebalance
+//! - [`KafkaShardRouter`] — [`tflo_core::shard::ShardRouter`] impl driven by rebalance
 //!   callbacks; required `AsyncStateStore` constructor parameter so users
 //!   can't forget durable state for sharded execution.
 //! - [`InMemoryCursorStore`] — back-compat sync `CursorStore` impl, plus

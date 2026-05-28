@@ -43,7 +43,7 @@ pub use crate::primitives::{
 /// `ZScoreNormalizer`, `WelfordAccumulator`, `WelfordWindow`,
 /// `GainOffsetCalibrator`, `TimeDcRemover`) are *not* wired as `Comp`
 /// operators — the equivalent functionality is exposed through the
-/// [`Composites`](crate::ops::composites::Composites) graph-builder methods.
+/// [`Composites`] graph-builder methods.
 /// They live here as raw building blocks for callers that need to drive a
 /// streaming conditioner outside the `tflo` graph engine.
 ///

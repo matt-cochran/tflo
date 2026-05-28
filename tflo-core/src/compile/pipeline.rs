@@ -17,7 +17,7 @@ use crate::pipeline::{PipelineContext, PipelineItem};
 ///
 /// The context type determines what metadata flows through the pipeline:
 ///
-/// - [`Timestamped`]: Time-based operations (default)
+/// - [`Timestamped`](crate::pipeline::Timestamped): Time-based operations (default)
 /// - [`Sequenced`](crate::pipeline::Sequenced): Count-based operations
 /// - [`Hybrid`](crate::pipeline::Hybrid): Both timestamp and sequence
 /// - Custom: Implement [`PipelineContext`] for domain-specific metadata

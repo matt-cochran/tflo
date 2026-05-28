@@ -49,7 +49,7 @@ where
     /// # Errors
     ///
     /// Returns
-    /// [`RhaiError::CompileError`](crate::error::RhaiError::CompileError)
+    /// [`RhaiError::CompileError`]
     /// when `expr` fails to compile as a Rhai expression.
     fn rhai_map_result(self, expr: &str) -> RhaiResult<RhaiMapResult<Self, T>> {
         RhaiMapResult::new(self, expr)
@@ -257,7 +257,7 @@ where
     /// # Errors
     ///
     /// Returns
-    /// [`RhaiError::CompileError`](crate::error::RhaiError::CompileError)
+    /// [`RhaiError::CompileError`]
     /// when `expr` fails to compile as a Rhai expression.
     fn rhai_enrich_result(self, expr: &str) -> RhaiResult<RhaiEnrichResult<Self, T>> {
         RhaiEnrichResult::new(self, expr)

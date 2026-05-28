@@ -7,7 +7,7 @@
 //! This crate exposes [`S3Client`] (a thin trait that any concrete S3
 //! client — `aws-sdk-s3`, `rusoto`, `MinIO` HTTP, etc. — can satisfy) and
 //! [`S3StateStore`], which implements
-//! [`tflo_core::state::AsyncStateStore`](tflo_core::state::AsyncStateStore)
+//! [`tflo_core::state::AsyncStateStore`]
 //! **directly**. The pre-Phase-1 hack of bridging a sync `StateStore`
 //! impl to an async client via `tokio::runtime::Handle::try_current()
 //! .block_on(...)` is gone — the boundary is async-native end-to-end.

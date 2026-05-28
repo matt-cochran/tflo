@@ -1,8 +1,8 @@
 //! Builder for constructing temporal computation graphs.
 //!
-//! [`TemporalBuilder`] provides a fluent API for defining computations
+//! [`TFlowBuilder`] provides a fluent API for defining computations
 //! over streaming data. It is used within the closure passed to
-//! `.temporal()` or `.temporal_with()`.
+//! `.tflo()` or `.tflo_with()`.
 
 use crate::comp::{Comp, Node, NodeId};
 use crate::compile::ExtractOutput;

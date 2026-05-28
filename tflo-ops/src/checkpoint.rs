@@ -1,4 +1,5 @@
-//! Generic checkpoint helpers for [`Operator::save`] and [`Operator::load`].
+//! Generic checkpoint helpers for [`tflo_core::operator::Operator::save`] and
+//! [`tflo_core::operator::Operator::load`].
 //!
 //! Most operators can implement checkpointing as a one-liner by delegating to
 //! these helpers, provided they derive [`serde::Serialize`] and
@@ -12,13 +13,14 @@
 use serde::{Serialize, de::DeserializeOwned};
 use tflo_core::operator::OperatorLoadError;
 
-/// Generic [`Operator::save`] body: postcard-encode the whole operator.
+/// Generic [`tflo_core::operator::Operator::save`] body: postcard-encode the
+/// whole operator.
 #[must_use]
 pub fn save<T: Serialize>(op: &T) -> Option<Vec<u8>> {
     postcard::to_stdvec(op).ok()
 }
 
-/// Generic [`Operator::load`] body: postcard-decode in place.
+/// Generic [`tflo_core::operator::Operator::load`] body: postcard-decode in place.
 ///
 /// # Errors
 /// Returns [`OperatorLoadError`] if the bytes are malformed.

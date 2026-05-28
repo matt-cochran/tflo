@@ -4979,6 +4979,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "tflo-cep"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tflo-core",
+]
+
+[[package]]
+name = "tflo-cep-wasm"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "tflo-cep",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "tflo-connect-kafka"
 version = "0.1.0"
 dependencies = [
@@ -5025,6 +5044,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
+ "tracing",
 ]
 
 [[package]]

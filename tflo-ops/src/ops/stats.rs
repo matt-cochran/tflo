@@ -9,7 +9,7 @@
 //! basic reductions in [`super::windows`].
 //!
 //! The one parameterised operator — `quantile`, which carries the fraction
-//! `q` — is **not** a `Reduce` unit: it is the hand-written [`QuantileOp`]
+//! `q` — is **not** a `Reduce` unit: it is the hand-written `QuantileOp`
 //! [`Operator`] so that `q` survives checkpoint `save`/`load` (see its docs).
 
 use crate::checkpoint;

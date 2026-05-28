@@ -109,7 +109,7 @@ impl ExtractOutput for Computed {
     }
 }
 
-/// Blanket impl for Option<T> - handles both filtered and direct values
+/// Blanket impl for `Option<T>` - handles both filtered and direct values
 impl<T: ExtractOutput + Clone + 'static> ExtractOutput for Option<T> {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         let id = ids.first()?;

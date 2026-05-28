@@ -4,7 +4,13 @@
 //! [`crate::policy_loader`]; value-codec helpers (Rego↔JSON) live in
 //! [`crate::value_codec`].
 
-use crate::error::RegoResult;
+use crate::error::{RegoError, RegoResult};
+
+// `RegoError` is brought into scope above for intra-doc-link resolution
+// in the `# Errors` sections of the methods below. Without this `use`,
+// `[`RegoError::EvaluationError`]` cannot resolve and rustdoc fails.
+#[allow(unused_imports)]
+use RegoError as _;
 use crate::traits::IntoRegoInput;
 use crate::value_codec::{extract_bool, value_to_json};
 use regorus::Engine;
@@ -47,7 +53,7 @@ impl PolicyEngine {
     /// # Errors
     ///
     /// Returns
-    /// [`RegoError::EvaluationError`](crate::error::RegoError::EvaluationError)
+    /// [`RegoError::EvaluationError`]
     /// when the underlying Rego engine fails to evaluate `query`.
     #[allow(clippy::disallowed_methods)] // serde_json::json! macro internally uses unwrap
     pub fn eval_query(&mut self, query: &str) -> RegoResult<serde_json::Value> {
@@ -83,7 +89,7 @@ impl PolicyEngine {
     ///
     /// Propagates any error from [`set_input`](Self::set_input) and
     /// [`eval_query`](Self::eval_query), and returns
-    /// [`RegoError::EvaluationError`](crate::error::RegoError::EvaluationError)
+    /// [`RegoError::EvaluationError`]
     /// when the query result cannot be coerced to a boolean.
     pub fn eval_allow<T: IntoRegoInput>(&mut self, input: &T, query: &str) -> RegoResult<bool> {
         let input_value = input.into_rego_input();

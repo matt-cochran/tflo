@@ -18,7 +18,12 @@ async = [
     "dep:pin-project",
     "dep:futures-timer",
 ]
-full = ["async"]
+# Opt-in lightweight observability via the `tracing` ecosystem. When
+# enabled, the engine emits debug-level spans on per-key step,
+# timer-fire, and checkpoint-commit paths. Off by default so the
+# wasm32 / no_std-adjacent builds stay clean.
+tracing = ["dep:tracing"]
+full = ["async", "tracing"]
 
 [dependencies]
 # Serialization
@@ -33,6 +38,8 @@ tokio = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 pin-project = { workspace = true, optional = true }
+# Tracing (optional, default-off; gated by the `tracing` feature)
+tracing = { version = "0.1", optional = true, default-features = false }
 
 [dev-dependencies]
 proptest = { workspace = true }

@@ -3,12 +3,28 @@
 // The `into_cel_context` conversion trait deliberately borrows rather than
 // consuming `self`.
 #![allow(clippy::wrong_self_convention)]
-//! # tflow-cel
+//! # tflo-cel
 //!
-//! CEL (Common Expression Language) rule engine integration for tflow.
+//! CEL (Common Expression Language) rule engine integration for tflo.
 //!
 //! This crate provides runtime-configurable filtering and routing using CEL
 //! expressions, allowing rules to be changed without recompilation.
+//!
+//! ## Stability: beta
+//!
+//! Per the workspace's three-tier stability convention:
+//!
+//! - **alpha** — API may change without notice; no test coverage SLA.
+//! - **beta** — API stable across patch releases; covered by unit
+//!   tests; no SLA on bug-fix turnaround for pre-1.0 releases.
+//! - **stable** — API stable + SLA (post-1.0 only).
+//!
+//! `tflo-cel` is **beta**: the public surface (`CelFilterExt`,
+//! `IntoCelContext`, `RuleEngine`) is covered by inline unit tests
+//! and used in the `docs-scripting` example. It has not yet been
+//! exercised under sustained production load; treat it as
+//! production-eligible for use cases where CEL evaluation latency
+//! is not on the critical path, and report issues for triage.
 //!
 //! ## Quick Start
 //!

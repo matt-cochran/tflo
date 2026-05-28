@@ -116,6 +116,142 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     ///     _ => { /* ... */ }
     /// }
     /// ```
+    /// Fire every event-time timer in `timer_service` whose `fire_ts` is at
+    /// or below `watermark`, in `(fire_ts, registration_seq)` order. Each
+    /// fire calls the registering node's `on_timer`, writes the resulting
+    /// output to the value store at that node's id, and emits a tuple
+    /// `(fire_ts, value)` for the caller to wrap into a
+    /// [`PipelineItem`](crate::pipeline::PipelineItem).
+    ///
+    /// This is called by the keyed executor before the record step (to
+    /// flush timers due strictly *before* the new record), and on idle
+    /// watermark advances ([`KeyedGraphState::advance_event_time_watermark`](crate::keyed::KeyedGraphState::advance_event_time_watermark)).
+    ///
+    /// Only plugin nodes (those with a `NodeState::Plugin`) can have
+    /// registered timers; non-plugin nodes silently no-op if a registration
+    /// somehow targets them.
+    pub(crate) fn fire_due_timers(
+        &mut self,
+        timer_service: &mut crate::timer::TimerService,
+        watermark: i64,
+    ) -> Vec<(i64, O)>
+    where
+        O: ExtractOutput,
+    {
+        let mut emitted: Vec<(i64, O)> = Vec::new();
+        // Drain due timers first to avoid holding a `&mut timer_service`
+        // across node-state borrows.
+        let mut due: Vec<crate::timer::TimerEntry> = Vec::new();
+        while let Some(entry) = timer_service.pop_due(watermark) {
+            due.push(entry);
+        }
+        for entry in due {
+            let Some(node_idx) = self.nodes.iter().position(|n| n.id == entry.node_id) else {
+                continue;
+            };
+            // Split-borrow: nodes vs store. Both come from self.
+            let (nodes, store) = (&mut self.nodes, &mut self.store);
+            let node = &mut nodes[node_idx];
+            let output_opt = match &mut node.state {
+                crate::compile::NodeState::Plugin(op) => {
+                    let mut ctx = crate::timer::TimerCtx {
+                        service: timer_service,
+                        current_node_id: entry.node_id,
+                        current_ts: entry.fire_ts,
+                    };
+                    Some(op.on_timer(entry.fire_ts, &mut ctx))
+                }
+                _ => None,
+            };
+            if let Some(output) = output_opt {
+                store.store_value(node.id, output);
+                if let Some(value) = O::extract(store, &self.output_ids) {
+                    emitted.push((entry.fire_ts, value));
+                }
+            }
+        }
+        emitted
+    }
+
+    /// Execute one step against `record` with the per-key timer service
+    /// available to operators via [`TimerCtx`](crate::timer::TimerCtx).
+    ///
+    /// Same semantics as [`step_with_context`](Self::step_with_context),
+    /// but plugin nodes are evaluated with their `eval_with_ctx` method so
+    /// they can register/delete event-time timers. Non-keyed graphs that
+    /// have no use for timers can keep calling `step_with_context`.
+    pub(crate) fn step_with_context_and_timers(
+        &mut self,
+        record: &R,
+        ts: i64,
+        ctx: C,
+        timer_service: &mut crate::timer::TimerService,
+    ) -> StepResult<C, O>
+    where
+        O: ExtractOutput,
+    {
+        // Saturating: see step_with_context for rationale.
+        self.records_seen = self.records_seen.saturating_add(1);
+        if self.records_seen < self.min_warmup {
+            return StepResult::WarmingUp {
+                remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
+            };
+        }
+        self.store.clear();
+
+        for node in &mut self.nodes {
+            let value = match &mut node.state {
+                crate::compile::NodeState::Plugin(op) => {
+                    // Build inputs list, then dispatch with TimerCtx.
+                    let inputs_ids = match &node.op {
+                        crate::compile::NodeOp::Plugin { inputs } => inputs.clone(),
+                        _ => Vec::new(),
+                    };
+                    let values: Vec<crate::compile::Computed> = inputs_ids
+                        .iter()
+                        .map(|id| Self::get_computed(&self.store, id))
+                        .collect();
+                    let mut ctx_inner = crate::timer::TimerCtx {
+                        service: timer_service,
+                        current_node_id: node.id,
+                        current_ts: ts,
+                    };
+                    op.eval_with_ctx(&values, ts, &mut ctx_inner)
+                }
+                _ => Self::eval_node(node, record, ts, &self.store),
+            };
+            self.store.store_value(node.id, value);
+        }
+
+        for entry in &self.composition_nodes {
+            let value = match &entry.kind {
+                CompositionNodeKind::Map { mapper } => mapper(&self.store),
+                CompositionNodeKind::Fold { state, folder } => folder(&self.store, state),
+            };
+            if let Some(v) = value {
+                self.store.store_value(entry.id, v);
+            }
+        }
+
+        match O::extract(&self.store, &self.output_ids) {
+            Some(value) => StepResult::Ready(PipelineItem { ctx, value }),
+            None => StepResult::WarmingUp {
+                remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
+            },
+        }
+    }
+
+    /// Execute one step with an explicitly-supplied context value. Used
+    /// by keyed execution (where the context carries the key in addition
+    /// to the timestamp) and by callers that need to inject a custom
+    /// context into the pipeline.
+    ///
+    /// This entry point does **not** route through the per-key event-time
+    /// timer service; the keyed-execution path uses an internal variant
+    /// (with a [`TimerCtx`](crate::timer::TimerCtx)) for graphs whose
+    /// operators register timers.
     pub fn step_with_context(&mut self, record: &R, ts: i64, ctx: C) -> StepResult<C, O>
     where
         O: ExtractOutput,

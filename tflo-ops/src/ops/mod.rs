@@ -19,6 +19,9 @@
 pub mod composites;
 pub mod detectors;
 pub mod math;
+mod session_tumbling;
 pub mod stats;
 pub mod trackers;
 pub mod windows;
+
+pub use session_tumbling::EmitWindowOps;

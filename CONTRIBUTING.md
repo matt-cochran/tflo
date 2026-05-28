@@ -65,7 +65,8 @@ To run benchmarks for a specific crate:
 
 ```sh
 cargo bench -p tflo-core
-cargo bench -p tflo-ta
+cargo bench -p tflo-ops
+cargo bench -p tflo-fintech
 ```
 
 Benchmark results are written to `target/criterion/`. You can open the HTML report
@@ -86,7 +87,8 @@ open target/criterion/report/index.html
    or `refactor/`.
 3. **Make your changes**, following the [code style](#code-style) guidelines below.
 4. **Write or update tests** as appropriate. We use `proptest` for property-based
-   testing and golden vector tests in `tflo-ta-golden` for regression coverage.
+   testing and golden vector tests in `tflo-fintech/tests/golden` for regression
+   coverage of finance indicators.
 5. **Ensure the full test suite passes**:
    ```sh
    cargo test --workspace
@@ -129,6 +131,21 @@ open target/criterion/report/index.html
   2. External crates
   3. `crate::*` and `super::*`
 
+## Scope and Non-Goals
+
+Before proposing a feature, please skim [`docs/non-goals.md`](docs/non-goals.md).
+It records what `tflo` deliberately does **not** do (NFA pattern matching in
+core, streaming SQL, distributed runtime, exactly-once via 2PC, …) and why.
+A change that conflicts with a listed non-goal is not automatically rejected,
+but the PR description must address the reasoning. The PR template
+([`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)) asks
+this explicitly.
+
+The complementary list of deferred-but-designed integrations (Flink, Beam,
+Kafka Streams adapters, the `tflo-cep` pattern crate) lives in
+[`docs/interop-backlog.md`](docs/interop-backlog.md). If your change is one
+of those, the existing design sketch is the starting point.
+
 ## Pull Request Checklist
 
 Before submitting your PR, ensure:
@@ -136,9 +153,14 @@ Before submitting your PR, ensure:
 - [ ] Code is formatted with `cargo fmt --workspace`
 - [ ] Clippy passes with `cargo clippy --workspace --all-features -- -D warnings`
 - [ ] Full test suite passes: `cargo test --workspace`
+- [ ] WASM build is green: `cargo build --target wasm32-unknown-unknown -p tflo-core -p tflo-ops`
+- [ ] Default-features build is green: `cargo build --no-default-features -p tflo-core`
+- [ ] Doc build is warning-free: `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`
 - [ ] All benchmarks run without regressions (if performance-sensitive)
 - [ ] New public items have doc comments
 - [ ] Changes are covered by tests (unit, integration, or property-based)
+- [ ] Change does not conflict with [`docs/non-goals.md`](docs/non-goals.md), or
+      conflict is explicitly justified in the PR description
 - [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
 - [ ] PR title follows the same convention (e.g. `feat(core): ...`)
 - [ ] You have read the [Code of Conduct](CODE_OF_CONDUCT.md)

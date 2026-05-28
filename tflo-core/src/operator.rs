@@ -13,6 +13,7 @@
 //! `tflo-core`.
 
 use crate::compile::{Absent, Computed, NodeOutput};
+use crate::timer::TimerCtx;
 
 /// Read input `idx` from an [`Operator::eval`] input slice.
 ///
@@ -41,6 +42,41 @@ pub trait Operator: Send + Sync + 'static {
     /// `inputs` holds one [`Computed`] per wired input, in declaration order.
     /// `ts` is the record timestamp (needed by time-windowed operators).
     fn eval(&mut self, inputs: &[Computed], ts: i64) -> NodeOutput;
+
+    /// Evaluate with access to the per-key event-time timer service.
+    ///
+    /// The keyed-execution engine calls `eval_with_ctx` instead of [`eval`](Self::eval)
+    /// when a [`TimerCtx`] is available. The default impl delegates to
+    /// [`eval`](Self::eval) so existing operators continue to work without
+    /// change; operators that need to register/delete event-time timers
+    /// override this method and use `ctx.register_event_time_timer(...)` /
+    /// `ctx.delete_event_time_timer(...)`.
+    ///
+    /// See [`on_timer`](Self::on_timer) for the timer-fire callback.
+    fn eval_with_ctx(
+        &mut self,
+        inputs: &[Computed],
+        ts: i64,
+        _ctx: &mut TimerCtx<'_>,
+    ) -> NodeOutput {
+        self.eval(inputs, ts)
+    }
+
+    /// Called by the engine when an event-time timer this operator
+    /// registered fires (i.e., the per-key watermark has reached the
+    /// registered `fire_ts`).
+    ///
+    /// Default: emits no value (`Err(Absent::FilteredOut)`). Override to
+    /// implement *absence-of-event* detection — e.g., a pulse-width
+    /// detector emitting `TooLong` when no closing record arrived within
+    /// the configured bound.
+    ///
+    /// The `ctx` is the same [`TimerCtx`] available to `eval_with_ctx`,
+    /// so an operator can register follow-up timers from inside
+    /// `on_timer`.
+    fn on_timer(&mut self, _fire_ts: i64, _ctx: &mut TimerCtx<'_>) -> NodeOutput {
+        NodeOutput::computed(Err(Absent::FilteredOut))
+    }
 
     /// Reset to the freshly-constructed state. Default: no-op.
     fn reset(&mut self) {}

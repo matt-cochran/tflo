@@ -19,7 +19,7 @@
 //! # `prev_by`
 //!
 //! `prev_by` partitions previous values by a key extracted from the *record*.
-//! [`Operator::eval`](tflo_core::operator::Operator::eval) never receives the
+//! [`Operator::eval`] never receives the
 //! record — only resolved `f64` inputs — so the key is supplied as a *second*
 //! graph input: [`StatefulOps::prev_by`] wires a hidden record-extraction
 //! source node via [`Comp::prop_from_record`] and feeds it alongside the value
@@ -317,7 +317,7 @@ fn key_bits(k: f64) -> u64 {
 ///
 /// The legacy `tflo-core` `prev_by` keyed its `HashMap` on a `u64` hash of the
 /// caller's key type. Here the key arrives as the `f64` of a graph input, so it
-/// is keyed via [`key_bits`], which encodes the raw bit pattern after normalising
+/// is keyed via `key_bits`, which encodes the raw bit pattern after normalising
 /// `-0.0` to `+0.0`. This is exact for any `f64` key, including integer-valued
 /// keys.
 ///
@@ -331,7 +331,7 @@ fn key_bits(k: f64) -> u64 {
 ///
 /// # NaN keys
 ///
-/// A `NaN` key passes through [`key_bits`] as a valid `u64` and creates its own
+/// A `NaN` key passes through `key_bits` as a valid `u64` and creates its own
 /// partition.  Because `NaN != NaN` in IEEE 754, this partition can only ever be
 /// populated once (the second `NaN`-keyed record would see `WarmingUp` again).
 /// Callers should ensure the key-extraction closure never yields `NaN`.

@@ -59,8 +59,10 @@ pub trait TFloStreamExt<R>: Stream<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloStream {
             stream: self,
@@ -85,8 +87,10 @@ pub trait TFloStreamExt<R>: Stream<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFlowWithStream {
             stream: self,
@@ -291,12 +295,14 @@ where
                         builder.timestamp(move |r| timestamp_fn_clone(r));
                         let comps = (this.builder_fn)(&mut builder);
                         let output_ids = comps.output_ids();
+                        let fingerprint = builder.fingerprint();
                         let timestamp_fn = builder
                             .get_timestamp_fn()
                             .unwrap_or_else(|| this.timestamp_fn.clone());
                         let nodes = builder.into_nodes();
                         let graph: CompiledGraph<R, O, KeyedTimestamped<K>> =
-                            CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+                            CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+                                .with_topology_fingerprint(fingerprint);
                         KeyedGraphState::new(graph, *this.policy)
                     });
 

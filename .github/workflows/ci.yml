@@ -46,3 +46,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
+
+  # Per-PR WASM gate. tflo's value proposition includes the WASM
+  # deployment shape; if tflo-core or tflo-ops stops compiling for
+  # wasm32-unknown-unknown, the closure-plan fence (see
+  # docs/non-goals.md and docs/deployment-shapes.md) is broken.
+  # Releases of tflo-wasm itself are handled by publish-wasm.yml.
+  wasm32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --target wasm32-unknown-unknown -p tflo-core -p tflo-ops
+
+  # Default-features (i.e. no `async` / no `tracing`) build gate.
+  # Catches accidental promotion of an optional feature to a hard
+  # dependency. As Phase 3 lands the `tracing` feature, this gate
+  # is what keeps it opt-in.
+  no-default-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --no-default-features -p tflo-core
+      - run: cargo check --no-default-features -p tflo-core -p tflo-ops
+
+  # Documentation must build clean. Stale doc links or missing
+  # cross-references in `semantics.rs`, README, and crate-level docs
+  # become CI errors rather than slowly rotting. Workspace rustdoc
+  # warnings were cleaned up in the Phase 0 closure pass.
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --exclude tflo-wasm --no-deps --all-features

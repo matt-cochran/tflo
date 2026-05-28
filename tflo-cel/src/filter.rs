@@ -100,7 +100,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// Returns [`CelError::CompileError`]
     /// when `expr` fails to compile as a CEL program.
     fn cel_filter_result(self, expr: &str) -> CelResult<CelFilterResult<Self, T>> {
         CelFilterResult::new(self, expr, CelOptions::default())
@@ -113,7 +113,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// Returns [`CelError::CompileError`]
     /// when `expr` fails to compile as a CEL program.
     fn cel_filter_result_with_options(
         self,

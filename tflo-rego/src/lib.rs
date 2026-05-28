@@ -3,12 +3,22 @@
 // The `into_rego_input` conversion trait deliberately borrows rather than
 // consuming `self`.
 #![allow(clippy::wrong_self_convention)]
-//! # tflow-rego
+//! # tflo-rego
 //!
-//! OPA/Rego policy engine integration for tflow.
+//! OPA/Rego policy engine integration for tflo.
 //!
 //! This crate provides policy-based filtering and decision-making using
 //! the Rego policy language from Open Policy Agent (OPA).
+//!
+//! ## Stability: beta
+//!
+//! Per the workspace's three-tier stability convention (see
+//! `tflo-cel` crate docs for the full definition), `tflo-rego` is
+//! **beta**: the public surface (`PolicyEngine`, `IntoRegoInput`,
+//! the policy-filter iterator adapters) is covered by inline unit
+//! tests. The embedded Rego evaluator is well-suited to policy
+//! decisions on per-record context; large policy bundles should
+//! be validated against your latency budget.
 //!
 //! ## Quick Start
 //!

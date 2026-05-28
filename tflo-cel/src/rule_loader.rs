@@ -13,9 +13,9 @@ impl RuleEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::ConfigError`](crate::error::CelError::ConfigError)
+    /// Returns [`CelError::ConfigError`]
     /// when `yaml` cannot be deserialized into a [`RulesConfig`], and
-    /// [`CelError::CompileError`](crate::error::CelError::CompileError) when
+    /// [`CelError::CompileError`] when
     /// any rule's condition is not a valid CEL expression.
     pub fn from_yaml(yaml: &str) -> CelResult<Self> {
         let config: RulesConfig =
@@ -29,9 +29,9 @@ impl RuleEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::ConfigError`](crate::error::CelError::ConfigError)
+    /// Returns [`CelError::ConfigError`]
     /// when `json` cannot be deserialized into a [`RulesConfig`], and
-    /// [`CelError::CompileError`](crate::error::CelError::CompileError) when
+    /// [`CelError::CompileError`] when
     /// any rule's condition is not a valid CEL expression.
     pub fn from_json(json: &str) -> CelResult<Self> {
         let config: RulesConfig =
@@ -48,7 +48,7 @@ impl RuleEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::IoError`](crate::error::CelError::IoError) when
+    /// Returns [`CelError::IoError`] when
     /// `path` cannot be read, plus any error from
     /// [`from_yaml`](Self::from_yaml) /
     /// [`from_json`](Self::from_json) for parsing.
@@ -94,7 +94,7 @@ impl RuleEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::ConfigError`](crate::error::CelError::ConfigError)
+    /// Returns [`CelError::ConfigError`]
     /// when `format` is not `"yaml"`/`"yml"`/`"json"`, plus any error from
     /// [`from_yaml`](Self::from_yaml) /
     /// [`from_json`](Self::from_json) for parsing.
@@ -112,7 +112,7 @@ impl RuleEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// Returns [`CelError::CompileError`]
     /// when any rule in `config` has a condition that is not a valid CEL
     /// expression.
     pub fn from_config(config: RulesConfig) -> CelResult<Self> {

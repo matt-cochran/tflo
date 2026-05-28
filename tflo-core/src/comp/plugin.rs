@@ -1,4 +1,4 @@
-//! Public builder API for attaching [`Operator`](crate::operator::Operator) plugins to a graph.
+//! Public builder API for attaching [`Operator`] plugins to a graph.
 //!
 //! [`Comp::custom_node`] and [`Comp::custom_node1`] are the only public entry
 //! points for inserting an external crate's runtime node into a `tflo` graph.
@@ -10,7 +10,7 @@ use crate::operator::{BoxedOperator, Operator, OperatorFactory};
 use std::sync::Arc;
 
 impl<R: 'static> Comp<R, f64> {
-    /// Attach a multi-input [`Operator`](crate::operator::Operator) to the graph.
+    /// Attach a multi-input [`Operator`] to the graph.
     ///
     /// A plugin node needs at least one input — that requirement is in the
     /// signature: `first` is the mandatory first input and `rest` is any
@@ -73,7 +73,7 @@ impl<R: 'static> Comp<R, f64> {
         )
     }
 
-    /// Attach a single-input [`Operator`](crate::operator::Operator) to the graph.
+    /// Attach a single-input [`Operator`] to the graph.
     ///
     /// Convenience wrapper around [`custom_node`](Self::custom_node) for operators
     /// that consume only `self`.
@@ -86,7 +86,7 @@ impl<R: 'static> Comp<R, f64> {
         Self::custom_node(self, &[], factory)
     }
 
-    /// Attach a multi-input [`Operator`](crate::operator::Operator) whose factory
+    /// Attach a multi-input [`Operator`] whose factory
     /// already yields a [`BoxedOperator`].
     ///
     /// This is the type-erased sibling of [`custom_node`](Self::custom_node). It
@@ -134,7 +134,7 @@ impl<R: 'static> Comp<R, f64> {
         )
     }
 
-    /// Attach a single-input type-erased [`Operator`](crate::operator::Operator)
+    /// Attach a single-input type-erased [`Operator`]
     /// whose factory already yields a [`BoxedOperator`].
     ///
     /// Convenience wrapper around [`custom_node_dyn`](Self::custom_node_dyn) for
@@ -153,7 +153,7 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// This is the [`Node::Prop`] equivalent of [`TFlowBuilder::prop`], but
     /// reachable from a `Comp` handle rather than the builder. It is useful for
-    /// [`Operator`](crate::operator::Operator) plugins in extension crates that
+    /// [`Operator`] plugins in extension crates that
     /// need a record-derived auxiliary input — e.g. a partition key fed as a
     /// second input to a multi-input [`custom_node`](Self::custom_node).
     ///

@@ -52,7 +52,7 @@ use std::sync::Arc;
 pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
     /// Apply temporal computations to the iterator, returning computed values.
     ///
-    /// The closure receives a [`TemporalBuilder`] and should return one or more
+    /// The closure receives a [`TFlowBuilder`] and should return one or more
     /// [`Comp`](crate::comp::Comp) values (or a tuple of them).
     ///
     /// # Panics
@@ -75,8 +75,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
         });
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloIter {
             iter: self,
@@ -105,8 +107,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloWithIter {
             iter: self,
@@ -138,8 +142,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let mut graph = CompiledGraph::compile(timestamp_fn.clone(), nodes, output_ids);
+        let mut graph = CompiledGraph::compile(timestamp_fn.clone(), nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
         // Honour the configured warmup: the graph suppresses output until it
         // has seen `min_warmup` records.
         graph.set_min_warmup(options.min_warmup);
@@ -177,8 +183,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloTryIter {
             iter: self,

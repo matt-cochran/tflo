@@ -15,7 +15,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 /// Unique identifier for a node in the computation graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct NodeId(pub(crate) usize);
 
 /// A node in the computation graph.

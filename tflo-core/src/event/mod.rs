@@ -13,7 +13,7 @@
 //!
 //! 1. It is the `TMode` parameter for [`Signal`] and the [`EdgeSignal`] type
 //!    alias — both are part of `tflo-core`'s public API surface.
-//! 2. [`wasm.rs`](crate::wasm) references it directly for the WASM bridge's
+//! 2. `wasm.rs` (the `tflo-wasm` crate) references it directly for the WASM bridge's
 //!    `CompiledGraph<_, ThresholdCrossEventMode, _>` output extraction.
 //! 3. Removing it would be a breaking change to any downstream crate that
 //!    uses `tflo_core::event::ThresholdCrossEventMode` as an `EventMode`

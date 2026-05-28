@@ -29,7 +29,7 @@ impl CompiledRule {
     ///
     /// # Errors
     ///
-    /// Returns [`CelError::CompileError`](crate::error::CelError::CompileError)
+    /// Returns [`CelError::CompileError`]
     /// when `condition` is not a valid CEL expression.
     pub fn new(name: &str, condition: &str, action: Action) -> CelResult<Self> {
         let program = Program::compile(condition).map_err(|e| CelError::CompileError {

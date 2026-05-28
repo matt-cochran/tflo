@@ -71,8 +71,7 @@
 //!
 //! - **Composite ≠ Primitive**: Composite algorithms build graphs. They never
 //!   add new runtime behavior. For truly new runtime nodes, see the `Node` enum
-//!   and the functional graph primitives (`map_f64`, `scan_f64`, etc.) in
-//!   [`comp::custom`].
+//!   and the functional graph primitives ([`map_f64`], [`scan_f64`], etc.).
 //! - **No private API access**: Your extension trait should only use public
 //!   [`Comp`] methods and public types from `tflo_core::prelude::*`.
 //! - **Tuple outputs**: Return `(Comp<R, f64>, Comp<R, f64>)` or larger tuples
@@ -90,7 +89,7 @@
 //!
 //! For algorithms that cannot be expressed cleanly as composites — custom
 //! formulas, state machines, or time-decayed filters — `tflo-core` provides
-//! closure-based functional graph primitives on [`Comp<R, f64>`]:
+//! closure-based functional graph primitives on [`Comp`]`<R, f64>`:
 //!
 //! | Method | Signature | Purpose |
 //! |---|---|---|
@@ -184,6 +183,15 @@
 //!     })
 //!     .collect();
 //! ```
+//!
+//! [`Comp`]: crate::comp::Comp
+//! [`map_f64`]: crate::comp::Comp::map_f64
+//! [`map2_f64`]: crate::comp::Comp::map2_f64
+//! [`filter_f64`]: crate::comp::Comp::filter_f64
+//! [`filter_map_f64`]: crate::comp::Comp::filter_map_f64
+//! [`scan_f64`]: crate::comp::Comp::scan_f64
+//! [`scan2_f64`]: crate::comp::Comp::scan2_f64
+//! [`Duration`]: std::time::Duration
 
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -216,6 +224,7 @@ pub mod error;
 pub mod event;
 pub mod iter_ext;
 pub mod keyed;
+pub mod metrics;
 pub mod operator;
 pub use operator::{BivariateWindow, WindowPrimitive};
 pub mod pipeline;
@@ -229,6 +238,9 @@ pub mod semantics;
 pub mod shard;
 #[cfg(feature = "async")]
 pub mod state;
+#[cfg(feature = "async")]
+pub mod dedup;
+pub mod timer;
 /// Time point trait for generic time type abstraction.
 pub mod timepoint;
 pub mod validation;

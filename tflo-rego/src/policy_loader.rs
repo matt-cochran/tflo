@@ -11,7 +11,7 @@ impl PolicyEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`RegoError::ParseError`](crate::error::RegoError::ParseError)
+    /// Returns [`RegoError::ParseError`]
     /// when `policy` is not a valid Rego policy.
     pub fn add_policy(&mut self, name: &str, policy: &str) -> RegoResult<()> {
         let _ = self
@@ -28,7 +28,7 @@ impl PolicyEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`RegoError::IoError`](crate::error::RegoError::IoError) when
+    /// Returns [`RegoError::IoError`] when
     /// `path` cannot be read, plus any error from
     /// [`add_policy`](Self::add_policy) for parsing.
     pub fn add_policy_from_file<P: AsRef<Path>>(&mut self, path: P) -> RegoResult<()> {
@@ -45,7 +45,7 @@ impl PolicyEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`RegoError::IoError`](crate::error::RegoError::IoError) when
+    /// Returns [`RegoError::IoError`] when
     /// `path` cannot be read or entries cannot be enumerated, plus any
     /// error from [`add_policy_from_file`](Self::add_policy_from_file) for
     /// each `.rego` file found.
@@ -72,7 +72,7 @@ impl PolicyEngine {
     /// # Errors
     ///
     /// Returns
-    /// [`RegoError::EvaluationError`](crate::error::RegoError::EvaluationError)
+    /// [`RegoError::EvaluationError`]
     /// when the underlying engine rejects the supplied data.
     pub fn add_data(&mut self, data: serde_json::Value) -> RegoResult<()> {
         let rego_value: regorus::Value = data.into();
@@ -89,9 +89,9 @@ impl PolicyEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`RegoError::IoError`](crate::error::RegoError::IoError) when
+    /// Returns [`RegoError::IoError`] when
     /// `path` cannot be read,
-    /// [`RegoError::JsonError`](crate::error::RegoError::JsonError) when
+    /// [`RegoError::SerializationError`] when
     /// the file is not valid JSON, plus any error from
     /// [`add_data`](Self::add_data).
     pub fn add_data_from_file<P: AsRef<Path>>(&mut self, path: P) -> RegoResult<()> {

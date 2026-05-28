@@ -5,12 +5,14 @@
 //! a pulse classification, a window-transition event. Each is a hand-written
 //! [`Operator`] wrapping the matching `tflo_core::primitives` detector struct:
 //!
-//! - [`CrossOp`] wraps [`CrossDetector`] for `cross` / `cross_above` /
-//!   `cross_under` (the variant selects which `update*` method runs).
-//! - [`CrossHysteresisOp`] wraps [`HysteresisCrossDetector`].
-//! - [`GlitchOp`] wraps [`GlitchFilter`], [`RuntOp`] wraps [`RuntDetector`],
-//!   [`PulseWidthOp`] wraps [`PulseWidthDetector`], [`WindowDetectOp`] wraps
-//!   [`WindowDetector`].
+//! - `CrossOp` wraps [`crate::primitives::CrossDetector`] for `cross` /
+//!   `cross_above` / `cross_under` (the variant selects which `update*`
+//!   method runs).
+//! - `CrossHysteresisOp` wraps [`crate::primitives::HysteresisCrossDetector`].
+//! - `GlitchOp` wraps [`crate::primitives::GlitchFilter`], `RuntOp`
+//!   wraps [`crate::primitives::RuntDetector`], `PulseWidthOp` wraps
+//!   [`crate::primitives::PulseWidthDetector`], `WindowDetectOp` wraps
+//!   [`crate::primitives::WindowDetector`].
 //!
 //! The step logic is ported verbatim from the legacy `tflo-core` catalog
 //! (`compile/eval/helpers.rs`). The **absent-input semantics**, however, are
