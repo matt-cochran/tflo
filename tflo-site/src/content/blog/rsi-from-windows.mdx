@@ -7,7 +7,7 @@ tags: ["operators", "rsi", "momentum", "wilder"]
 
 import DemoChart from '../../components/DemoChart.tsx';
 
-RSI began life in finance — a 0-100 gauge of whether a price is "overbought" or "oversold." But strip the trading vocabulary away and it's a generic primitive: a bounded measure of how lopsided the recent gains-versus-losses balance is. That makes it useful far beyond finance — saturation on a sensor, sustained error-rate climb in observability, a runaway packet-rate trend in intrusion detection. Finance is just the domain it was born in; in tflo it's a `tflo-core` operator anyone can use.
+RSI began life in finance — a 0-100 gauge of whether a price is "overbought" or "oversold." But strip the trading vocabulary away and it's a generic primitive: a bounded measure of how lopsided the recent gains-versus-losses balance is. That makes it useful far beyond finance — saturation on a sensor, sustained error-rate climb in observability, a runaway packet-rate trend in intrusion detection. Finance is just the domain it was born in; in tflo it's a generic `tflo-ops` operator anyone can use.
 
 The math sounds simple. You take rises and falls over a window, average them, and plug into a formula. But "average" is the problem — there are two different averaging methods, and they produce different curves.
 

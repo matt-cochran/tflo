@@ -38,7 +38,7 @@ The free `require(inputs, idx)` helper reads an input and returns `Computed` —
 
 ## Build a Rate-of-Change node
 
-Rate of Change measures how much a value has changed relative to N records ago: `(current - N_records_ago) / N_records_ago`. (`tflo-core` actually ships this as the `rate_of_change` operator — but it makes a clean, self-contained example of the trait.) Here's the full implementation:
+Rate of Change measures how much a value has changed relative to N records ago: `(current - N_records_ago) / N_records_ago`. (`tflo-ops` actually ships this as the `rate_of_change` operator — but it makes a clean, self-contained example of the trait.) Here's the full implementation:
 
 ```rust
 use std::collections::VecDeque;
