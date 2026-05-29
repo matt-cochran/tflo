@@ -40,7 +40,9 @@ impl CelOptions {
     /// Construct empty options (no budget).
     #[must_use]
     pub const fn new() -> Self {
-        Self { max_eval_time: None }
+        Self {
+            max_eval_time: None,
+        }
     }
 
     /// Set the per-call evaluation budget.
@@ -83,10 +85,8 @@ where
     /// [`cel_filter_result`](Self::cel_filter_result), which surfaces both
     /// compile and evaluation errors, exposes counters, and accepts a
     /// [`CelOptions`] watchdog.
-    #[deprecated(
-        note = "panics on compile failure and swallows evaluation errors; \
-                use `cel_filter_result` (Result-returning) instead in production"
-    )]
+    #[deprecated(note = "panics on compile failure and swallows evaluation errors; \
+                use `cel_filter_result` (Result-returning) instead in production")]
     #[allow(deprecated)]
     fn cel_filter(self, expr: &str) -> CelFilter<Self, T> {
         CelFilter::new(self, expr)

@@ -1,5 +1,16 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use))]
-#![deny(clippy::print_stdout)] // library code must not write to stdout
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::let_underscore_must_use
+    )
+)]
+#![deny(clippy::print_stdout)]
+// library code must not write to stdout
 // Numeric streaming-engine intent-allows (see tflo-core for rationale).
 #![allow(
     clippy::cast_precision_loss,
@@ -238,8 +249,8 @@ mod tests {
             ]);
             let fp = schema_fingerprint(&schema);
             let expected: [u8; 32] = [
-                149, 19, 83, 110, 232, 66, 201, 203, 206, 132, 21, 190, 53, 4, 100, 208, 0,
-                156, 245, 243, 220, 102, 48, 75, 3, 36, 249, 105, 78, 57, 31, 231,
+                149, 19, 83, 110, 232, 66, 201, 203, 206, 132, 21, 190, 53, 4, 100, 208, 0, 156,
+                245, 243, 220, 102, 48, 75, 3, 36, 249, 105, 78, 57, 31, 231,
             ];
             assert_eq!(fp, expected, "fingerprint regression");
         }

@@ -429,4 +429,3 @@ impl<R: 'static> FintechIndicators<R> for Comp<R, f64> {
 }
 
 // ── Free helper functions (moved verbatim from tflo-core) ──────────────────
-

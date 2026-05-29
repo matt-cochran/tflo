@@ -46,11 +46,7 @@ impl<R: 'static> Comp<R, f64> {
     ///     .collect();
     /// ```
     #[must_use]
-    pub fn custom_node<F, N>(
-        first: &Self,
-        rest: &[&Self],
-        factory: F,
-    ) -> Self
+    pub fn custom_node<F, N>(first: &Self, rest: &[&Self], factory: F) -> Self
     where
         F: Fn() -> N + Send + Sync + 'static,
         N: Operator,
@@ -109,11 +105,7 @@ impl<R: 'static> Comp<R, f64> {
     /// callers are unaffected: `O` infers to `f64` from their `-> Comp<R, f64>`
     /// return context.
     #[must_use]
-    pub fn custom_node_dyn<F, O>(
-        first: &Self,
-        rest: &[&Self],
-        factory: F,
-    ) -> Comp<R, O>
+    pub fn custom_node_dyn<F, O>(first: &Self, rest: &[&Self], factory: F) -> Comp<R, O>
     where
         F: Fn() -> BoxedOperator + Send + Sync + 'static,
     {

@@ -140,7 +140,12 @@ pub struct CheckpointId {
 impl CheckpointId {
     /// Create a new checkpoint ID.
     #[must_use]
-    pub const fn new(id: String, cursor_bytes: Vec<u8>, timestamp_ms: i64, key: Option<Vec<u8>>) -> Self {
+    pub const fn new(
+        id: String,
+        cursor_bytes: Vec<u8>,
+        timestamp_ms: i64,
+        key: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             id,
             cursor_bytes,

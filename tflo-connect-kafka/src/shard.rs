@@ -127,10 +127,7 @@ impl<S: tflo_core::state::AsyncStateStore> tflo_core::shard::ShardRouter<TopicPa
     for KafkaShardRouter<S>
 {
     fn owns(&self, key: &TopicPartition) -> bool {
-        self.owned
-            .lock()
-            .map(|g| g.contains(key))
-            .unwrap_or(false)
+        self.owned.lock().map(|g| g.contains(key)).unwrap_or(false)
     }
     fn assignment_epoch(&self) -> u64 {
         self.epoch.get()

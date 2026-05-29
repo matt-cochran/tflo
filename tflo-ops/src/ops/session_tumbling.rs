@@ -286,9 +286,7 @@ mod tests {
 
     /// Build a single-key graph wrapping one `SessionSumOp` over a `prop`
     /// source. `gap_ms` configures the session gap.
-    fn build_session_state(
-        gap_ms: i64,
-    ) -> KeyedGraphState<f64, Option<f64>, &'static str> {
+    fn build_session_state(gap_ms: i64) -> KeyedGraphState<f64, Option<f64>, &'static str> {
         use tflo_core::builder::Compile;
         use tflo_core::comp::Comp;
         use tflo_core::prelude::*;
@@ -318,10 +316,7 @@ mod tests {
 
         // Advance the watermark past the close (90 + 100 = 190).
         let items = state
-            .advance_event_time_watermark(
-                tflo_core::timer::EventTimeMs::new(200),
-                "k",
-            )
+            .advance_event_time_watermark(tflo_core::timer::EventTimeMs::new(200), "k")
             .unwrap();
         // Expect one item: Some(6.0) at fire_ts=190.
         assert_eq!(items.len(), 1);
@@ -354,10 +349,7 @@ mod tests {
         let _ = state.step(3.0, 60, "k").unwrap();
 
         let items = state
-            .advance_event_time_watermark(
-                tflo_core::timer::EventTimeMs::new(150),
-                "k",
-            )
+            .advance_event_time_watermark(tflo_core::timer::EventTimeMs::new(150), "k")
             .unwrap();
         // Expect one item: Some(6.0) at fire_ts=100.
         assert_eq!(items.len(), 1);

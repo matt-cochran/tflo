@@ -1,9 +1,7 @@
 //! State & snapshot surface for [`CompiledGraph`] — accessors, warmup tracking,
 //! and `snapshot` / `restore`.
 
-use crate::compile::{
-    CompiledGraph, CompositionNodeKind, GraphPlan, GraphStateSummary,
-};
+use crate::compile::{CompiledGraph, CompositionNodeKind, GraphPlan, GraphStateSummary};
 use crate::pipeline::PipelineContext;
 
 impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {

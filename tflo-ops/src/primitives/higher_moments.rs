@@ -348,10 +348,7 @@ mod tests {
         }
 
         let skew = window.skewness();
-        assert!(
-            skew.abs() < 0.1,
-            "Expected near-zero skewness, got {skew}"
-        );
+        assert!(skew.abs() < 0.1, "Expected near-zero skewness, got {skew}");
     }
 
     #[test]

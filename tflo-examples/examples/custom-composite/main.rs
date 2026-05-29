@@ -25,11 +25,7 @@ impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
         }
     }
 
-    fn mean_band<W: Into<Window>>(
-        &self,
-        window: W,
-        k: f64,
-    ) -> (Self, Self, Self) {
+    fn mean_band<W: Into<Window>>(&self, window: W, k: f64) -> (Self, Self, Self) {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);
@@ -156,9 +152,7 @@ fn main() {
         })
         .collect();
     for (ts, (ratio, score)) in vital_pairs.iter().map(|v| v.ts).zip(&composed) {
-        println!(
-            "  ts={ts:>6} spread_ratio={ratio:.4} normalized_score={score:.4}"
-        );
+        println!("  ts={ts:>6} spread_ratio={ratio:.4} normalized_score={score:.4}");
     }
 
     // ---- Chaining: custom -> built-in -> custom ----

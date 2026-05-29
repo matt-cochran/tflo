@@ -113,12 +113,14 @@ impl NodeState {
         match self {
             Self::Stateless => Ok(NodeStateSnapshot::Stateless),
             // A plugin operator is checkpointable only if it overrides `save()`.
-            Self::Plugin(op) => op.save().map(NodeStateSnapshot::Plugin).ok_or(
-                SnapshotError::Unsupported {
-                    index,
-                    kind: "plugin operator without save() override",
-                },
-            ),
+            Self::Plugin(op) => {
+                op.save()
+                    .map(NodeStateSnapshot::Plugin)
+                    .ok_or(SnapshotError::Unsupported {
+                        index,
+                        kind: "plugin operator without save() override",
+                    })
+            }
             // `scan`/`scan2` hold opaque closure state — not checkpointable.
             Self::ScanState(_) => Err(SnapshotError::Unsupported {
                 index,

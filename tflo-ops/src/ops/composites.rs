@@ -174,11 +174,7 @@ pub trait Composites<R> {
 // `SafeDivOp`. There is no integer arithmetic to overflow here.
 #[allow(clippy::arithmetic_side_effects)]
 impl<R: 'static> Composites<R> for Comp<R, f64> {
-    fn deviation_band(
-        &self,
-        window: impl Into<Window>,
-        k: f64,
-    ) -> (Self, Self, Self) {
+    fn deviation_band(&self, window: impl Into<Window>, k: f64) -> (Self, Self, Self) {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);

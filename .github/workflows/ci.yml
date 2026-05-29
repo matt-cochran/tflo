@@ -9,6 +9,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
+  # rust-cache@v2 auto-enables sccache when it finds it (or restores a
+  # config from cache that requested it). The runners don't ship sccache,
+  # so the wrapper invocation fails with `No such file or directory`.
+  # Explicitly clear the wrapper so cargo runs rustc directly.
+  RUSTC_WRAPPER: ""
+  SCCACHE_GHA_ENABLED: "false"
 
 jobs:
   check:

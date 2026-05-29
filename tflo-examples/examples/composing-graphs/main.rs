@@ -114,17 +114,18 @@ fn main() {
 
     // ---- Fold: count consecutive valid signals ----
     println!("\n=== Fold: count consecutive above-threshold SMAs ===");
-    let mut folded =
-        build_sma_graph()
-            .filter(|value| *value > 102.0)
-            .fold(
-                0u64,
-                // SAFETY: consecutive-signal counter; saturating_add keeps the value
-                // monotonic at u64::MAX rather than panicking on the (unreachable) overflow.
-                |count, signal| {
-                    if signal.is_some() { count.saturating_add(1) } else { 0 }
-                },
-            );
+    let mut folded = build_sma_graph().filter(|value| *value > 102.0).fold(
+        0u64,
+        // SAFETY: consecutive-signal counter; saturating_add keeps the value
+        // monotonic at u64::MAX rather than panicking on the (unreachable) overflow.
+        |count, signal| {
+            if signal.is_some() {
+                count.saturating_add(1)
+            } else {
+                0
+            }
+        },
+    );
     println!("Consecutive SMA(3) above 102.0:");
     for record in &stats {
         if let Some(item) = folded.step(record) {

@@ -73,7 +73,10 @@ fn abandoned_cart_does_not_fire_when_purchase_arrives_in_time() {
     ];
 
     let signals: Vec<String> = events.into_iter().match_pattern(pattern).collect();
-    assert!(signals.is_empty(), "purchase within window cancels the pattern");
+    assert!(
+        signals.is_empty(),
+        "purchase within window cancels the pattern"
+    );
 }
 
 #[test]

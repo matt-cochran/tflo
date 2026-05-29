@@ -305,10 +305,7 @@ mod tests {
         }
 
         let value = rsi.rsi();
-        assert!(
-            (0.0..=100.0).contains(&value),
-            "RSI {value} out of bounds"
-        );
+        assert!((0.0..=100.0).contains(&value), "RSI {value} out of bounds");
     }
 
     #[test]

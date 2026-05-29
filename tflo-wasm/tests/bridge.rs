@@ -145,7 +145,10 @@ fn wasm_value_round_trip() {
     let last = arr.last().unwrap();
     let obj = last.as_object().expect("element is an object");
     for key in ["macd", "signal", "histogram"] {
-        assert!(obj.contains_key(key), "missing key `{key}` after round-trip");
+        assert!(
+            obj.contains_key(key),
+            "missing key `{key}` after round-trip"
+        );
         assert!(
             obj[key].is_number(),
             "key `{key}` should be a JS number, got {:?}",
@@ -177,8 +180,8 @@ fn wasm_error_path_returns_typed_error() {
 
     // Malformed config — missing the `period` field entirely.
     let out = compute_sma("[]", "{\"per\":3}");
-    let v: serde_json::Value = serde_json::from_str(&out)
-        .expect("envelope from missing-field error must be valid JSON");
+    let v: serde_json::Value =
+        serde_json::from_str(&out).expect("envelope from missing-field error must be valid JSON");
     let msg = v.get("error").and_then(|e| e.as_str()).unwrap();
     assert!(
         msg.contains("invalid config"),

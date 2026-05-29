@@ -438,7 +438,9 @@ mod tests {
 
         match iter.next() {
             Some(Err(RhaiError::EvaluationError { .. })) => {}
-            other => panic!("expected Some(Err(EvaluationError)) from operations cap, got {other:?}"),
+            other => {
+                panic!("expected Some(Err(EvaluationError)) from operations cap, got {other:?}")
+            }
         }
     }
 
@@ -466,7 +468,9 @@ mod tests {
 
         match iter.next() {
             Some(Err(RhaiError::EvaluationError { .. })) => {}
-            other => panic!("expected Some(Err(EvaluationError)) from call-depth cap, got {other:?}"),
+            other => {
+                panic!("expected Some(Err(EvaluationError)) from call-depth cap, got {other:?}")
+            }
         }
     }
 }

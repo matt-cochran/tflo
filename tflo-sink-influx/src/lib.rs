@@ -1,5 +1,16 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::map_err_ignore))]
-#![deny(clippy::print_stdout)] // library code must not write to stdout
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::map_err_ignore
+    )
+)]
+#![deny(clippy::print_stdout)]
+// library code must not write to stdout
 // Numeric streaming-engine intent-allows (see tflo-core for rationale).
 #![allow(
     clippy::cast_precision_loss,
@@ -320,11 +331,15 @@ impl<H: InfluxHttpClient> std::fmt::Debug for Batcher<H> {
             .field("max_age", &self.max_age)
             .field(
                 "flushes_total",
-                &self.flushes_total.load(std::sync::atomic::Ordering::Relaxed),
+                &self
+                    .flushes_total
+                    .load(std::sync::atomic::Ordering::Relaxed),
             )
             .field(
                 "dropped_total",
-                &self.dropped_total.load(std::sync::atomic::Ordering::Relaxed),
+                &self
+                    .dropped_total
+                    .load(std::sync::atomic::Ordering::Relaxed),
             )
             .finish()
     }
@@ -466,7 +481,9 @@ impl<H: InfluxHttpClient> Batcher<H> {
     ///
     /// Returns an error string when the triggered HTTP write fails.
     pub async fn tick(&self) -> Result<(), String> {
-        let Some(max) = self.max_age else { return Ok(()) };
+        let Some(max) = self.max_age else {
+            return Ok(());
+        };
         let mut buf = self.buffered.lock().await;
         if buf.0.is_empty() {
             return Ok(());
@@ -535,10 +552,7 @@ mod tests {
             .timestamp_ns(1_700_000_000_000_000_000)
             .format()
             .expect("ok");
-        assert_eq!(
-            line,
-            "cpu,host=web01 usage=0.84 1700000000000000000"
-        );
+        assert_eq!(line, "cpu,host=web01 usage=0.84 1700000000000000000");
     }
 
     #[test]

@@ -163,7 +163,11 @@ fn timer_fires_on_idle_advance_event_time_watermark() {
     assert_eq!(*trace.lock().unwrap(), vec![50_i64]);
 
     let next = iter.next().expect("timer-fired item").expect("ok");
-    assert_eq!(next.ctx.timestamp(), 50, "timer fire carries fire_ts as ctx");
+    assert_eq!(
+        next.ctx.timestamp(),
+        50,
+        "timer fire carries fire_ts as ctx"
+    );
     assert_eq!(next.value, Some(50));
 }
 
@@ -195,8 +199,8 @@ fn advance_event_time_watermark_rejects_backward_moves() {
 #[test]
 fn delete_event_time_timer_cancels_pending_fire() {
     let data = vec![
-        rec(10, 1.0, "k"), // registers the timer at fire_ts=50
-        rec(20, 0.0, "k"), // marker → eval calls delete_event_time_timer
+        rec(10, 1.0, "k"),  // registers the timer at fire_ts=50
+        rec(20, 0.0, "k"),  // marker → eval calls delete_event_time_timer
         rec(100, 5.0, "k"), // watermark advances past fire_ts=50; no fire
     ];
     let (iter, trace) = build_probe_iter(data.into_iter(), 50, OutOfOrderPolicy::Error);

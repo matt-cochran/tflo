@@ -104,9 +104,7 @@ fn main() {
         .collect();
     for (ts, cross) in vibration.iter().map(|s| s.ts).zip(&hysteresis) {
         if *cross != ThresholdCrossEventMode::None {
-            println!(
-                "  ts={ts:>6} cross with hysteresis (margin=1.0): {cross:?}"
-            );
+            println!("  ts={ts:>6} cross with hysteresis (margin=1.0): {cross:?}");
         }
     }
 

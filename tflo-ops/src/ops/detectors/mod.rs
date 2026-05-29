@@ -117,11 +117,7 @@ impl<R: 'static> CrossOps<R> for Comp<R, f64> {
         Self::custom_node_dyn(self, &[other], || boxed(CrossOp::new(CrossMode::Under)))
     }
 
-    fn cross_hysteresis(
-        &self,
-        threshold: &Self,
-        margin: f64,
-    ) -> Comp<R, ThresholdCrossEventMode> {
+    fn cross_hysteresis(&self, threshold: &Self, margin: f64) -> Comp<R, ThresholdCrossEventMode> {
         Self::custom_node_dyn(self, &[threshold], move || {
             boxed(CrossHysteresisOp::new(HysteresisCrossDetector::new(margin)))
         })

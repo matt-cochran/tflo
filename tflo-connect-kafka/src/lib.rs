@@ -1,4 +1,13 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )
+)]
 #![deny(clippy::print_stdout)] // library code must not write to stdout
 //! Kafka adapter for tflo keyed execution — **Phase 2 contracts**.
 //!
@@ -35,17 +44,17 @@
 #![warn(missing_debug_implementations)]
 #![deny(unsafe_code)]
 
-use tflo_core::adapter::Cursor;
 #[cfg(feature = "async")]
 pub use crate::consumer::KafkaConsumer;
 #[cfg(feature = "async")]
 pub use crate::shard::KafkaShardRouter;
+use tflo_core::adapter::Cursor;
 
+pub mod consumer;
+pub mod cursor_store;
 #[cfg(feature = "rdkafka-backend")]
 pub mod rdkafka_backend;
-pub mod cursor_store;
 pub mod shard;
-pub mod consumer;
 
 pub use crate::cursor_store::InMemoryCursorStore;
 
@@ -327,7 +336,9 @@ mod tests {
             partition: 0,
             offset: 1,
         };
-        AsyncCursorStore::save_cursor(&s, b"k", &off).await.expect("ok");
+        AsyncCursorStore::save_cursor(&s, b"k", &off)
+            .await
+            .expect("ok");
         assert_eq!(
             AsyncCursorStore::load_cursor(&s, b"k").await.expect("ok"),
             Some(off)

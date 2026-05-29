@@ -446,7 +446,9 @@ where
         let remaining: Vec<crate::timer::TimerEntry> = self.timer_service.drain_all();
         for entry in remaining {
             self.timer_service.register(entry.fire_ts, entry.node_id);
-            let fired = self.graph.fire_due_timers(&mut self.timer_service, entry.fire_ts);
+            let fired = self
+                .graph
+                .fire_due_timers(&mut self.timer_service, entry.fire_ts);
             for (fire_ts, value) in fired {
                 self.last_ts = Some(self.last_ts.map_or(fire_ts, |last| last.max(fire_ts)));
                 released.push(PipelineItem {

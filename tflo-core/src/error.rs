@@ -227,7 +227,11 @@ impl std::fmt::Display for ComputeError {
                 f,
                 "non-monotonic event-time watermark advance: last={last}, attempted={attempted}"
             ),
-            Self::IncompatibleSnapshotVersion { expected, actual, hint } => write!(
+            Self::IncompatibleSnapshotVersion {
+                expected,
+                actual,
+                hint,
+            } => write!(
                 f,
                 "incompatible snapshot format version: expected={expected}, actual={actual} ({hint})"
             ),

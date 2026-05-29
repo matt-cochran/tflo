@@ -238,9 +238,7 @@ where
     fn advance_deadlines(&mut self, ts: i64, out: &mut Vec<M>) {
         let mut i = 0;
         while i < self.in_flight.len() {
-            let expired = self.in_flight[i]
-                .deadline_ts
-                .is_some_and(|d| ts > d);
+            let expired = self.in_flight[i].deadline_ts.is_some_and(|d| ts > d);
             if !expired {
                 i = i.saturating_add(1);
                 continue;

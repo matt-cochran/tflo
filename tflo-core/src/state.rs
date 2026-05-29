@@ -236,7 +236,9 @@ impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> std::fmt::Debug
             .field("circuit_threshold", &self.circuit_threshold)
             .field(
                 "commits_total",
-                &self.commits_total.load(std::sync::atomic::Ordering::Relaxed),
+                &self
+                    .commits_total
+                    .load(std::sync::atomic::Ordering::Relaxed),
             )
             .field(
                 "failures_total",
@@ -331,7 +333,10 @@ impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> Checkpointer<C, S, X
 
         // Stage 1 — state snapshot. Crash here = orphan snapshot, will be
         // ignored on restart because the cursor is still old.
-        if let Err(e) = self.with_deadline("state.save", self.state.save(key, snapshot)).await? {
+        if let Err(e) = self
+            .with_deadline("state.save", self.state.save(key, snapshot))
+            .await?
+        {
             self.record_failure();
             return Err(CheckpointError::StateStore(e));
         }

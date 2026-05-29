@@ -230,14 +230,12 @@ async fn main() -> Result<(), String> {
             .map(|d| d.as_nanos())
             .unwrap_or(0)
     ));
-    let state_store = Arc::new(
-        FileStateStore::new(&state_dir).map_err(|e| format!("FileStateStore: {e}"))?,
-    );
+    let state_store =
+        Arc::new(FileStateStore::new(&state_dir).map_err(|e| format!("FileStateStore: {e}"))?);
 
     // KafkaShardRouter — required AsyncStateStore param is the
     // Phase 1 / Phase 2 poka-yoke.
-    let router: KafkaShardRouter<FileStateStore> =
-        KafkaShardRouter::new(Arc::clone(&state_store));
+    let router: KafkaShardRouter<FileStateStore> = KafkaShardRouter::new(Arc::clone(&state_store));
 
     // Cursor store for Kafka offsets.
     let cursor_store = Arc::new(tflo_connect_kafka::InMemoryCursorStore::new());
@@ -333,7 +331,11 @@ async fn main() -> Result<(), String> {
             let ts_ms = v["ts_ms"].as_i64().unwrap_or(0);
             #[allow(clippy::indexing_slicing)]
             let value = v["value"].as_f64().unwrap_or(0.0);
-            Reading { device_id, ts_ms, value }
+            Reading {
+                device_id,
+                ts_ms,
+                value,
+            }
         };
         if let Some(ev) = detect_threshold(&mut history, &reading, 60.0, 2.0) {
             // SAFETY: detected-event counter bounded by simulated 30 messages; cannot overflow u64
@@ -371,21 +373,20 @@ async fn main() -> Result<(), String> {
 
     // ── 3. Central worker: rebalance, consume, checkpoint, Influx ────
     println!("[central] applying rebalance: assign partitions 0,1,2...");
-    router
-        .apply_rebalance(&RebalanceEvent::Assigned(vec![
-            TopicPartition {
-                topic: "lifecycle-events".into(),
-                partition: 0,
-            },
-            TopicPartition {
-                topic: "lifecycle-events".into(),
-                partition: 1,
-            },
-            TopicPartition {
-                topic: "lifecycle-events".into(),
-                partition: 2,
-            },
-        ]))?;
+    router.apply_rebalance(&RebalanceEvent::Assigned(vec![
+        TopicPartition {
+            topic: "lifecycle-events".into(),
+            partition: 0,
+        },
+        TopicPartition {
+            topic: "lifecycle-events".into(),
+            partition: 1,
+        },
+        TopicPartition {
+            topic: "lifecycle-events".into(),
+            partition: 2,
+        },
+    ]))?;
     println!(
         "[central] router epoch is now {}, owns 3 partitions",
         ShardRouter::<TopicPartition>::assignment_epoch(&router)
@@ -416,7 +417,10 @@ async fn main() -> Result<(), String> {
         }
 
         // Write to Influx via line-protocol.
-        let payload = msg.payload.as_deref().ok_or_else(|| "tombstone message".to_string())?;
+        let payload = msg
+            .payload
+            .as_deref()
+            .ok_or_else(|| "tombstone message".to_string())?;
         let event: LifecycleEvent = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
         let line = LineProtocol::new("lifecycle")
             .tag("device_id", &event.device_id)
@@ -470,19 +474,13 @@ async fn main() -> Result<(), String> {
 
     // Simulate a rebalance revoking partition 1 — the epoch must bump.
     let epoch_before = ShardRouter::<TopicPartition>::assignment_epoch(&router);
-    router
-        .apply_rebalance(&RebalanceEvent::Revoked(vec![TopicPartition {
-            topic: "lifecycle-events".into(),
-            partition: 1,
-        }]))?;
+    router.apply_rebalance(&RebalanceEvent::Revoked(vec![TopicPartition {
+        topic: "lifecycle-events".into(),
+        partition: 1,
+    }]))?;
     let epoch_after = ShardRouter::<TopicPartition>::assignment_epoch(&router);
-    assert!(
-        epoch_after > epoch_before,
-        "epoch must bump on rebalance"
-    );
-    println!(
-        "[central] rebalance: epoch {epoch_before} -> {epoch_after} (partition 1 revoked)"
-    );
+    assert!(epoch_after > epoch_before, "epoch must bump on rebalance");
+    println!("[central] rebalance: epoch {epoch_before} -> {epoch_after} (partition 1 revoked)");
 
     // ── 5. Demonstrate schema fingerprint for Parquet backfill ───────
     use arrow::array::{Float64Array, Int64Array, StringArray};

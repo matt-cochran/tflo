@@ -17,8 +17,8 @@
 #![cfg(all(feature = "integration-tests", feature = "rdkafka-backend"))]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
@@ -26,11 +26,11 @@ use rdkafka::client::DefaultClientContext;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::{ClientConfig, Offset, TopicPartitionList};
+use testcontainers::ContainerAsync;
 use testcontainers::core::ImageExt;
 use testcontainers::runners::AsyncRunner;
-use testcontainers::ContainerAsync;
-use testcontainers_modules::kafka::{Kafka, KAFKA_PORT};
-use tokio::sync::{mpsc::unbounded_channel, OwnedSemaphorePermit, Semaphore};
+use testcontainers_modules::kafka::{KAFKA_PORT, Kafka};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc::unbounded_channel};
 
 use tflo_connect_kafka::rdkafka_backend::{RdKafkaConsumer, RdKafkaProducer};
 use tflo_connect_kafka::{
@@ -409,7 +409,10 @@ async fn kafka_shard_router_owned_partitions() {
     router
         .apply_rebalance(&RebalanceEvent::Revoked(vec![revoked.clone()]))
         .expect("rebalance revoke ok");
-    assert!(!router.owns(&revoked), "router must not own revoked partition");
+    assert!(
+        !router.owns(&revoked),
+        "router must not own revoked partition"
+    );
 }
 
 /// Error-path contract: when the adapter is pointed at an unreachable
@@ -473,7 +476,8 @@ async fn kafka_unreachable_broker_surfaces_typed_error() {
     // that is itself a failure of this contract.
     let outcome = tokio::time::timeout(Duration::from_secs(10), cons.poll()).await;
 
-    let result = outcome.expect("adapter must surface broker-unreachable within 10s budget, not hang");
+    let result =
+        outcome.expect("adapter must surface broker-unreachable within 10s budget, not hang");
 
     // Must be the error path — getting `Ok(Some(_))` against 127.0.0.1:1
     // would mean something is listening there and the test environment

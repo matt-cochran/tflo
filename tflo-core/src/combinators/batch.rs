@@ -31,7 +31,11 @@ use std::time::Duration;
 /// assert_eq!(batches[1].len(), 1); // 2500
 /// assert_eq!(batches[2].len(), 1); // 3500
 /// ```
-pub const fn batch_by_time<I, T, F, K>(iter: I, key_fn: F, interval: Duration) -> BatchByTime<I, T, F>
+pub const fn batch_by_time<I, T, F, K>(
+    iter: I,
+    key_fn: F,
+    interval: Duration,
+) -> BatchByTime<I, T, F>
 where
     I: Iterator<Item = T>,
     F: Fn(&T) -> K,
@@ -44,7 +48,11 @@ where
     // saturation over `Result<>` because the only sensible recovery for
     // "I gave you a zero-width window" is "treat each record as its own
     // bucket", which is exactly what 1ms gives you.
-    let interval_ms = if interval_ms_raw < 1 { 1 } else { interval_ms_raw };
+    let interval_ms = if interval_ms_raw < 1 {
+        1
+    } else {
+        interval_ms_raw
+    };
     BatchByTime {
         iter,
         key_fn,

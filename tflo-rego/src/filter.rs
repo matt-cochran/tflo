@@ -218,12 +218,7 @@ where
     I: Iterator<Item = T>,
     T: IntoRegoInput,
 {
-    fn new(
-        iter: I,
-        engine: Arc<Mutex<PolicyEngine>>,
-        query: &str,
-        budget_ms: Option<u64>,
-    ) -> Self {
+    fn new(iter: I, engine: Arc<Mutex<PolicyEngine>>, query: &str, budget_ms: Option<u64>) -> Self {
         Self {
             iter,
             engine,
@@ -332,12 +327,7 @@ where
     I: Iterator<Item = T>,
     T: IntoRegoInput,
 {
-    fn new(
-        iter: I,
-        engine: Arc<Mutex<PolicyEngine>>,
-        query: &str,
-        budget_ms: Option<u64>,
-    ) -> Self {
+    fn new(iter: I, engine: Arc<Mutex<PolicyEngine>>, query: &str, budget_ms: Option<u64>) -> Self {
         Self {
             iter,
             engine,
@@ -474,10 +464,7 @@ mod tests {
         let engine = Arc::new(Mutex::new(PolicyEngine::new()));
         let items = vec![TestItem { value: 42 }];
 
-        let collected: Vec<TestItem> = items
-            .into_iter()
-            .rego_filter(engine, ERROR_QUERY)
-            .collect();
+        let collected: Vec<TestItem> = items.into_iter().rego_filter(engine, ERROR_QUERY).collect();
 
         assert!(
             collected.is_empty(),
@@ -495,11 +482,10 @@ mod tests {
             ..PolicyConfig::default()
         };
 
-        let mut iter = items.into_iter().rego_filter_result_with_config(
-            engine,
-            "data.test.allow",
-            &config,
-        );
+        let mut iter =
+            items
+                .into_iter()
+                .rego_filter_result_with_config(engine, "data.test.allow", &config);
 
         let first = iter.next().expect("expected one item");
         match first {

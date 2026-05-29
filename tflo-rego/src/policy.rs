@@ -9,10 +9,10 @@ use crate::error::{RegoError, RegoResult};
 // `RegoError` is brought into scope above for intra-doc-link resolution
 // in the `# Errors` sections of the methods below. Without this `use`,
 // `[`RegoError::EvaluationError`]` cannot resolve and rustdoc fails.
-#[allow(unused_imports)]
-use RegoError as _;
 use crate::traits::IntoRegoInput;
 use crate::value_codec::{extract_bool, value_to_json};
+#[allow(unused_imports)]
+use RegoError as _;
 use regorus::Engine;
 
 /// Rego policy engine for evaluating OPA policies.

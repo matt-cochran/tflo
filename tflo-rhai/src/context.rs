@@ -1,8 +1,8 @@
 //! Rhai scope conversion traits and helpers.
 
+pub use crate::traits::{IntoRhaiDynamic, IntoRhaiScope};
 use rhai::{Dynamic, Scope};
 use std::collections::HashMap;
-pub use crate::traits::{IntoRhaiDynamic, IntoRhaiScope};
 
 /// Helper struct for building Rhai scopes.
 #[derive(Debug, Default)]

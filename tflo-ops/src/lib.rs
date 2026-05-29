@@ -11,7 +11,16 @@
 //! use tflo_ops::prelude::*;
 //! ```
 
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )
+)]
 // ── Phase 5 intent-allows for the numeric streaming engine ─────────────
 // `tflo-ops` is the operator catalog: windowed statistics, detectors,
 // trackers. Every operator works in `f64`; integer counts and i64

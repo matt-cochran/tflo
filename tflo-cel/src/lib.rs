@@ -1,5 +1,16 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use))]
-#![deny(clippy::print_stdout)] // library code must not write to stdout
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::let_underscore_must_use
+    )
+)]
+#![deny(clippy::print_stdout)]
+// library code must not write to stdout
 // The `into_cel_context` conversion trait deliberately borrows rather than
 // consuming `self`.
 #![allow(clippy::wrong_self_convention)]

@@ -1,8 +1,8 @@
 //! Rego input conversion traits and helpers.
 
+pub use crate::traits::IntoRegoInput;
 use serde::Serialize;
 use serde_json::Value;
-pub use crate::traits::IntoRegoInput;
 
 /// Blanket implementation for Serialize types.
 impl<T: Serialize> IntoRegoInput for T {

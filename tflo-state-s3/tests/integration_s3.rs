@@ -36,7 +36,12 @@
 //! and `s3_unreachable_endpoint_surfaces_error` (network error with no
 //! server at all).
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)]
 
 // The integration-tests feature is only meaningful in combination with the
 // `async` feature, which provides the `AsyncStateStore` impl this test
@@ -49,11 +54,11 @@ mod localstack_tests {
     use async_trait::async_trait;
     use aws_config::BehaviorVersion;
     use aws_credential_types::Credentials;
+    use aws_sdk_s3::Client as AwsS3;
     use aws_sdk_s3::config::Region;
     use aws_sdk_s3::primitives::ByteStream;
-    use aws_sdk_s3::Client as AwsS3;
-    use testcontainers::runners::AsyncRunner;
     use testcontainers::ContainerAsync;
+    use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::localstack::LocalStack;
     use tflo_core::keyed::{SnapshotMetadata, StateSnapshot};
     use tflo_core::state::AsyncStateStore;
@@ -73,10 +78,7 @@ mod localstack_tests {
     /// The SDK's bare `Display` on `SdkError` collapses service errors to
     /// `"service error"` with no code — we widen that here so failure
     /// modes are diagnosable both in tests and in prod logs.
-    fn format_sdk_error<E, R>(
-        op: &str,
-        err: &aws_sdk_s3::error::SdkError<E, R>,
-    ) -> String
+    fn format_sdk_error<E, R>(op: &str, err: &aws_sdk_s3::error::SdkError<E, R>) -> String
     where
         E: aws_sdk_s3::error::ProvideErrorMetadata + std::fmt::Debug,
     {
@@ -94,12 +96,7 @@ mod localstack_tests {
 
     #[async_trait]
     impl S3Client for LocalstackS3Client {
-        async fn put_object(
-            &self,
-            bucket: &str,
-            key: &str,
-            data: &[u8],
-        ) -> Result<(), String> {
+        async fn put_object(&self, bucket: &str, key: &str, data: &[u8]) -> Result<(), String> {
             self.inner
                 .put_object()
                 .bucket(bucket)
@@ -111,11 +108,7 @@ mod localstack_tests {
                 .map_err(|e| format_sdk_error("put_object", &e))
         }
 
-        async fn get_object(
-            &self,
-            bucket: &str,
-            key: &str,
-        ) -> Result<Option<Vec<u8>>, String> {
+        async fn get_object(&self, bucket: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
             match self.inner.get_object().bucket(bucket).key(key).send().await {
                 Ok(out) => {
                     let bytes = out
@@ -130,8 +123,9 @@ mod localstack_tests {
                 Err(err) => {
                     // Treat NoSuchKey as "absent", surface anything else as Err.
                     let service_err = err.as_service_error();
-                    if service_err.is_some_and(aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key)
-                    {
+                    if service_err.is_some_and(
+                        aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key,
+                    ) {
                         Ok(None)
                     } else {
                         Err(format!("get_object failed: {err}"))
@@ -140,19 +134,11 @@ mod localstack_tests {
             }
         }
 
-        async fn list_objects(
-            &self,
-            bucket: &str,
-            prefix: &str,
-        ) -> Result<Vec<String>, String> {
+        async fn list_objects(&self, bucket: &str, prefix: &str) -> Result<Vec<String>, String> {
             let mut keys = Vec::new();
             let mut continuation: Option<String> = None;
             loop {
-                let mut req = self
-                    .inner
-                    .list_objects_v2()
-                    .bucket(bucket)
-                    .prefix(prefix);
+                let mut req = self.inner.list_objects_v2().bucket(bucket).prefix(prefix);
                 if let Some(token) = continuation.as_deref() {
                     req = req.continuation_token(token);
                 }
@@ -342,8 +328,14 @@ mod localstack_tests {
             let store = build_store(&h);
 
             // Two keys the store will write under `ckp/`.
-            store.save(b"prefix-a", &make_snap(1)).await.expect("save a");
-            store.save(b"prefix-b", &make_snap(2)).await.expect("save b");
+            store
+                .save(b"prefix-a", &make_snap(1))
+                .await
+                .expect("save a");
+            store
+                .save(b"prefix-b", &make_snap(2))
+                .await
+                .expect("save b");
 
             // Plant a foreign object OUTSIDE the store's prefix. `list_keys`
             // must NOT return it, because parse_object_key strips the prefix
@@ -419,13 +411,11 @@ mod localstack_tests {
             };
             // The adapter wraps the SDK error; the SDK's `Display`
             // includes the service error code (`NoSuchBucket`) and/or
-                // the HTTP status (`404`). Accept any of the canonical
-                // surface strings.
+            // the HTTP status (`404`). Accept any of the canonical
+            // surface strings.
             let lower = err.to_lowercase();
             assert!(
-                err.contains("NoSuchBucket")
-                    || lower.contains("bucket")
-                    || err.contains("404"),
+                err.contains("NoSuchBucket") || lower.contains("bucket") || err.contains("404"),
                 "expected error to mention bucket/NoSuchBucket/404, got: {err}",
             );
         })
@@ -478,11 +468,7 @@ mod localstack_tests {
             let aws = AwsS3::from_conf(s3_conf);
 
             let bucket = format!("test-{}", Uuid::new_v4());
-            let store = S3StateStore::new(
-                LocalstackS3Client { inner: aws },
-                bucket,
-                "ckp/".into(),
-            );
+            let store = S3StateStore::new(LocalstackS3Client { inner: aws }, bucket, "ckp/".into());
             let snap = make_snap(1);
             let res = store.save(b"k1", &snap).await;
             // We don't pin the SDK's exact wording — just that it errored

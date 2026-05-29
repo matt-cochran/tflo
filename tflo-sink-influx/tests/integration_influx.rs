@@ -53,10 +53,7 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// Returns `(container, base_url)`. The container handle must be kept
 /// alive for the duration of the test; dropping it terminates the
 /// container.
-async fn start_influx() -> (
-    testcontainers::ContainerAsync<GenericImage>,
-    String,
-) {
+async fn start_influx() -> (testcontainers::ContainerAsync<GenericImage>, String) {
     // `influxdb:2.7` with `DOCKER_INFLUXDB_INIT_MODE=setup` performs a
     // one-shot setup on first boot. Any subsequent boot of the same
     // volume is a no-op; we don't mount a volume so every test gets a

@@ -1,4 +1,14 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::let_underscore_must_use
+    )
+)]
 #![deny(clippy::print_stdout)] // library code must not write to stdout
 //! File-based state store backend for tflo checkpoints.
 //!
@@ -72,10 +82,7 @@ fn atomic_write_helper(path: &Path, data: &[u8]) -> Result<(), String> {
     let mut file = match fs::File::create(&tmp) {
         Ok(f) => f,
         Err(e) => {
-            return Err(format!(
-                "Failed to create temp file {}: {e}",
-                tmp.display()
-            ));
+            return Err(format!("Failed to create temp file {}: {e}", tmp.display()));
         }
     };
     if let Err(e) = file.write_all(data) {
@@ -213,8 +220,8 @@ impl tflo_core::state::AsyncStateStore for FileStateStore {
         let base = self.base_dir.clone();
         tokio::task::spawn_blocking(move || -> Result<Vec<Vec<u8>>, String> {
             let mut keys = Vec::new();
-            let entries = fs::read_dir(&base)
-                .map_err(|e| format!("Failed to read directory: {e}"))?;
+            let entries =
+                fs::read_dir(&base).map_err(|e| format!("Failed to read directory: {e}"))?;
             for entry in entries {
                 let entry = entry.map_err(|e| format!("Failed to read directory entry: {e}"))?;
                 let path = entry.path();
@@ -236,8 +243,7 @@ impl tflo_core::state::AsyncStateStore for FileStateStore {
         let path = self.key_to_path(key);
         tokio::task::spawn_blocking(move || -> Result<(), String> {
             if path.exists() {
-                fs::remove_file(&path)
-                    .map_err(|e| format!("Failed to remove snapshot: {e}"))?;
+                fs::remove_file(&path).map_err(|e| format!("Failed to remove snapshot: {e}"))?;
             }
             Ok(())
         })
@@ -367,7 +373,9 @@ mod async_tests {
                 topology_fingerprint: Some([7u8; 32]),
             },
         };
-        AsyncStateStore::save(&store, b"k", &snap).await.expect("save ok");
+        AsyncStateStore::save(&store, b"k", &snap)
+            .await
+            .expect("save ok");
         let loaded = AsyncStateStore::load(&store, b"k").await.expect("load ok");
         assert!(loaded.is_some());
         let loaded = loaded.expect("present");

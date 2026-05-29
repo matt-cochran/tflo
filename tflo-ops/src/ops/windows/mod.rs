@@ -197,7 +197,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Mean)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Mean)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -206,7 +208,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Ema::Time(TimeEma::new(d))),
             Window::Count(n) => boxed(Ema::Count(CountEma::new(n))),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -215,7 +219,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Std)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Std)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -224,7 +230,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Variance)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Variance)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -233,7 +241,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Max)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Max)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -242,7 +252,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Min)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Min)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -251,7 +263,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Sum)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Sum)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -260,7 +274,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(TimeWindow::new(d), Count)),
             Window::Count(n) => boxed(Windowed::new(CountWindow::new(n), Count)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -269,7 +285,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(WmaTimeWindow::new(d), Wma)),
             Window::Count(n) => boxed(Windowed::new(WmaCountWindow::new(n), Wma)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -278,7 +296,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(RsiTimeWindow::new(d), Rsi)),
             Window::Count(n) => boxed(Windowed::new(RsiCountWindow::new(n), Rsi)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -291,7 +311,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MedianTimeWindow::new(d), Median)),
             Window::Count(n) => boxed(Windowed::new(MedianCountWindow::new(n), Median)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -306,7 +328,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
                 window: MedianCountWindow::new(n),
                 q,
             }),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -315,7 +339,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MedianTimeWindow::new(d), Rank)),
             Window::Count(n) => boxed(Windowed::new(MedianCountWindow::new(n), Rank)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -324,7 +350,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MomentsTimeWindow::new(d), Skewness)),
             Window::Count(n) => boxed(Windowed::new(MomentsCountWindow::new(n), Skewness)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -333,7 +361,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
         Self::custom_node1_dyn(self, move || match w {
             Window::Time(d) => boxed(Windowed::new(MomentsTimeWindow::new(d), Kurtosis)),
             Window::Count(n) => boxed(Windowed::new(MomentsCountWindow::new(n), Kurtosis)),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -348,7 +378,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
                 CorrelationCountWindow::new(n),
                 Correlation,
             )),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 
@@ -363,7 +395,9 @@ impl<R: 'static> WindowOps<R> for Comp<R, f64> {
                 CorrelationCountWindow::new(n),
                 Covariance,
             )),
-            Window::Session { .. } | Window::Tumbling { .. } => panic_emit_trigger_on_sliding("sliding-aggregation"),
+            Window::Session { .. } | Window::Tumbling { .. } => {
+                panic_emit_trigger_on_sliding("sliding-aggregation")
+            }
         })
     }
 }

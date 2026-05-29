@@ -108,7 +108,12 @@ impl RumqttcProducer {
 impl MqttProducer for RumqttcProducer {
     async fn publish(&self, msg: &MqttPublish) -> Result<(), String> {
         self.client
-            .publish(&msg.topic, to_rumqttc_qos(msg.qos), msg.retain, msg.payload.clone())
+            .publish(
+                &msg.topic,
+                to_rumqttc_qos(msg.qos),
+                msg.retain,
+                msg.payload.clone(),
+            )
             .await
             .map_err(|e| format!("publish failed: {e}"))
     }

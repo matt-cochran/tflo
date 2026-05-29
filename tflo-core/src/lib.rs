@@ -198,7 +198,18 @@
 #![deny(unsafe_code)]
 // Test code may freely `unwrap`/`expect`/`panic!` — the panic-freedom lints
 // only police production code paths.
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::let_underscore_must_use, clippy::map_err_ignore))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::let_underscore_must_use,
+        clippy::map_err_ignore
+    )
+)]
 // ── Phase 5 intent-allows for the numeric streaming engine ─────────────
 // `tflo-core` is the engine: timestamps cross between `i64` and `usize`
 // constantly, window arithmetic moves integer counts into `f64`, and
@@ -227,6 +238,8 @@ pub mod keyed;
 pub mod metrics;
 pub mod operator;
 pub use operator::{BivariateWindow, WindowPrimitive};
+#[cfg(feature = "async")]
+pub mod dedup;
 pub mod pipeline;
 pub mod scalar;
 /// Behavioral contracts and guarantees provided by the computation graph
@@ -238,11 +251,9 @@ pub mod semantics;
 pub mod shard;
 #[cfg(feature = "async")]
 pub mod state;
-#[cfg(feature = "async")]
-pub mod dedup;
-pub mod timer;
 /// Time point trait for generic time type abstraction.
 pub mod timepoint;
+pub mod timer;
 pub mod validation;
 pub mod window;
 
@@ -280,9 +291,7 @@ pub mod prelude {
     pub use crate::scalar::Scalar;
     pub use crate::shard::{AssignmentEpoch, DropReason, LocalShard, ShardRouter};
     #[cfg(feature = "async")]
-    pub use crate::state::{
-        AsyncCursorStore, AsyncStateStore, CheckpointError, Checkpointer,
-    };
+    pub use crate::state::{AsyncCursorStore, AsyncStateStore, CheckpointError, Checkpointer};
     pub use crate::timepoint::TimePoint;
     pub use crate::validation::ValidationOptions;
     pub use crate::validation::{

@@ -4,11 +4,13 @@
 //! Gated behind the `rdkafka-backend` feature so the crate stays buildable
 //! on hosts without librdkafka system deps.
 
-use crate::{KafkaConsumer, KafkaMessage, KafkaOffset, KafkaProducer, RebalanceEvent, TopicPartition};
+use crate::{
+    KafkaConsumer, KafkaMessage, KafkaOffset, KafkaProducer, RebalanceEvent, TopicPartition,
+};
 use rdkafka::{
+    Message, TopicPartitionList,
     consumer::{Consumer, StreamConsumer},
     producer::{FutureProducer, FutureRecord},
-    Message, TopicPartitionList,
 };
 use std::time::Duration;
 

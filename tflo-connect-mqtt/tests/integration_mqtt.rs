@@ -115,10 +115,7 @@ async fn await_suback(el: &mut EventLoop, deadline: Duration) -> Result<(), Stri
 
 /// Drain the event loop until a Publish arrives or the deadline elapses.
 /// Discards `ConnAck` / `SubAck` / `PingResp` / etc.
-async fn await_publish(
-    el: &mut EventLoop,
-    deadline: Duration,
-) -> Result<rumqttc::Publish, String> {
+async fn await_publish(el: &mut EventLoop, deadline: Duration) -> Result<rumqttc::Publish, String> {
     let fut = async {
         loop {
             match el.poll().await {

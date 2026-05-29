@@ -1,6 +1,10 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 #![deny(clippy::print_stdout)]
-#![allow(clippy::use_self, clippy::missing_const_for_fn, clippy::needless_pass_by_value)]
+#![allow(
+    clippy::use_self,
+    clippy::missing_const_for_fn,
+    clippy::needless_pass_by_value
+)]
 #![allow(missing_docs)] // wasm-bindgen-exposed types document themselves via TS .d.ts emission
 
 //! WebAssembly bindings for [`tflo-cep`].
@@ -27,10 +31,8 @@ use std::rc::Rc;
 use js_sys::{Array, Function};
 use wasm_bindgen::prelude::*;
 
-use tflo_cep::engine::{
-    Compiled, EmitCallback, Predicate, Runtime, Step, TimestampCallback,
-};
 use tflo_cep::Match;
+use tflo_cep::engine::{Compiled, EmitCallback, Predicate, Runtime, Step, TimestampCallback};
 
 /// Initialize the panic hook for better error messages in the browser
 /// console. Idempotent — safe to call multiple times.
@@ -61,7 +63,9 @@ struct JsEmit(Rc<Function>);
 impl EmitCallback<JsValue, JsValue> for JsEmit {
     fn emit(&self, m: &Match<JsValue>) -> JsValue {
         let match_obj = build_match_object(m);
-        self.0.call1(&JsValue::NULL, &match_obj).unwrap_or(JsValue::UNDEFINED)
+        self.0
+            .call1(&JsValue::NULL, &match_obj)
+            .unwrap_or(JsValue::UNDEFINED)
     }
 }
 
@@ -210,7 +214,9 @@ impl WasmPattern {
     pub fn emit(self, f: Function) -> Result<WasmCompiledPattern, JsError> {
         let s = self.inner.borrow();
         if s.steps.is_empty() {
-            return Err(JsError::new("pattern is missing the initial .when(...) step"));
+            return Err(JsError::new(
+                "pattern is missing the initial .when(...) step",
+            ));
         }
         let last_idx = s.steps.len().saturating_sub(1);
         for (i, step) in s.steps.iter().enumerate() {
@@ -354,17 +360,22 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
             .cloned()
             .unwrap_or(JsValue::UNDEFINED)
     });
-    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("first"), first.as_ref()));
+    drop(js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("first"),
+        first.as_ref(),
+    ));
     first.forget();
 
     let last_captures = captures_rc.clone();
     let last = Closure::<dyn Fn() -> JsValue>::new(move || {
-        last_captures
-            .last()
-            .cloned()
-            .unwrap_or(JsValue::UNDEFINED)
+        last_captures.last().cloned().unwrap_or(JsValue::UNDEFINED)
     });
-    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("last"), last.as_ref()));
+    drop(js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("last"),
+        last.as_ref(),
+    ));
     last.forget();
 
     let all_captures = captures_rc;
@@ -375,16 +386,17 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
         }
         arr.into()
     });
-    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("all"), all.as_ref()));
+    drop(js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("all"),
+        all.as_ref(),
+    ));
     all.forget();
 
     // For step-name lookup, use Match::named() to iterate (name, event)
     // pairs directly.
-    let pairs: Rc<Vec<(String, JsValue)>> = Rc::new(
-        m.named()
-            .map(|(n, v)| (n.to_string(), v.clone()))
-            .collect(),
-    );
+    let pairs: Rc<Vec<(String, JsValue)>> =
+        Rc::new(m.named().map(|(n, v)| (n.to_string(), v.clone())).collect());
     let at_pairs = pairs;
     let at = Closure::<dyn Fn(String) -> JsValue>::new(move |name: String| {
         at_pairs
@@ -393,7 +405,11 @@ fn build_match_object(m: &Match<JsValue>) -> JsValue {
             .map(|(_, v)| v.clone())
             .unwrap_or(JsValue::UNDEFINED)
     });
-    drop(js_sys::Reflect::set(&obj, &JsValue::from_str("at"), at.as_ref()));
+    drop(js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("at"),
+        at.as_ref(),
+    ));
     at.forget();
 
     obj.into()

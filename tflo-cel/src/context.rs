@@ -1,8 +1,8 @@
 //! CEL context conversion traits and helpers.
 
+pub use crate::traits::IntoCelContext;
 use cel_interpreter::{Context, Value};
 use std::collections::HashMap;
-pub use crate::traits::IntoCelContext;
 
 /// Helper struct for building CEL contexts from key-value pairs.
 #[derive(Debug, Default)]

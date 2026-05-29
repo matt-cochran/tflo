@@ -84,9 +84,8 @@ fn main() -> Result<(), String> {
     println!("Saved snapshot to {}", tmp_dir.display());
 
     // ---- Load it back ----
-    let loaded =
-        <FileStateStore as tflo_core::keyed::StateStore>::load(&store, b"spindle-graph")?
-            .ok_or("snapshot not found after save")?;
+    let loaded = <FileStateStore as tflo_core::keyed::StateStore>::load(&store, b"spindle-graph")?
+        .ok_or("snapshot not found after save")?;
     println!(
         "Loaded snapshot: {} bytes, version={}",
         loaded.data.len(),

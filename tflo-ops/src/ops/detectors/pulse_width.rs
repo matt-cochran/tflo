@@ -67,7 +67,9 @@ impl Operator for PulseWidthOp {
                 // Fire timer at `ts + max_width_ms + 1` so a falling edge
                 // *exactly* at `ts + max_width_ms` (which classifies as
                 // `Valid`) still fires before the timer.
-                let fire_ts = ts.saturating_add(self.detector.max_width_ms()).saturating_add(1);
+                let fire_ts = ts
+                    .saturating_add(self.detector.max_width_ms())
+                    .saturating_add(1);
                 ctx.register_event_time_timer(fire_ts);
                 self.pending_timer_fire_ts = Some(fire_ts);
             }

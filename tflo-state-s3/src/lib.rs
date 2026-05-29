@@ -1,4 +1,14 @@
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing, clippy::arithmetic_side_effects, clippy::map_err_ignore))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::map_err_ignore
+    )
+)]
 #![deny(clippy::print_stdout)] // library code must not write to stdout
 //! S3-compatible object store backend for tflo checkpoints.
 //!
@@ -156,7 +166,9 @@ impl<C: S3Client> tflo_core::state::AsyncStateStore for S3StateStore<C> {
         let object_key = self.object_key(key);
         let bytes = serde_json::to_vec(snapshot)
             .map_err(|e| format!("Failed to serialize snapshot: {e}"))?;
-        self.client.put_object(&self.bucket, &object_key, &bytes).await
+        self.client
+            .put_object(&self.bucket, &object_key, &bytes)
+            .await
     }
 
     async fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String> {
@@ -251,7 +263,11 @@ mod tests {
         let store = S3StateStore::new(MemClient::default(), "b".into(), "ckp/".into());
         let snap = make_snap(42);
         store.save(b"alpha", &snap).await.expect("save ok");
-        let loaded = store.load(b"alpha").await.expect("load ok").expect("present");
+        let loaded = store
+            .load(b"alpha")
+            .await
+            .expect("load ok")
+            .expect("present");
         assert_eq!(loaded.data, snap.data);
         assert_eq!(
             loaded.metadata.topology_fingerprint,
