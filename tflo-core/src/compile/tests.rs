@@ -1,6 +1,5 @@
 use super::*;
 use crate::builder::TFlowBuilder;
-use crate::duration::IntoDuration;
 use crate::pipeline::Sequenced;
 
 #[derive(Clone, Debug)]
@@ -19,26 +18,14 @@ fn make_graph_passthrough() -> CompiledGraph<TestRecord, f64, Timestamped> {
     CompiledGraph::compile(Arc::new(|r: &TestRecord| r.ts), nodes, output_ids)
 }
 
-/// Graph with SMA for testing windowing
+/// Graph with a map for testing — doubles the value.
 #[allow(dead_code)]
-fn make_graph_sma() -> CompiledGraph<TestRecord, f64, Timestamped> {
+fn make_graph_double() -> CompiledGraph<TestRecord, f64, Timestamped> {
     let mut builder = TFlowBuilder::<TestRecord>::new();
     let _ = builder.timestamp(|r| r.ts);
     let v = builder.prop(|r| r.value);
-    let sma = v.sma(1_u64.secs());
-    let output_ids = vec![sma.id];
-    let nodes = builder.into_nodes();
-    CompiledGraph::compile(Arc::new(|r: &TestRecord| r.ts), nodes, output_ids)
-}
-
-#[allow(dead_code)]
-fn make_graph_signal() -> CompiledGraph<TestRecord, ThresholdCrossEventMode, Timestamped> {
-    let mut builder = TFlowBuilder::<TestRecord>::new();
-    let _ = builder.timestamp(|r| r.ts);
-    let v = builder.prop(|r| r.value);
-    let threshold = builder.constant(100.0);
-    let cross = v.cross(&threshold);
-    let output_ids = vec![cross.id];
+    let doubled = v.map_f64(|x| x * 2.0);
+    let output_ids = vec![doubled.id];
     let nodes = builder.into_nodes();
     CompiledGraph::compile(Arc::new(|r: &TestRecord| r.ts), nodes, output_ids)
 }
@@ -48,9 +35,9 @@ fn make_graph_signal() -> CompiledGraph<TestRecord, ThresholdCrossEventMode, Tim
 // ========================================================================
 
 /// When two graphs are zipped,
-/// CompiledGraph shall offset the second graph's node IDs,
+/// `CompiledGraph` shall offset the second graph's node IDs,
 /// So that there are no ID collisions,
-/// And the combined output_ids correctly reference both outputs.
+/// And the combined `output_ids` correctly reference both outputs.
 #[test]
 fn test_fm6_zip_id_offset() {
     let g1 = make_graph_passthrough();
@@ -68,8 +55,8 @@ fn test_fm6_zip_id_offset() {
 }
 
 /// When a graph is mapped,
-/// CompiledGraph shall create a new composition node with a new ID,
-/// So that the output_ids correctly reference the mapped output,
+/// `CompiledGraph` shall create a new composition node with a new ID,
+/// So that the `output_ids` correctly reference the mapped output,
 /// And the original nodes remain unchanged.
 #[test]
 fn test_fm6_map_id_tracking() {
@@ -89,7 +76,7 @@ fn test_fm6_map_id_tracking() {
 }
 
 /// When a zipped graph is reduced,
-/// CompiledGraph shall correctly track the new single output ID,
+/// `CompiledGraph` shall correctly track the new single output ID,
 /// So that extraction works correctly after reduction.
 #[test]
 fn test_fm6_reduce_id_tracking() {
@@ -113,8 +100,8 @@ fn test_fm6_reduce_id_tracking() {
 // PIPELINE CONTEXT AND ITEM TESTS
 // ========================================================================
 
-/// When step() is called,
-/// CompiledGraph shall return a PipelineItem with correct context,
+/// When `step()` is called,
+/// `CompiledGraph` shall return a `PipelineItem` with correct context,
 /// So that timestamp information flows through the pipeline.
 #[test]
 fn test_step_returns_pipeline_item() {
@@ -133,8 +120,8 @@ fn test_step_returns_pipeline_item() {
     assert_eq!(item.value, 50.0); // Raw value passed through
 }
 
-/// When step_value() is called,
-/// CompiledGraph shall return just the value without context,
+/// When `step_value()` is called,
+/// `CompiledGraph` shall return just the value without context,
 /// So that users who don't need context can get values directly.
 #[test]
 fn test_step_value_returns_raw_value() {
@@ -149,8 +136,8 @@ fn test_step_value_returns_raw_value() {
     assert_eq!(result, Some(50.0));
 }
 
-/// When with_context() is called,
-/// CompiledGraph shall change the context type,
+/// When `with_context()` is called,
+/// `CompiledGraph` shall change the context type,
 /// So that pipelines can switch between time-based and sequence-based.
 #[test]
 fn test_with_context_changes_type() {
@@ -175,7 +162,7 @@ fn test_with_context_changes_type() {
 // ========================================================================
 
 /// When map is applied,
-/// CompiledGraph shall transform outputs while preserving context,
+/// `CompiledGraph` shall transform outputs while preserving context,
 /// So that timestamps flow through transformations.
 #[test]
 fn test_map_preserves_context() {
@@ -196,7 +183,7 @@ fn test_map_preserves_context() {
 }
 
 /// When filter is applied with passing predicate,
-/// CompiledGraph shall return Some(value),
+/// `CompiledGraph` shall return Some(value),
 /// So that matching values are preserved.
 #[test]
 fn test_filter_passes() {
@@ -214,7 +201,7 @@ fn test_filter_passes() {
 }
 
 /// When filter is applied with failing predicate,
-/// CompiledGraph shall return Some(None),
+/// `CompiledGraph` shall return Some(None),
 /// So that non-matching values are filtered but context is preserved.
 #[test]
 fn test_filter_rejects() {
@@ -232,7 +219,7 @@ fn test_filter_rejects() {
 }
 
 /// When fold is applied,
-/// CompiledGraph shall accumulate values with preserved context,
+/// `CompiledGraph` shall accumulate values with preserved context,
 /// So that running totals can be computed.
 #[test]
 fn test_fold_accumulates() {
@@ -266,7 +253,7 @@ fn test_fold_accumulates() {
 }
 
 /// When zip is applied to two graphs,
-/// CompiledGraph shall combine their outputs into a tuple,
+/// `CompiledGraph` shall combine their outputs into a tuple,
 /// So that multiple computations can be performed in parallel.
 #[test]
 fn test_zip_combines_outputs() {
@@ -288,7 +275,7 @@ fn test_zip_combines_outputs() {
 }
 
 /// When reduce is applied to a zipped graph,
-/// CompiledGraph shall collapse the tuple to a single value,
+/// `CompiledGraph` shall collapse the tuple to a single value,
 /// So that combined computations can produce scalar results.
 #[test]
 fn test_reduce_collapses_tuple() {
@@ -306,88 +293,4 @@ fn test_reduce_collapses_tuple() {
 
     let item = result.unwrap();
     assert_eq!(item.value, 50.0); // 25 + 25
-}
-
-// ========================================================================
-// TRIGGER RESULT HELPER TESTS
-// ========================================================================
-
-/// When GlitchResult helper methods are used,
-/// the helpers shall correctly map results to f64 and ThresholdCrossEventMode,
-/// So that trigger results can be easily converted.
-#[test]
-fn test_glitch_result_helpers() {
-    assert!(GlitchResult::ValidPulse.is_valid_pulse());
-    assert!(!GlitchResult::ValidPulse.is_rejected());
-    assert!(GlitchResult::Rejected.is_rejected());
-    assert_eq!(
-        GlitchResult::ValidPulse.to_threshold_cross(),
-        ThresholdCrossEventMode::Rising
-    );
-    assert_eq!(
-        GlitchResult::Rejected.to_threshold_cross(),
-        ThresholdCrossEventMode::Falling
-    );
-    assert_eq!(
-        GlitchResult::NoTransition.to_threshold_cross(),
-        ThresholdCrossEventMode::None
-    );
-}
-
-/// When RuntResult helper methods are used,
-/// the helpers shall correctly identify valid vs runt pulses.
-#[test]
-fn test_runt_result_helpers() {
-    let valid = RuntResult::ValidPulse { peak: 100.0 };
-    let runt = RuntResult::Runt { peak: 50.0 };
-
-    assert!(valid.is_valid());
-    assert!(!valid.is_runt());
-    assert!(runt.is_runt());
-    assert!(!runt.is_valid());
-    assert_eq!(valid.peak(), 100.0);
-    assert_eq!(runt.peak(), 50.0);
-    assert_eq!(valid.to_threshold_cross(), ThresholdCrossEventMode::Rising);
-    assert_eq!(runt.to_threshold_cross(), ThresholdCrossEventMode::Falling);
-}
-
-/// When PulseWidthResult helper methods are used,
-/// the helpers shall correctly identify valid, too short, and too long pulses.
-#[test]
-fn test_pulse_width_result_helpers() {
-    let valid = PulseWidthResult::Valid { width_ms: 100 };
-    let short = PulseWidthResult::TooShort { width_ms: 10 };
-    let long = PulseWidthResult::TooLong { width_ms: 1000 };
-
-    assert!(valid.is_valid());
-    assert!(short.is_too_short());
-    assert!(long.is_too_long());
-    assert_eq!(valid.width_ms(), 100);
-    assert_eq!(short.width_ms(), 10);
-    assert_eq!(valid.to_threshold_cross(), ThresholdCrossEventMode::Rising);
-    assert_eq!(short.to_threshold_cross(), ThresholdCrossEventMode::Falling);
-}
-
-/// When WindowEvent helper methods are used,
-/// the helpers shall correctly identify entry and exit events.
-#[test]
-fn test_window_event_helpers() {
-    let entered = WindowEvent::EnteredWindow;
-    let exited_low = WindowEvent::ExitedLow;
-    let exited_high = WindowEvent::ExitedHigh;
-
-    assert!(entered.is_entered());
-    assert!(!entered.is_exited());
-    assert!(exited_low.is_exited_low());
-    assert!(exited_low.is_exited());
-    assert!(exited_high.is_exited_high());
-    assert!(exited_high.is_exited());
-    assert_eq!(
-        entered.to_threshold_cross(),
-        ThresholdCrossEventMode::Rising
-    );
-    assert_eq!(
-        exited_low.to_threshold_cross(),
-        ThresholdCrossEventMode::Falling
-    );
 }

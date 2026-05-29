@@ -152,7 +152,7 @@ pub type PulseSignal = Signal<PulseEventMode, PulseMetadata>;
 
 ## The five detectors that produce signals
 
-All live in `tflo-core/src/primitives/`. Each one turns a noisy detection stream into clean lifecycle events — *it crossed*, *it entered the zone*, *that pulse was too short to be real*:
+All live in `tflo-ops/src/primitives/`. Each one turns a noisy detection stream into clean lifecycle events — *it crossed*, *it entered the zone*, *that pulse was too short to be real*:
 
 | Detector | Input | Output |
 |---|---|---|

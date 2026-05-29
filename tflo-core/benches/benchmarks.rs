@@ -1,5 +1,7 @@
 //! Performance benchmarks for tflow.
 
+#![allow(clippy::arithmetic_side_effects)]
+
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use tflo_core::prelude::*;
 
@@ -18,30 +20,17 @@ fn generate_ticks(count: usize) -> Vec<Tick> {
         .collect()
 }
 
-fn bench_sma(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sma");
+fn bench_map_f64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("map_f64");
 
     for size in [1000, 10_000, 100_000] {
         let ticks = generate_ticks(size);
 
         let _ = group.throughput(Throughput::Elements(size as u64));
-        let _ = group.bench_with_input(BenchmarkId::new("time_based", size), &ticks, |b, ticks| {
-            b.iter(|| {
-                let result: Vec<f64> = ticks
-                    .iter()
-                    .cloned()
-                    .tflo(|t| {
-                        let _ = t.timestamp(|x| x.ts);
-                        let price = t.prop(|x| x.price);
-                        price.sma(1_u64.secs())
-                    })
-                    .collect();
-                black_box(result)
-            });
-        });
-
-        let _ =
-            group.bench_with_input(BenchmarkId::new("count_based", size), &ticks, |b, ticks| {
+        let _ = group.bench_with_input(
+            BenchmarkId::new("stateless_unary", size),
+            &ticks,
+            |b, ticks| {
                 b.iter(|| {
                     let result: Vec<f64> = ticks
                         .iter()
@@ -49,98 +38,74 @@ fn bench_sma(c: &mut Criterion) {
                         .tflo(|t| {
                             let _ = t.timestamp(|x| x.ts);
                             let price = t.prop(|x| x.price);
-                            price.sma(20usize)
+                            price.map_f64(|x| x * 2.0 + 1.0)
                         })
                         .collect();
                     black_box(result)
                 });
-            });
+            },
+        );
     }
 
     group.finish();
 }
 
-fn bench_ema(c: &mut Criterion) {
-    let mut group = c.benchmark_group("ema");
-
-    for size in [1000, 10_000, 100_000] {
-        let ticks = generate_ticks(size);
-
-        let _ = group.throughput(Throughput::Elements(size as u64));
-        let _ = group.bench_with_input(BenchmarkId::new("time_based", size), &ticks, |b, ticks| {
-            b.iter(|| {
-                let result: Vec<f64> = ticks
-                    .iter()
-                    .cloned()
-                    .tflo(|t| {
-                        let _ = t.timestamp(|x| x.ts);
-                        let price = t.prop(|x| x.price);
-                        price.ema(500_u64.ms())
-                    })
-                    .collect();
-                black_box(result)
-            });
-        });
-    }
-
-    group.finish();
-}
-
-fn bench_cross_detection(c: &mut Criterion) {
-    let mut group = c.benchmark_group("cross");
-
-    for size in [1000, 10_000, 100_000] {
-        let ticks = generate_ticks(size);
-
-        let _ = group.throughput(Throughput::Elements(size as u64));
-        let _ =
-            group.bench_with_input(BenchmarkId::new("cross_above", size), &ticks, |b, ticks| {
-                b.iter(|| {
-                    let result: Vec<ThresholdCrossEventMode> = ticks
-                        .iter()
-                        .cloned()
-                        .tflo(|t| {
-                            let _ = t.timestamp(|x| x.ts);
-                            let price = t.prop(|x| x.price);
-                            let sma_fast = price.sma(100_u64.ms());
-                            let sma_slow = price.sma(500_u64.ms());
-                            sma_fast.cross_builder().above(&sma_slow)
-                        })
-                        .collect();
-                    black_box(result)
-                });
-            });
-    }
-
-    group.finish();
-}
-
-fn bench_complex_pipeline(c: &mut Criterion) {
-    let mut group = c.benchmark_group("complex");
+fn bench_scan_f64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scan_f64");
 
     for size in [1000, 10_000, 100_000] {
         let ticks = generate_ticks(size);
 
         let _ = group.throughput(Throughput::Elements(size as u64));
         let _ = group.bench_with_input(
-            BenchmarkId::new("full_pipeline", size),
+            BenchmarkId::new("stateful_scan", size),
             &ticks,
             |b, ticks| {
                 b.iter(|| {
-                    let result: Vec<(f64, f64, f64, ThresholdCrossEventMode)> = ticks
+                    let result: Vec<f64> = ticks
                         .iter()
                         .cloned()
                         .tflo(|t| {
                             let _ = t.timestamp(|x| x.ts);
                             let price = t.prop(|x| x.price);
+                            price.scan_f64(
+                                || 0.0_f64,
+                                |s, x| {
+                                    *s = 0.9 * *s + 0.1 * x;
+                                    *s
+                                },
+                            )
+                        })
+                        .collect();
+                    black_box(result)
+                });
+            },
+        );
+    }
 
-                            let sma_fast = price.sma(100_u64.ms());
-                            let sma_slow = price.sma(500_u64.ms());
-                            let std = price.std(500_u64.ms());
-                            let zscore = (&price - &sma_fast) / &std;
-                            let cross = sma_fast.clone().cross_builder().above(&sma_slow);
+    group.finish();
+}
 
-                            (sma_fast, sma_slow, zscore, cross)
+fn bench_map2_f64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("map2_f64");
+
+    for size in [1000, 10_000, 100_000] {
+        let ticks = generate_ticks(size);
+
+        let _ = group.throughput(Throughput::Elements(size as u64));
+        let _ = group.bench_with_input(
+            BenchmarkId::new("binary_transform", size),
+            &ticks,
+            |b, ticks| {
+                b.iter(|| {
+                    let result: Vec<f64> = ticks
+                        .iter()
+                        .cloned()
+                        .tflo(|t| {
+                            let _ = t.timestamp(|x| x.ts);
+                            let price = t.prop(|x| x.price);
+                            let scaled = price.map_f64(|x| x * 2.0);
+                            price.map2_f64(&scaled, |a, b| a + b)
                         })
                         .collect();
                     black_box(result)
@@ -181,10 +146,9 @@ fn bench_merge(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_sma,
-    bench_ema,
-    bench_cross_detection,
-    bench_complex_pipeline,
+    bench_map_f64,
+    bench_scan_f64,
+    bench_map2_f64,
     bench_merge
 );
 criterion_main!(benches);

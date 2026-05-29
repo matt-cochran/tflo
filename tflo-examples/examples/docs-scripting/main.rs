@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! Runtime-configurable filtering with CEL, Rhai, and Rego.
 //!
 //! Each scripting crate provides iterator adapters — they operate on
@@ -17,8 +18,8 @@ use rhai::Scope;
 use serde::Serialize;
 
 use tflo_cel::prelude::*;
-use tflo_rhai::prelude::*;
 use tflo_rego::prelude::*;
+use tflo_rhai::prelude::*;
 
 // ---- Shared domain type ------------------------------------------------
 
@@ -41,17 +42,23 @@ impl IntoCelContext for AuthEvent {
         let mut ctx = Context::default();
         ctx.add_variable("ts", self.ts).unwrap();
         ctx.add_variable("fail_count", self.fail_count).unwrap();
-        ctx.add_variable("source_ip_score", self.source_ip_score).unwrap();
+        ctx.add_variable("source_ip_score", self.source_ip_score)
+            .unwrap();
         ctx
     }
 }
 
 fn demo_cel(events: &[AuthEvent]) {
     // Keep only events with many failed logins from a suspect IP.
+    // `cel_filter_result` is the canonical API — it surfaces compile and
+    // evaluation errors as `Result<T>` instead of panicking / silently
+    // dropping records.
     let filtered: Vec<AuthEvent> = events
         .iter()
         .cloned()
-        .cel_filter("fail_count > 3.0 && source_ip_score > 50.0")
+        .cel_filter_result("fail_count > 3.0 && source_ip_score > 50.0")
+        .expect("CEL expression compiles")
+        .filter_map(Result::ok)
         .collect();
 
     println!("CEL: {}/{} events flagged", filtered.len(), events.len());
@@ -72,10 +79,15 @@ impl IntoRhaiScope for AuthEvent {
 
 fn demo_rhai(events: &[AuthEvent]) {
     // Rhai script: flag brute-force attempts from low-reputation IPs.
+    // `rhai_filter_result` is the canonical API — its engine is built
+    // from `RhaiOptions::default()` (conservative DoS-mitigation caps)
+    // and evaluation errors propagate as `Result<T>`.
     let filtered: Vec<AuthEvent> = events
         .iter()
         .cloned()
-        .rhai_filter("fail_count > 3.0 && source_ip_score > 50.0")
+        .rhai_filter_result("fail_count > 3.0 && source_ip_score > 50.0")
+        .expect("Rhai expression compiles")
+        .filter_map(Result::ok)
         .collect();
 
     println!("Rhai: {}/{} events flagged", filtered.len(), events.len());
@@ -120,10 +132,26 @@ fn demo_rego(events: &[AuthEvent]) {
 
 fn main() {
     let events = vec![
-        AuthEvent { ts: 1000, fail_count: 7.0, source_ip_score: 85.0 },
-        AuthEvent { ts: 2000, fail_count: 1.0, source_ip_score: 85.0 },
-        AuthEvent { ts: 3000, fail_count: 9.0, source_ip_score: 10.0 },
-        AuthEvent { ts: 4000, fail_count: 5.0, source_ip_score: 70.0 },
+        AuthEvent {
+            ts: 1000,
+            fail_count: 7.0,
+            source_ip_score: 85.0,
+        },
+        AuthEvent {
+            ts: 2000,
+            fail_count: 1.0,
+            source_ip_score: 85.0,
+        },
+        AuthEvent {
+            ts: 3000,
+            fail_count: 9.0,
+            source_ip_score: 10.0,
+        },
+        AuthEvent {
+            ts: 4000,
+            fail_count: 5.0,
+            source_ip_score: 70.0,
+        },
     ];
 
     demo_cel(&events);

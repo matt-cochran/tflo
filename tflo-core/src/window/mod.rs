@@ -14,7 +14,24 @@ use std::time::Duration;
 
 /// Window specification for aggregations.
 ///
-/// A window can be either time-based (duration) or count-based (number of records).
+/// Four variants spanning the two common shapes:
+///
+/// - **Sliding** windows ([`Time`](Self::Time), [`Count`](Self::Count)) emit
+///   the aggregate at every record, over the values currently inside the
+///   window. The sliding-aggregation operators (`sma`, `ema`, `std`, `max`,
+///   `min`, `sum`, `count`, `wma`, etc.) accept these.
+/// - **Emit-trigger** windows ([`Session`](Self::Session),
+///   [`Tumbling`](Self::Tumbling)) emit only when their close trigger
+///   fires — a gap of inactivity for `Session`, a bucket-edge for
+///   `Tumbling`. The emit-trigger operators (`session_sum`,
+///   `tumbling_sum`, etc., introduced in Phase 2 of the closure plan)
+///   accept these and require the Phase 1 `TimerService`.
+///
+/// Passing an emit-trigger variant to a sliding-aggregation operator
+/// panics at construction with an actionable message; passing a sliding
+/// variant to an emit-trigger operator does the same. The semantic
+/// mismatch is large enough that runtime fail-fast is preferable to
+/// silently producing wrong outputs.
 ///
 /// # Examples
 ///
@@ -22,22 +39,40 @@ use std::time::Duration;
 /// use tflo_core::window::Window;
 /// use std::time::Duration;
 ///
-/// // Time-based window
 /// let time_window = Window::Time(Duration::from_secs(300));
-///
-/// // Count-based window
 /// let count_window = Window::Count(100);
+/// let session = Window::Session { gap: Duration::from_secs(30) };
+/// let tumbling = Window::Tumbling { size: Duration::from_secs(60) };
 ///
-/// // From Duration
+/// // Sugar: From<Duration> defaults to Time (sliding).
 /// let from_duration: Window = Duration::from_secs(60).into();
 /// assert!(matches!(from_duration, Window::Time(_)));
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Window {
-    /// Time-based window: include values within the specified duration.
+    /// Sliding time-based window: include values within the specified
+    /// duration, sliding past as new records arrive.
     Time(Duration),
-    /// Count-based window: include the last N values.
+    /// Sliding count-based window: include the last N values.
     Count(usize),
+    /// Session window: emit on inactivity gap exceeding `gap`.
+    ///
+    /// Aggregate state accumulates across consecutive records on the same
+    /// key; emission happens when no record has arrived within `gap`
+    /// of the last (via a Phase 1 event-time timer).
+    Session {
+        /// Inactivity duration that closes the session.
+        gap: Duration,
+    },
+    /// Tumbling window: emit on bucket-edge events spaced by `size`.
+    ///
+    /// Non-overlapping fixed-width buckets. Aggregate accumulates within
+    /// a bucket; emission happens on the bucket-edge timer; the
+    /// accumulator resets on emission.
+    Tumbling {
+        /// Bucket width.
+        size: Duration,
+    },
 }
 
 impl Window {
@@ -53,33 +88,52 @@ impl Window {
         Self::Count(n)
     }
 
-    /// Returns true if this is a time-based window.
+    /// Construct a session window with the given inactivity gap.
+    #[must_use]
+    pub const fn session(gap: Duration) -> Self {
+        Self::Session { gap }
+    }
+
+    /// Construct a tumbling window with the given bucket size.
+    #[must_use]
+    pub const fn tumbling(size: Duration) -> Self {
+        Self::Tumbling { size }
+    }
+
+    /// Returns true if this is a sliding time-based window.
     #[must_use]
     pub const fn is_time_based(&self) -> bool {
         matches!(self, Self::Time(_))
     }
 
-    /// Returns true if this is a count-based window.
+    /// Returns true if this is a sliding count-based window.
     #[must_use]
     pub const fn is_count_based(&self) -> bool {
         matches!(self, Self::Count(_))
     }
 
-    /// Get the duration if this is a time-based window.
+    /// Returns true if this is an emit-trigger window
+    /// ([`Session`](Self::Session) or [`Tumbling`](Self::Tumbling)).
+    #[must_use]
+    pub const fn is_emit_trigger(&self) -> bool {
+        matches!(self, Self::Session { .. } | Self::Tumbling { .. })
+    }
+
+    /// Get the duration of a sliding time-based window.
     #[must_use]
     pub const fn as_duration(&self) -> Option<Duration> {
         match self {
             Self::Time(d) => Some(*d),
-            Self::Count(_) => None,
+            Self::Count(_) | Self::Session { .. } | Self::Tumbling { .. } => None,
         }
     }
 
-    /// Get the count if this is a count-based window.
+    /// Get the count of a sliding count-based window.
     #[must_use]
     pub const fn as_count(&self) -> Option<usize> {
         match self {
             Self::Count(n) => Some(*n),
-            Self::Time(_) => None,
+            Self::Time(_) | Self::Session { .. } | Self::Tumbling { .. } => None,
         }
     }
 }

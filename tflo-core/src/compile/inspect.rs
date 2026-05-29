@@ -1,7 +1,7 @@
 use crate::comp::NodeId;
 use crate::compile::{
-    CompiledGraph, CompiledNode, CompositionNodeEntry, CompositionNodeKind, NodeState,
-    PipelinedGraph, Value, ValueStore,
+    CompiledGraph, CompiledNode, CompositionNodeEntry, CompositionNodeKind, Computed, NodeOutput,
+    NodeState, PipelinedGraph, ValueStore,
 };
 use crate::pipeline::PipelineContext;
 
@@ -58,8 +58,8 @@ impl ValueStore {
         Self::default()
     }
 
-    /// Store a computed [`Value`] for a node.
-    pub(crate) fn store_value(&mut self, id: NodeId, value: Value) {
+    /// Store a computed [`NodeOutput`] for a node.
+    pub(crate) fn store_value(&mut self, id: NodeId, value: NodeOutput) {
         let _ = self.values.insert(id, value);
     }
 
@@ -75,12 +75,28 @@ impl ValueStore {
         self.get::<T>(id).cloned()
     }
 
+    /// Get the typed [`Computed`] a node produced, if it has been evaluated.
+    ///
+    /// This is the absent-aware accessor: `Ok` for a present value, `Err` for
+    /// a typed [`Absent`](super::Absent) reason, `None` if the node has not
+    /// been evaluated this step.
+    #[must_use]
+    pub fn get_computed(&self, id: &NodeId) -> Option<Computed> {
+        match self.values.get(id)? {
+            NodeOutput::Computed(c) => Some(*c),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
+        }
+    }
+
     /// Get a stored `f64` value via the fast path.
+    ///
+    /// Returns the value only when the node produced a present `Ok`; an absent
+    /// node yields `None`. For absent-aware access use [`get_computed`](Self::get_computed).
     #[must_use]
     pub fn get_f64(&self, id: &NodeId) -> Option<f64> {
         match self.values.get(id)? {
-            Value::F64(v) => Some(*v),
-            other => other.as_any().downcast_ref::<f64>().copied(),
+            NodeOutput::Computed(c) => c.ok(),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied(),
         }
     }
 
@@ -123,46 +139,9 @@ impl std::fmt::Debug for NodeState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Stateless => write!(f, "Stateless"),
-            Self::TimeWindow(w) => write!(f, "TimeWindow(count={})", w.count()),
-            Self::CountWindow(w) => write!(f, "CountWindow(count={})", w.count()),
-            Self::TimeEma(_) => write!(f, "TimeEma"),
-            Self::CountEma(_) => write!(f, "CountEma"),
-            Self::Prev(_) => write!(f, "Prev"),
-            Self::PrevBy(_) => write!(f, "PrevBy"),
-            Self::Lag(_) => write!(f, "Lag"),
-            Self::Cross(_) => write!(f, "Cross"),
-            Self::CrossHysteresis(_) => write!(f, "CrossHysteresis"),
-            Self::GlitchFilterState(_) => write!(f, "GlitchFilter"),
-            Self::RuntDetectorState(_) => write!(f, "RuntDetector"),
-            Self::PulseWidthState(_) => write!(f, "PulseWidthDetector"),
-            Self::WindowDetectorState(_) => write!(f, "WindowDetector"),
-            Self::Rate { .. } => write!(f, "Rate"),
-            Self::Velocity { .. } => write!(f, "Velocity"),
-            Self::Acceleration { .. } => write!(f, "Acceleration"),
-            Self::MedianTimeWindow(w) => write!(f, "MedianTimeWindow(count={})", w.count()),
-            Self::MedianCountWindow(w) => write!(f, "MedianCountWindow(count={})", w.count()),
-            Self::CorrelationTimeWindow(w) => {
-                write!(f, "CorrelationTimeWindow(count={})", w.count())
-            }
-            Self::CorrelationCountWindow(w) => {
-                write!(f, "CorrelationCountWindow(count={})", w.count())
-            }
-            Self::MomentsTimeWindow(w) => write!(f, "MomentsTimeWindow(count={})", w.count()),
-            Self::MomentsCountWindow(w) => write!(f, "MomentsCountWindow(count={})", w.count()),
-            Self::WmaTimeWindow(w) => write!(f, "WmaTimeWindow(count={})", w.count()),
-            Self::WmaCountWindow(w) => write!(f, "WmaCountWindow(count={})", w.count()),
-            Self::RsiTimeWindow(w) => write!(f, "RsiTimeWindow(count={})", w.count()),
-            Self::RsiCountWindow(w) => write!(f, "RsiCountWindow(count={})", w.count()),
-            Self::RsiWilderState(_) => write!(f, "RsiWilderState"),
-            Self::CumSum(_) => write!(f, "CumSum"),
-            Self::CumMax(_) => write!(f, "CumMax"),
-            Self::CumMin(_) => write!(f, "CumMin"),
-            Self::CumProd(_) => write!(f, "CumProd"),
-            Self::PctChange { .. } => write!(f, "PctChange"),
-            Self::LogReturn { .. } => write!(f, "LogReturn"),
             Self::ScanState(_) => write!(f, "ScanState"),
             Self::Scan2State(_) => write!(f, "Scan2State"),
-            Self::Custom(n) => write!(f, "Custom({})", n.name()),
+            Self::Plugin(op) => write!(f, "Plugin({})", op.name()),
         }
     }
 }

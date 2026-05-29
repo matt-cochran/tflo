@@ -1,3 +1,13 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing
+)]
+// The golden-vector scaffolding carries diagnostic fields/methods that not
+// every test path reads.
+#![allow(dead_code)]
 //! Golden vector integration tests for `tflo-core`.
 //!
 //! Validates `tflo-core` graph implementations against TA-Lib reference outputs.
@@ -15,7 +25,7 @@ mod vector;
 // Re-export everything the moved modules need
 use runner::GoldenRunner;
 use validator::{validate, validate_multi_output};
-use vector::{GoldenVector, VectorMetadata};
+use vector::GoldenVector;
 
 /// Error types for golden vector operations
 #[derive(Debug, thiserror::Error)]

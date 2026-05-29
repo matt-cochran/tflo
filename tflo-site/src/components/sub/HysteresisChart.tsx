@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -13,6 +13,18 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { Tick } from "../../lib/wasm";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_COLORS,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+  EmptyChart,
+  chartTooltipLabelFormatter,
+} from "./chartTheme";
 
 /** One row of hysteresis-cross demo output, aligned 1:1 with a tick. */
 export interface HysteresisResult {
@@ -27,38 +39,52 @@ interface HysteresisChartProps {
   height: number;
 }
 
+function tooltipFormatter(value: unknown, name: unknown): [string, string] {
+  const v = value as number | null;
+  return [v == null ? "—" : v.toFixed(2), name as string];
+}
+
 function HysteresisChartInner({
   ticks,
   results,
   config,
   height,
 }: HysteresisChartProps) {
-  const chartData = ticks.map((t, i) => ({
-    ts: t.ts,
-    value: t.value,
-    event: results[i]?.event ?? null,
-  }));
-
-  if (chartData.length === 0) {
-    return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#666",
-          background: "#f5f5f5",
-          borderRadius: 8,
-          fontSize: "0.9rem",
-        }}
-      >
-        No data
-      </div>
-    );
-  }
+  const chartData = useMemo(
+    () =>
+      ticks.map((t, i) => ({
+        ts: t.ts,
+        value: t.value,
+        event: results[i]?.event ?? null,
+      })),
+    [ticks, results],
+  );
 
   const { threshold, margin } = config;
+
+  const yDomain = useMemo<
+    [(dataMin: number) => number, (dataMax: number) => number]
+  >(
+    () => [
+      (min: number) => Math.floor(Math.min(min, threshold - margin) - 5),
+      (max: number) => Math.ceil(Math.max(max, threshold + margin) + 5),
+    ],
+    [threshold, margin],
+  );
+
+  const thresholdLabel = useMemo(
+    () => ({
+      value: `Threshold: ${threshold}`,
+      position: "right" as const,
+      fontSize: 10,
+      fill: CHART_COLORS.cross,
+    }),
+    [threshold],
+  );
+
+  if (chartData.length === 0) {
+    return <EmptyChart height={height} />;
+  }
 
   return (
     <div
@@ -67,86 +93,61 @@ function HysteresisChartInner({
       style={{ width: "100%", height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={chartData}
-          margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis dataKey="ts" tick={false} axisLine={{ stroke: "#ccc" }} />
+        <LineChart data={chartData} margin={CHART_MARGIN}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="ts" tick={false} axisLine={CHART_AXIS_LINE} />
           <YAxis
-            domain={[
-              (min: number) =>
-                Math.floor(Math.min(min, threshold - margin) - 5),
-              (max: number) =>
-                Math.ceil(Math.max(max, threshold + margin) + 5),
-            ]}
-            tick={{ fontSize: 11 }}
-            axisLine={{ stroke: "#ccc" }}
+            domain={yDomain}
+            tick={CHART_AXIS_TICK}
+            axisLine={CHART_AXIS_LINE}
           />
           <Tooltip
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              fontSize: 12,
-            }}
-            labelFormatter={(label) => `t=${label}`}
-            formatter={(value: unknown, name: unknown) => {
-              const v = value as number | null;
-              return [v == null ? "—" : v.toFixed(2), name as string];
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={chartTooltipLabelFormatter}
+            formatter={tooltipFormatter}
           />
 
-          {/* Shaded dead-band around the threshold */}
           <ReferenceArea
             y1={threshold - margin}
             y2={threshold + margin}
-            fill="rgba(229,57,53,0.08)"
+            fill="rgba(248,113,113,0.10)"
           />
 
-          {/* Faint dashed band edges */}
           <ReferenceLine
             y={threshold + margin}
-            stroke="#e53935"
+            stroke={CHART_COLORS.cross}
             strokeOpacity={0.4}
             strokeDasharray="3 3"
             strokeWidth={1}
           />
           <ReferenceLine
             y={threshold - margin}
-            stroke="#e53935"
+            stroke={CHART_COLORS.cross}
             strokeOpacity={0.4}
             strokeDasharray="3 3"
             strokeWidth={1}
           />
 
-          {/* Threshold reference line */}
           <ReferenceLine
             y={threshold}
-            stroke="#e53935"
+            stroke={CHART_COLORS.cross}
             strokeDasharray="6 3"
             strokeWidth={1.5}
-            label={{
-              value: `Threshold: ${threshold}`,
-              position: "right",
-              fontSize: 10,
-              fill: "#e53935",
-            }}
+            label={thresholdLabel}
           />
 
-          {/* Signal line with hysteresis-cross markers */}
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#0066cc"
+            stroke={CHART_COLORS.price}
             strokeWidth={2}
             isAnimationActive={false}
             name="Signal"
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             dot={(dotProps: any) => {
-              const cx = dotProps.cx;
-              const cy = dotProps.cy;
-              const idx = dotProps.index;
+              const { cx, cy, index: idx } = dotProps;
               if (cx == null || cy == null) return null;
               const point = chartData[idx];
               if (point && point.event !== null) {
@@ -163,8 +164,12 @@ function HysteresisChartInner({
                       cx={5}
                       cy={5}
                       r={4}
-                      fill={point.event === "rising" ? "#26a69a" : "#ef5350"}
-                      stroke="#fff"
+                      fill={
+                        point.event === "rising"
+                          ? CHART_COLORS.markerValid
+                          : CHART_COLORS.markerInvalid
+                      }
+                      stroke={CHART_COLORS.markerBg}
                       strokeWidth={1.5}
                     />
                   </svg>
@@ -174,13 +179,12 @@ function HysteresisChartInner({
             }}
           />
 
-          {/* Vertical dashed lines at event ticks */}
           {chartData.map((d, idx) =>
             d.event !== null ? (
               <ReferenceLine
                 key={`event-line-${idx}`}
                 x={d.ts}
-                stroke="#e53935"
+                stroke={CHART_COLORS.cross}
                 strokeDasharray="3 3"
                 strokeWidth={1}
                 strokeOpacity={0.5}

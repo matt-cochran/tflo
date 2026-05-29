@@ -1,5 +1,7 @@
 use tflo_core::prelude::*;
 use tflo_fintech::prelude::*;
+use tflo_ops::events::ThresholdCrossEventMode;
+use tflo_ops::prelude::*;
 
 // A process-signal reading from a sensor on a conveyor line (e.g. fill level).
 #[derive(Clone, Debug)]
@@ -9,7 +11,7 @@ struct ProcessSample {
 }
 
 impl ProcessSample {
-    fn new(ts: i64, level: f64) -> Self {
+    const fn new(ts: i64, level: f64) -> Self {
         Self { ts, level }
     }
 }
@@ -148,7 +150,11 @@ fn main() {
             let alarm_limit = t.constant(103.0);
             let above = level.gt(&alarm_limit);
             let below = level.lt(&alarm_limit);
-            above - &below
+            // SAFETY: graph-node combinator (Comp<R> Sub overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                above - &below
+            }
         })
         .collect();
     let pos_count = compars.iter().filter(|v| **v > 0.0).count();

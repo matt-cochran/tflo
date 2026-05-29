@@ -41,7 +41,7 @@ use std::time::Duration;
 /// // First tick at ts=1000 should match news at ts=900 and ts=1500
 /// assert_eq!(joined[0].1.len(), 2);
 /// ```
-pub fn window_join<L, R, LI, RI, LK, RK, LT, RT>(
+pub const fn window_join<L, R, LI, RI, LK, RK, LT, RT>(
     left: LI,
     right: RI,
     left_key: LK,
@@ -114,8 +114,11 @@ where
         let left_item = self.left.next()?;
         let left_ts: i64 = (self.left_key)(&left_item).into();
 
-        // Buffer right items until we have enough
-        let window_end = left_ts + self.window_ms;
+        // Buffer right items until we have enough. Saturating: a
+        // pathological `left_ts` near `i64::MAX` clamps the window end
+        // at `i64::MAX` — semantically "match everything past it",
+        // which is the only sensible behavior for end-of-time inputs.
+        let window_end = left_ts.saturating_add(self.window_ms);
         while !self.right_exhausted {
             if let Some((last_ts, _)) = self.right_buffer.back() {
                 if *last_ts > window_end {
@@ -133,8 +136,11 @@ where
             }
         }
 
-        // Evict old items from buffer
-        let window_start = left_ts - self.window_ms;
+        // Evict old items from buffer. Saturating: `left_ts <
+        // window_ms` (early in the stream, or small epoch) clamps the
+        // window start at `i64::MIN` — semantically "no eviction yet",
+        // which matches the intent.
+        let window_start = left_ts.saturating_sub(self.window_ms);
         while let Some((ts, _)) = self.right_buffer.front() {
             if *ts < window_start {
                 let _ = self.right_buffer.pop_front();
@@ -157,6 +163,7 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]

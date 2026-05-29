@@ -1,0 +1,22 @@
+[package]
+name = "tflo-cep-wasm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "WebAssembly bindings for tflo-cep — closure-based event-pattern matching in the browser"
+license.workspace = true
+repository.workspace = true
+keywords = ["wasm", "webassembly", "cep", "event-pattern-matching", "browser"]
+categories = ["wasm"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tflo-cep = { path = "../tflo-cep" }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+[lints]
+workspace = true

@@ -11,19 +11,26 @@ This is the problem state checkpointing solves. When you're running streaming co
 
 ## Take a snapshot
 
-Any compiled graph can dump its state to a `StateSnapshot`:
+Any checkpointable compiled graph can dump its full state to a `StateSnapshot`:
 
 ```rust
 use tflo_core::keyed::{SnapshotMetadata, StateSnapshot};
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let mut graph = CompiledGraph::<MyTick, f64>::compile(ts_fn, nodes, output_ids);
 // ... process data ...
 
-let snapshot: StateSnapshot = graph.snapshot();
+let snapshot: StateSnapshot = graph.snapshot()?;
 ```
 
-A `StateSnapshot` has two fields: `data: Vec<u8>` with the serialized state, and `metadata: SnapshotMetadata` containing a `key: Option<Vec<u8>>`, `timestamp_ms: i64`, and `version: u32`. The version field lets you handle format migrations — if you change graph topology between deployments, the version tells you which snapshot format to expect.
+`snapshot()` returns a `Result`. It serializes every node's state — window
+buffers, EMA accumulators, detector state machines — with `postcard`, and
+returns an error rather than a partial checkpoint if the graph holds state it
+cannot capture: a `scan`/`fold` node, or an `Operator` that does not implement
+the optional `save`/`load` hooks.
+
+A `StateSnapshot` has two fields: `data: Vec<u8>` with the serialized state, and `metadata: SnapshotMetadata` containing a `key: Option<Vec<u8>>`, `timestamp_ms: i64`, and `version: u32`. The version field lets you handle format migrations between deployments.
 
 ## Restore from a snapshot
 
@@ -35,7 +42,7 @@ graph.restore(&snapshot).map_err(|e| format!("restore failed: {e}"))?;
 // records_seen counter, warmup status — all restored
 ```
 
-The `restore` method checks that the graph topology matches — same number of nodes, same output IDs. If something changed in your deployment, it returns a `ComputeError` (specifically `ComputeError::InvalidInput { reason: "..." }`) instead of silently corrupting state. Currently it restores top-level metadata (records seen, warmup). Full per-node restoration is a work in progress, but the structure is in place.
+The `restore` method checks that the graph topology matches — same number of nodes, same output IDs, same node kinds. If something changed in your deployment, it returns a `ComputeError` (specifically `ComputeError::InvalidInput { reason: "..." }`) instead of silently corrupting state. On a match it restores every node's state, so the graph resumes exactly where it left off — no re-warming, no cold SMA.
 
 ## Bring your own codec
 

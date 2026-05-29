@@ -1,4 +1,4 @@
-//! Public builder API for attaching [`CustomNode`] plugins to a graph.
+//! Public builder API for attaching [`Operator`] plugins to a graph.
 //!
 //! [`Comp::custom_node`] and [`Comp::custom_node1`] are the only public entry
 //! points for inserting an external crate's runtime node into a `tflo` graph.
@@ -6,32 +6,31 @@
 //! `add_node_to_state` helper without exposing the internal [`Node`] enum.
 
 use super::{Comp, Node, NodeId};
-use crate::custom_node::{BoxedCustomNode, CustomNode, CustomNodeFactory};
+use crate::operator::{BoxedOperator, Operator, OperatorFactory};
 use std::sync::Arc;
 
 impl<R: 'static> Comp<R, f64> {
-    /// Attach a multi-input [`CustomNode`] to the graph.
+    /// Attach a multi-input [`Operator`] to the graph.
     ///
-    /// `inputs` lists the computations whose values are passed — in order — to
-    /// the node's [`eval`](CustomNode::eval) on every record. `factory`
-    /// produces a fresh node instance for each compiled graph, so keyed
-    /// execution gets independent per-key state.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `inputs` is empty.
+    /// A plugin node needs at least one input — that requirement is in the
+    /// signature: `first` is the mandatory first input and `rest` is any
+    /// further inputs. They are passed — `first`, then `rest` in order — to the
+    /// operator's [`eval`](crate::operator::Operator::eval) on every record.
+    /// `factory` produces a fresh operator instance for each compiled graph, so
+    /// keyed execution gets independent per-key state.
     ///
     /// # Example
     ///
     /// ```
     /// use tflo_core::prelude::*;
-    /// use tflo_core::custom_node::CustomNode;
+    /// use tflo_core::operator::{require, Operator};
     ///
     /// struct Spread;
-    /// impl CustomNode for Spread {
-    ///     fn eval(&mut self, inputs: &[f64]) -> f64 {
-    ///         inputs.first().copied().unwrap_or(f64::NAN)
-    ///             - inputs.get(1).copied().unwrap_or(f64::NAN)
+    /// impl Operator for Spread {
+    ///     fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+    ///         let bid = match require(inputs, 0) { Ok(v) => v, Err(e) => return NodeOutput::computed(Err(e)) };
+    ///         let ask = match require(inputs, 1) { Ok(v) => v, Err(e) => return NodeOutput::computed(Err(e)) };
+    ///         NodeOutput::computed(Ok(ask - bid))
     ///     }
     /// }
     ///
@@ -42,46 +41,124 @@ impl<R: 'static> Comp<R, f64> {
     ///         t.timestamp(|x| x.ts);
     ///         let bid = t.prop(|x| x.bid);
     ///         let ask = t.prop(|x| x.ask);
-    ///         Comp::custom_node(&[&ask, &bid], || Spread)
+    ///         Comp::custom_node(&bid, &[&ask], || Spread)
     ///     })
     ///     .collect();
     /// ```
     #[must_use]
-    pub fn custom_node<F, N>(inputs: &[&Comp<R, f64>], factory: F) -> Comp<R, f64>
+    pub fn custom_node<F, N>(first: &Self, rest: &[&Self], factory: F) -> Self
     where
         F: Fn() -> N + Send + Sync + 'static,
-        N: CustomNode,
+        N: Operator,
     {
-        assert!(
-            !inputs.is_empty(),
-            "Comp::custom_node requires at least one input"
-        );
-        let state = &inputs[0].state;
-        let input_ids: Vec<NodeId> = inputs.iter().map(|c| c.id).collect();
-        let factory: CustomNodeFactory = Arc::new(move || {
-            let node: BoxedCustomNode = Box::new(factory());
+        // `first` guarantees at least one input — no empty-slice panic path.
+        let state = &first.state;
+        let input_ids: Vec<NodeId> = std::iter::once(first.id)
+            .chain(rest.iter().map(|c| c.id))
+            .collect();
+        let factory: OperatorFactory = Arc::new(move || {
+            let node: BoxedOperator = Box::new(factory());
             node
         });
         Self::add_node_to_state(
             state,
-            Node::Custom {
+            Node::Plugin {
                 inputs: input_ids,
                 factory,
             },
         )
     }
 
-    /// Attach a single-input [`CustomNode`] to the graph.
+    /// Attach a single-input [`Operator`] to the graph.
     ///
-    /// Convenience wrapper around [`custom_node`](Self::custom_node) for nodes
+    /// Convenience wrapper around [`custom_node`](Self::custom_node) for operators
     /// that consume only `self`.
     #[must_use]
-    pub fn custom_node1<F, N>(&self, factory: F) -> Comp<R, f64>
+    pub fn custom_node1<F, N>(&self, factory: F) -> Self
     where
         F: Fn() -> N + Send + Sync + 'static,
-        N: CustomNode,
+        N: Operator,
     {
-        Self::custom_node(&[self], factory)
+        Self::custom_node(self, &[], factory)
+    }
+
+    /// Attach a multi-input [`Operator`] whose factory
+    /// already yields a [`BoxedOperator`].
+    ///
+    /// This is the type-erased sibling of [`custom_node`](Self::custom_node). It
+    /// exists for builders that pick the concrete operator type at *runtime* —
+    /// e.g. dispatching on a [`Window`](crate::window::Window) discriminant to
+    /// produce either a time-windowed or a count-windowed operator. Those are
+    /// two distinct concrete types, so a `match` cannot return them through the
+    /// monomorphic `N: Operator` bound of [`custom_node`](Self::custom_node);
+    /// the factory must box each arm itself and return a uniform
+    /// `BoxedOperator`.
+    ///
+    /// Behaviour is otherwise identical to [`custom_node`](Self::custom_node):
+    /// `first` is the mandatory first input, `rest` is any further inputs, and
+    /// the factory produces a fresh operator instance per compiled graph.
+    ///
+    /// The output-type marker `O` is a pure [`PhantomData`](std::marker::PhantomData)
+    /// type parameter with no runtime effect — the node always stores a
+    /// `BoxedOperator`. It lets a builder of a *typed-output* operator return
+    /// `Comp<R, O>` for a non-`f64` `O` (e.g. an event enum). Existing `f64`
+    /// callers are unaffected: `O` infers to `f64` from their `-> Comp<R, f64>`
+    /// return context.
+    #[must_use]
+    pub fn custom_node_dyn<F, O>(first: &Self, rest: &[&Self], factory: F) -> Comp<R, O>
+    where
+        F: Fn() -> BoxedOperator + Send + Sync + 'static,
+    {
+        // `first` guarantees at least one input — no empty-slice panic path.
+        let state = &first.state;
+        let input_ids: Vec<NodeId> = std::iter::once(first.id)
+            .chain(rest.iter().map(|c| c.id))
+            .collect();
+        // The factory already yields a `BoxedOperator`, so — unlike
+        // `custom_node` — no inner `Box::new` is needed here.
+        let factory: OperatorFactory = Arc::new(factory);
+        Self::add_node_to_state_typed(
+            state,
+            Node::Plugin {
+                inputs: input_ids,
+                factory,
+            },
+        )
+    }
+
+    /// Attach a single-input type-erased [`Operator`]
+    /// whose factory already yields a [`BoxedOperator`].
+    ///
+    /// Convenience wrapper around [`custom_node_dyn`](Self::custom_node_dyn) for
+    /// operators that consume only `self`. See that method for why the
+    /// `BoxedOperator` factory form exists and what the `O` marker does.
+    #[must_use]
+    pub fn custom_node1_dyn<F, O>(&self, factory: F) -> Comp<R, O>
+    where
+        F: Fn() -> BoxedOperator + Send + Sync + 'static,
+    {
+        Self::custom_node_dyn(self, &[], factory)
+    }
+
+    /// Create a sibling source node that extracts an `f64` directly from each
+    /// input record, independent of `self`'s value.
+    ///
+    /// This is the [`Node::Prop`] equivalent of [`TFlowBuilder::prop`], but
+    /// reachable from a `Comp` handle rather than the builder. It is useful for
+    /// [`Operator`] plugins in extension crates that
+    /// need a record-derived auxiliary input — e.g. a partition key fed as a
+    /// second input to a multi-input [`custom_node`](Self::custom_node).
+    ///
+    /// The returned `Comp` lives in the same graph as `self`, so it can be
+    /// passed straight to `custom_node`.
+    ///
+    /// [`TFlowBuilder::prop`]: crate::builder::TFlowBuilder::prop
+    #[must_use]
+    pub fn prop_from_record<F>(&self, extract: F) -> Self
+    where
+        F: Fn(&R) -> f64 + Send + Sync + 'static,
+    {
+        Self::add_node_to_state(&self.state, Node::Prop(Arc::new(extract)))
     }
 }
 
@@ -89,15 +166,23 @@ impl<R: 'static> Comp<R, f64> {
 mod tests {
     use super::*;
     use crate::builder::TFlowBuilder;
-    use crate::compile::CompiledGraph;
+    use crate::compile::{CompiledGraph, Computed, NodeOutput};
     use crate::iter_ext::TFlowIteratorExt;
+    use crate::operator::require;
     use crate::pipeline::Timestamped;
 
     /// Test node: emits the sum of all its inputs.
     struct SumNode;
-    impl CustomNode for SumNode {
-        fn eval(&mut self, inputs: &[f64]) -> f64 {
-            inputs.iter().sum()
+    impl Operator for SumNode {
+        fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+            let mut sum = 0.0;
+            for i in 0..inputs.len() {
+                sum += match require(inputs, i) {
+                    Ok(v) => v,
+                    Err(e) => return NodeOutput::computed(Err(e)),
+                };
+            }
+            NodeOutput::computed(Ok(sum))
         }
         fn name(&self) -> &str {
             "sum"
@@ -109,10 +194,15 @@ mod tests {
     struct RunningSum {
         total: f64,
     }
-    impl CustomNode for RunningSum {
-        fn eval(&mut self, inputs: &[f64]) -> f64 {
-            self.total += inputs.first().copied().unwrap_or(0.0);
-            self.total
+    impl Operator for RunningSum {
+        fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+            NodeOutput::computed(match require(inputs, 0) {
+                Err(e) => Err(e),
+                Ok(v) => {
+                    self.total += v;
+                    Ok(self.total)
+                }
+            })
         }
     }
 
@@ -126,9 +216,21 @@ mod tests {
     #[test]
     fn custom_node_two_inputs_via_tflo() {
         let data = vec![
-            Rec { ts: 1, a: 1.0, b: 2.0 },
-            Rec { ts: 2, a: 3.0, b: 4.0 },
-            Rec { ts: 3, a: 10.0, b: 5.0 },
+            Rec {
+                ts: 1,
+                a: 1.0,
+                b: 2.0,
+            },
+            Rec {
+                ts: 2,
+                a: 3.0,
+                b: 4.0,
+            },
+            Rec {
+                ts: 3,
+                a: 10.0,
+                b: 5.0,
+            },
         ];
         let out: Vec<f64> = data
             .into_iter()
@@ -136,7 +238,7 @@ mod tests {
                 t.timestamp(|x| x.ts);
                 let a = t.prop(|x| x.a);
                 let b = t.prop(|x| x.b);
-                Comp::custom_node(&[&a, &b], || SumNode)
+                Comp::custom_node(&a, &[&b], || SumNode)
             })
             .collect();
         assert_eq!(out, vec![3.0, 7.0, 15.0]);
@@ -145,9 +247,21 @@ mod tests {
     #[test]
     fn custom_node1_single_input_is_stateful() {
         let data = vec![
-            Rec { ts: 1, a: 5.0, b: 0.0 },
-            Rec { ts: 2, a: 7.0, b: 0.0 },
-            Rec { ts: 3, a: 3.0, b: 0.0 },
+            Rec {
+                ts: 1,
+                a: 5.0,
+                b: 0.0,
+            },
+            Rec {
+                ts: 2,
+                a: 7.0,
+                b: 0.0,
+            },
+            Rec {
+                ts: 3,
+                a: 3.0,
+                b: 0.0,
+            },
         ];
         let out: Vec<f64> = data
             .into_iter()
@@ -157,6 +271,35 @@ mod tests {
             })
             .collect();
         assert_eq!(out, vec![5.0, 12.0, 15.0]);
+    }
+
+    /// `prop_from_record` builds a sibling source node that can be wired as a
+    /// second input to a multi-input custom node — here it supplies `b` so the
+    /// `SumNode` reads `a + b` without `b` ever being a builder-level `prop`.
+    #[test]
+    fn prop_from_record_feeds_a_custom_node() {
+        let data = vec![
+            Rec {
+                ts: 1,
+                a: 1.0,
+                b: 2.0,
+            },
+            Rec {
+                ts: 2,
+                a: 3.0,
+                b: 4.0,
+            },
+        ];
+        let out: Vec<f64> = data
+            .into_iter()
+            .tflo(|t| {
+                t.timestamp(|x| x.ts);
+                let a = t.prop(|x| x.a);
+                let b = a.prop_from_record(|x| x.b);
+                Comp::custom_node(&a, &[&b], || SumNode)
+            })
+            .collect();
+        assert_eq!(out, vec![3.0, 7.0]);
     }
 
     /// Regression guard: `zip` must offset a custom node's input IDs, otherwise
@@ -180,7 +323,7 @@ mod tests {
             let _ = builder.timestamp(|r| r.ts);
             let x = builder.prop(sel0);
             let y = builder.prop(sel1);
-            let node = Comp::custom_node(&[&x, &y], || SumNode);
+            let node = Comp::custom_node(&x, &[&y], || SumNode);
             let output_ids = vec![node.id];
             let nodes = builder.into_nodes();
             CompiledGraph::compile(Arc::new(|r: &Quad| r.ts), nodes, output_ids)
@@ -199,7 +342,7 @@ mod tests {
         };
         let item = combined.step(&rec).expect("graph ready");
         // g1 sums a+b = 3.0; g2 sums c+d = 30.0. If zip failed to offset g2's
-        // custom-node input ids, g2 would re-read a+b and yield (3.0, 3.0).
+        // plugin node input ids, g2 would re-read a+b and yield (3.0, 3.0).
         assert_eq!(item.value, (3.0, 30.0));
     }
 }

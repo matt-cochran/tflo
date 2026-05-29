@@ -14,8 +14,8 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use crate::context::IntoCelContext;
 use crate::rule_engine::RuleEngine;
+use crate::traits::IntoCelContext;
 use cel_interpreter::Context;
 use serde::Deserialize;
 use serde::Serialize;

@@ -1,5 +1,6 @@
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// A single web server request-latency measurement.
 #[derive(Clone, Debug)]
@@ -11,7 +12,7 @@ struct Sample {
 }
 
 impl Sample {
-    fn new(ts: i64, latency_ms: f64) -> Self {
+    const fn new(ts: i64, latency_ms: f64) -> Self {
         Self { ts, latency_ms }
     }
 }
@@ -101,7 +102,7 @@ fn main() {
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let latency = t.prop(|x| x.latency_ms);
-            latency.over(20_u64.secs()).ema()
+            latency.ema(20_u64.secs())
         })
         .collect();
     print_summary("EMA(20s) via WindowSpec", &ws_ema);

@@ -3,6 +3,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::{CompiledGraph, StepResult};
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// A per-host network traffic sample: a timestamp, the host that produced
 /// it, and the observed packet rate (packets per second).
@@ -70,7 +71,13 @@ fn main() {
 
     // ---- Snapshot ----
     println!("\n=== Taking snapshot ===");
-    let snapshot = graph.snapshot();
+    let snapshot = match graph.snapshot() {
+        Ok(s) => s,
+        Err(e) => {
+            println!("  snapshot failed: {e}");
+            return;
+        }
+    };
     println!(
         "  snapshot metadata: version={}, timestamp_ms={}",
         snapshot.metadata.version, snapshot.metadata.timestamp_ms

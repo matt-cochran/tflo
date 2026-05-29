@@ -19,6 +19,7 @@ Middle = SMA(20). Upper = middle + 2 × StdDev(20). Lower = middle − 2 × StdD
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let middle = signal.sma(20usize);
 let std = signal.std(20usize);
@@ -28,7 +29,7 @@ let lower = &middle - &std * 2.0;
 
 That's the entire band. `*` and `+` and `-` between `Comp` handles — each one adds a node to the graph. No special API, no macro, no magic.
 
-tflo-core also ships a convenience method, `deviation_band`, if you want the standard version in one call:
+`tflo-ops` also ships a convenience method, `deviation_band`, if you want the standard version in one call:
 
 ```rust
 let (middle, upper, lower) = signal.deviation_band(20usize, 2.0);
@@ -48,12 +49,13 @@ pub fn deviation_band(&self, window: impl Into<Window>, k: f64) -> (Comp<R>, Com
 }
 ```
 
-[Source](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/dual_use.rs). It's the same three lines.
+[Source](https://github.com/matt-cochran/tflo/blob/main/tflo-ops/src/ops/composites.rs). It's the same three lines.
 
 If you're working in a finance-flavored codebase and want the traditional name, the `tflo-fintech` crate re-exports `deviation_band` as `bollinger_bands` through its `FintechAliases` trait:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 use tflo_fintech::prelude::*;
 
 let (middle, upper, lower) = price.bollinger_bands(20usize, 2.0);

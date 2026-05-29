@@ -1,0 +1,281 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const rustAbandonedCart = `use std::time::Duration;
+use tflo_cep::prelude::*;
+
+#[derive(Clone)]
+struct Event { ts: i64, action: &'static str, cart_id: String }
+
+let abandoned_cart = Pattern::<Event>::new("abandoned_cart")
+    .timestamp(|e| e.ts)
+    .when(|e| e.action == "add_to_cart")
+    .not_then(|e| e.action == "purchase")
+    .within(Duration::from_secs(5 * 60))
+    .emit(|m| format!("abandoned cart {}", m.first().cart_id))
+    .expect("pattern is well-formed");
+
+let signals: Vec<String> = events.into_iter()
+    .match_pattern(abandoned_cart)
+    .collect();`;
+
+const tsAbandonedCart = `import { Pattern, type EventRecord } from "@tflo/browser-events";
+
+const abandonedCart = new Pattern<EventRecord>("abandoned_cart")
+  .timestamp((e) => e.ts)
+  .when((e) => e.kind === "add_to_cart")
+  .notThen((e) => e.kind === "purchase")
+  .within(5 * 60 * 1000)
+  .emit((m) => ({
+    name: "abandoned_cart",
+    payload: { cartId: m.first().fields.cartId },
+  }));
+
+tflo.addPattern(abandonedCart);`;
+
+const rustEngaged = `// "Viewed a product page, then scrolled deep into it within 30s."
+let engaged = Pattern::<Event>::new("engaged_with_product")
+    .timestamp(|e| e.ts)
+    .when(|e| e.kind == "product_view")
+    .then(|e| e.kind == "deep_scroll")
+    .within(Duration::from_secs(30))
+    .emit(|m| (m.first().ts, m.last().ts))
+    .expect("pattern is well-formed");`;
+
+const tsEngaged = `const engaged = new Pattern<EventRecord>("engaged_with_product")
+  .timestamp((e) => e.ts)
+  .when((e) => e.kind === "product_view")
+  .then((e) => e.kind === "deep_scroll")
+  .within(30 * 1000)
+  .emit((m) => ({
+    name: "engaged_with_product",
+    payload: {
+      viewedAt: m.first().ts,
+      scrolledAt: m.last().ts,
+      durationMs: m.last().ts - m.first().ts,
+    },
+  }));`;
+
+const rustRageClick = `// "Three identical clicks within 1 second" — chained then-within.
+let rage = Pattern::<Event>::new("rage_click")
+    .timestamp(|e| e.ts)
+    .when(|e| e.kind == "click" && e.target_id == "buy_button")
+    .then(|e| e.kind == "click" && e.target_id == "buy_button")
+    .within(Duration::from_millis(1000))
+    .then(|e| e.kind == "click" && e.target_id == "buy_button")
+    .within(Duration::from_millis(1000))
+    .emit(|m| format!("rage_click on {}", m.first().target_id))
+    .expect("pattern is well-formed");`;
+
+const tsRageClick = `const rage = new Pattern<EventRecord>("rage_click")
+  .timestamp((e) => e.ts)
+  .when((e) => e.kind === "click" && e.fields.targetId === "buy_button")
+  .then((e) => e.kind === "click" && e.fields.targetId === "buy_button")
+  .within(1_000)
+  .then((e) => e.kind === "click" && e.fields.targetId === "buy_button")
+  .within(1_000)
+  .emit((m) => ({
+    name: "rage_click",
+    payload: { targetId: m.first().fields.targetId },
+  }));`;
+
+const rustMatchApi = `.emit(|m: &Match<Event>| {
+    // first() and last() — always-present captures
+    let opened   = m.first();   // the .when capture
+    let closed   = m.last();    // the last positive capture
+
+    // at(name) — look up by step name
+    let checkout = m.at("checkout").unwrap();
+
+    // named() — iterate (name, event) pairs in capture order
+    for (step_name, ev) in m.named() {
+        eprintln!("step {step_name}: ts={}", ev.ts);
+    }
+
+    Signal::new("checkout_complete", closed.clone())
+})`;
+
+const tsMatchApi = `.emit((m) => {
+  // first() and last() — always-present captures
+  const opened   = m.first();
+  const closed   = m.last();
+
+  // at(name) — look up by step name
+  const checkout = m.at("checkout");
+
+  // all() — every captured event in order
+  for (const ev of m.all()) {
+    console.debug("captured", ev.kind, "ts=" + ev.ts);
+  }
+
+  return {
+    name: "checkout_complete",
+    payload: { sessionId: closed.fields.sessionId },
+  };
+})`;
+---
+
+<DocsLayout title="Event patterns" description="Closure-based pattern matching across event streams — same API in Rust and TypeScript, compiled to WASM for the browser.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">
+      Event patterns
+    </h1>
+    <p class="text-lg text-text-muted mb-6">
+      The <code>tflo-cep</code> crate composes typed signals into multi-event domain
+      signals &mdash; &ldquo;user added to cart but did not purchase within 5 minutes,&rdquo;
+      &ldquo;page viewed then scrolled deep within 30 seconds,&rdquo; &ldquo;three identical
+      clicks within 1 second.&rdquo; The API is closure-based, mirrors
+      <code>tflo-cel</code> / <code>tflo-rhai</code> / <code>tflo-rego</code>, and is
+      WASM-clean by construction.
+    </p>
+    <p class="text-text-muted mb-12">
+      The Rust crate, the WebAssembly bindings (<code>tflo-cep-wasm</code>), and the
+      TypeScript SDK (<code>@tflo/browser-events</code>) all drive the same
+      <code>engine::Runtime</code> &mdash; one state machine, three idiomatic surfaces.
+      Examples below run end-to-end through the WASM bridge in the browser.
+    </p>
+
+    <!-- Six methods -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-4">The six builder methods</h2>
+    <p class="text-text-muted mb-4">
+      Patterns are linear sequences finalized by an emit closure:
+    </p>
+    <div class="overflow-x-auto rounded-xl border border-border mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Method</th>
+            <th class="text-left p-4 font-semibold text-white">Purpose</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border"><td class="p-4"><code>.timestamp(\|e\| e.ts)</code></td><td class="p-4">Event-time extractor (required for <code>.within</code> to work).</td></tr>
+          <tr class="border-b border-border"><td class="p-4"><code>.when(predicate)</code></td><td class="p-4">Initial match &mdash; opens a partial match for every event the predicate accepts.</td></tr>
+          <tr class="border-b border-border"><td class="p-4"><code>.then(predicate)</code></td><td class="p-4">Positive sequential step &mdash; advances a partial match.</td></tr>
+          <tr class="border-b border-border"><td class="p-4"><code>.not_then(predicate)</code></td><td class="p-4">Negative <em>terminal</em> step &mdash; succeeds when no matching event arrives before the bound.</td></tr>
+          <tr class="border-b border-border"><td class="p-4"><code>.within(Duration)</code></td><td class="p-4">Time bound on the previous step. Required after <code>.not_then</code>.</td></tr>
+          <tr><td class="p-4"><code>.emit(\|m\| ...)</code></td><td class="p-4">Finalize. The closure receives a <code>Match&lt;E&gt;</code> and returns the user's chosen output type.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Abandoned cart -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">Pattern 1 &mdash; abandoned cart</h2>
+    <p class="text-text-muted mb-4">
+      <strong class="text-white">Shape:</strong> <code>when(A) → not_then(B) within T</code>.
+      The pattern emits when an <code>add_to_cart</code> event isn't followed by a
+      <code>purchase</code> within 5 minutes. End-of-stream resolves any pending negatives,
+      so closing the tab still ships the signal.
+    </p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-12">
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">Rust</h3>
+        <CodeBlock code={rustAbandonedCart} lang="rust" />
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">TypeScript (browser, WASM)</h3>
+        <CodeBlock code={tsAbandonedCart} lang="typescript" />
+      </div>
+    </div>
+
+    <!-- Engagement -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">Pattern 2 &mdash; engaged with product</h2>
+    <p class="text-text-muted mb-4">
+      <strong class="text-white">Shape:</strong> <code>when(A) → then(B) within T</code>.
+      Positive sequential: a product view followed by a deep scroll within 30 seconds is
+      engagement. The deep-scroll capture's timestamp gives you dwell-time pre-computed.
+    </p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-12">
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">Rust</h3>
+        <CodeBlock code={rustEngaged} lang="rust" />
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">TypeScript</h3>
+        <CodeBlock code={tsEngaged} lang="typescript" />
+      </div>
+    </div>
+
+    <!-- Rage click -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">Pattern 3 &mdash; rage click</h2>
+    <p class="text-text-muted mb-4">
+      <strong class="text-white">Shape:</strong>
+      <code>when → then within → then within</code> &mdash; three identical clicks within
+      one second each. The <code>.repeated(n..=m, ...)</code> quantifier sugar lands in
+      v0.2; for v0.1 you chain explicit <code>.then().within()</code> pairs, which is
+      exactly what the macro would compile to.
+    </p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-12">
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">Rust</h3>
+        <CodeBlock code={rustRageClick} lang="rust" />
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">TypeScript</h3>
+        <CodeBlock code={tsRageClick} lang="typescript" />
+      </div>
+    </div>
+
+    <!-- Match interface -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">The <code>Match&lt;E&gt;</code> interface</h2>
+    <p class="text-text-muted mb-4">
+      The emit closure receives a <code>Match&lt;E&gt;</code> &mdash; the captured events
+      in capture order. Both languages expose the same accessors:
+    </p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-12">
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">Rust</h3>
+        <CodeBlock code={rustMatchApi} lang="rust" />
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-text-muted mb-2 uppercase tracking-wide">TypeScript</h3>
+        <CodeBlock code={tsMatchApi} lang="typescript" />
+      </div>
+    </div>
+
+    <!-- Bounded by construction -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">Bounded by construction</h2>
+    <p class="text-text-muted mb-4">
+      Partial matches are bounded by event rate within the <code>within</code> window
+      and hard-capped at <code>MAX_IN_FLIGHT = 1024</code> per pattern &mdash; when the
+      cap is reached, the oldest partial match is dropped. This is the design rule
+      that keeps <code>tflo-cep</code> honest about edge / WASM memory budgets.
+    </p>
+    <p class="text-text-muted mb-4">
+      Negative matches (<code>not_then</code>) resolve in two ways: when their deadline
+      elapses without the predicate firing (success), or when the predicate fires
+      before the deadline (failure &mdash; the partial match drops). End-of-stream is
+      treated as a deadline that never closed, so streams that terminate before a
+      bound still ship their negative matches.
+    </p>
+
+    <!-- One engine, three surfaces -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">One engine, three surfaces</h2>
+    <p class="text-text-muted mb-4">
+      The matching state machine lives in <code>tflo-cep::engine::Runtime</code>, generic
+      over three callback traits:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted mb-4">
+      <li><code>Predicate&lt;E&gt;</code> &mdash; closure-like predicate evaluation.</li>
+      <li><code>EmitCallback&lt;E, M&gt;</code> &mdash; match → output transformer.</li>
+      <li><code>TimestampCallback&lt;E&gt;</code> &mdash; event-time extractor.</li>
+    </ul>
+    <p class="text-text-muted mb-12">
+      <code>tflo-cep</code> ships Arc-based impls so patterns are <code>Send + Sync</code>;
+      <code>tflo-cep-wasm</code> ships Rc-based impls backed by <code>js_sys::Function</code>
+      so JS callbacks plug straight in. <strong class="text-white">No duplicate state machine.</strong>
+      Feature additions land once.
+    </p>
+
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Next:</strong>
+        See the
+        <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+        page for the end-to-end workflow &mdash; capture → patterns → sinks &mdash; or
+        <a href="https://github.com/matt-cochran/tflo/tree/main/tflo-cep" class="text-primary hover:underline">browse the crate source</a>.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

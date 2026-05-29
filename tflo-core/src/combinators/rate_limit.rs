@@ -30,7 +30,7 @@ use std::time::Duration;
 /// assert_eq!(limited[0].1, "event1");
 /// assert_eq!(limited[1].1, "event4");
 /// ```
-pub fn rate_limit<I, T, F, K>(iter: I, ts_fn: F, min_interval: Duration) -> RateLimit<I, T, F>
+pub const fn rate_limit<I, T, F, K>(iter: I, ts_fn: F, min_interval: Duration) -> RateLimit<I, T, F>
 where
     I: Iterator<Item = T>,
     F: Fn(&T) -> K,
@@ -87,13 +87,15 @@ where
                     self.last_output_ts = Some(ts);
                     return Some(item);
                 }
-                Some(last) if ts - last >= self.interval_ms => {
+                // Saturating: out-of-order records (ts < last) clamp at
+                // 0, which compares as < interval_ms so they are
+                // correctly rate-limited.
+                Some(last) if ts.saturating_sub(last) >= self.interval_ms => {
                     self.last_output_ts = Some(ts);
                     return Some(item);
                 }
                 Some(_) => {
                     // Rate limited - drop this item
-                    continue;
                 }
             }
         }
@@ -102,7 +104,7 @@ where
 
 /// Rate limiter that keeps the most recent item within each window.
 #[allow(dead_code)]
-pub fn rate_limit_keep_last<I, T, F, K>(
+pub const fn rate_limit_keep_last<I, T, F, K>(
     iter: I,
     ts_fn: F,
     interval: Duration,
@@ -167,7 +169,8 @@ where
                             self.last_output_ts = Some(ts);
                             return Some(item);
                         }
-                        Some(last) if ts - last >= self.interval_ms => {
+                        // Saturating — same rationale as `RateLimit::next`.
+                        Some(last) if ts.saturating_sub(last) >= self.interval_ms => {
                             // Can output - first check if we have a pending item
                             if let Some((pending_ts, pending_item)) = self.pending.take() {
                                 // Output pending, store current as new pending

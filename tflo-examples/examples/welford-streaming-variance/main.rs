@@ -1,5 +1,6 @@
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// A measured machined part coming off a CNC line for quality control.
 #[derive(Clone, Debug)]
@@ -13,7 +14,7 @@ struct Part {
 }
 
 impl Part {
-    fn new(ts: i64, diameter_mm: f64, spindle_temp_c: f64) -> Self {
+    const fn new(ts: i64, diameter_mm: f64, spindle_temp_c: f64) -> Self {
         Self {
             ts,
             diameter_mm,
@@ -43,7 +44,9 @@ fn main() {
     let parts = sample_parts();
 
     // ---- Running variance and std ----
-    let variance: Vec<f64> = parts.clone().into_iter()
+    let variance: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -52,7 +55,9 @@ fn main() {
         .collect();
     print_summary("Variance(5)", &variance);
 
-    let stddev: Vec<f64> = parts.clone().into_iter()
+    let stddev: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -62,7 +67,9 @@ fn main() {
     print_summary("StdDev(5)", &stddev);
 
     // ---- Higher moments ----
-    let skewness: Vec<f64> = parts.clone().into_iter()
+    let skewness: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -71,7 +78,9 @@ fn main() {
         .collect();
     print_summary("Skewness(6)", &skewness);
 
-    let kurtosis: Vec<f64> = parts.clone().into_iter()
+    let kurtosis: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -81,7 +90,9 @@ fn main() {
     print_summary("Kurtosis(6)", &kurtosis);
 
     // ---- Correlation between diameter and spindle temperature ----
-    let correlation: Vec<f64> = parts.clone().into_iter()
+    let correlation: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -91,7 +102,9 @@ fn main() {
         .collect();
     print_summary("Correlation(5) diameter/temp", &correlation);
 
-    let covariance: Vec<f64> = parts.clone().into_iter()
+    let covariance: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -102,7 +115,9 @@ fn main() {
     print_summary("Covariance(5) diameter/temp", &covariance);
 
     // ---- Z-score ----
-    let zscores: Vec<f64> = parts.clone().into_iter()
+    let zscores: Vec<f64> = parts
+        .clone()
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);
@@ -112,7 +127,8 @@ fn main() {
     print_summary("Z-score(5)", &zscores);
 
     // ---- Median ----
-    let medians: Vec<f64> = parts.into_iter()
+    let medians: Vec<f64> = parts
+        .into_iter()
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let diameter = t.prop(|x| x.diameter_mm);

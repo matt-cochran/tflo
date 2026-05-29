@@ -1,6 +1,7 @@
 use tflo_core::prelude::*;
-use tflo_fintech::prelude::*;
 use tflo_examples::*;
+use tflo_fintech::prelude::*;
+use tflo_ops::prelude::*;
 
 /// A web analytics traffic metric: a timestamp and a page-view count.
 #[derive(Clone, Debug)]
@@ -10,7 +11,7 @@ struct Metric {
 }
 
 impl Metric {
-    fn new(ts: i64, views: f64) -> Self {
+    const fn new(ts: i64, views: f64) -> Self {
         Self { ts, views }
     }
 }

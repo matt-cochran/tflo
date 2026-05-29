@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use tflo_core::operator::require;
 use tflo_core::prelude::*;
 use tflo_examples::*;
 
@@ -13,28 +14,33 @@ impl RateOfChange {
     fn new(period: usize) -> Self {
         Self {
             period,
-            buffer: VecDeque::with_capacity(period + 1),
+            // SAFETY: period is a small ROC window (e.g. 5–50); +1 cannot overflow usize
+            buffer: VecDeque::with_capacity(period.saturating_add(1)),
         }
     }
 }
 
-impl CustomNode for RateOfChange {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let current = inputs.first().copied().unwrap_or(f64::NAN);
+impl Operator for RateOfChange {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let current = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.buffer.push_back(current);
 
-        if self.buffer.len() > self.period + 1 {
+        // SAFETY: period is a small ROC window; saturating add cannot overflow usize
+        if self.buffer.len() > self.period.saturating_add(1) {
             self.buffer.pop_front();
         }
-        if self.buffer.len() < self.period + 1 {
-            return f64::NAN; // still warming up
+        if self.buffer.len() < self.period.saturating_add(1) {
+            return NodeOutput::computed(Err(Absent::WarmingUp)); // still warming up
         }
 
         let n_periods_ago = self.buffer.front().copied().unwrap_or(current);
         if n_periods_ago == 0.0 {
-            return f64::NAN;
+            return NodeOutput::computed(Err(Absent::DivideByZero));
         }
-        (current - n_periods_ago) / n_periods_ago
+        NodeOutput::computed(Ok((current - n_periods_ago) / n_periods_ago))
     }
 
     fn reset(&mut self) {
@@ -53,15 +59,22 @@ struct SnrGate {
 }
 
 impl SnrGate {
-    fn new(threshold_db: f64) -> Self {
+    const fn new(threshold_db: f64) -> Self {
         Self { threshold_db }
     }
 }
 
-impl CustomNode for SnrGate {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let v = inputs.first().copied().unwrap_or(f64::NAN);
-        if v > self.threshold_db { v } else { f64::NAN }
+impl Operator for SnrGate {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let v = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        if v > self.threshold_db {
+            NodeOutput::computed(Ok(v))
+        } else {
+            NodeOutput::computed(Err(Absent::FilteredOut))
+        }
     }
 
     fn name(&self) -> &str {
@@ -77,7 +90,7 @@ struct Detection {
 }
 
 impl Detection {
-    fn new(ts: i64, snr_db: f64) -> Self {
+    const fn new(ts: i64, snr_db: f64) -> Self {
         Self { ts, snr_db }
     }
 }
@@ -110,7 +123,7 @@ fn main() {
             t.prop(|x| x.snr_db).custom_node1(|| RateOfChange::new(5))
         })
         .collect();
-    print_summary("ROC(5) via custom CustomNode", &roc);
+    print_summary("ROC(5) via custom Operator", &roc);
 
     // SNR gate as a custom plugin node.
     let gated: Vec<f64> = detections
@@ -121,7 +134,7 @@ fn main() {
             t.prop(|x| x.snr_db).custom_node1(|| SnrGate::new(12.0))
         })
         .collect();
-    print_summary("SNR gate (threshold 12.0 dB) via custom CustomNode", &gated);
+    print_summary("SNR gate (threshold 12.0 dB) via custom Operator", &gated);
 
     // Built-in functional primitives still cover simpler cases.
     println!("\n--- Functional primitives ---");
@@ -151,6 +164,6 @@ fn main() {
     print_summary("Custom EMA(0.1) via scan_f64", &custom_ema);
 
     println!();
-    println!("`CustomNode` plugs a stateful Rust node directly into the graph;");
+    println!("`Operator` plugs a stateful Rust node directly into the graph;");
     println!("`map_f64` / `scan_f64` cover simpler stateless and closure cases.");
 }

@@ -31,12 +31,12 @@ use std::sync::Arc;
 ///     Tick { ts: 3000, price: 102.0 },
 /// ];
 ///
-/// // Just the computed values
-/// let smas: Vec<f64> = ticks.iter().cloned()
+/// // Just the computed values (scale price by 2)
+/// let doubled: Vec<f64> = ticks.iter().cloned()
 ///     .tflo(|t| {
 ///         t.timestamp(|x| x.ts);
 ///         let price = t.prop(|x| x.price);
-///         price.sma(5_u64.secs())
+///         price.map_f64(|x| x * 2.0)
 ///     })
 ///     .collect();
 ///
@@ -45,14 +45,14 @@ use std::sync::Arc;
 ///     .with(|t| {
 ///         t.timestamp(|x| x.ts);
 ///         let price = t.prop(|x| x.price);
-///         price.sma(5_u64.secs())
+///         price.map_f64(|x| x * 2.0)
 ///     })
 ///     .collect();
 /// ```
 pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
     /// Apply temporal computations to the iterator, returning computed values.
     ///
-    /// The closure receives a [`TemporalBuilder`] and should return one or more
+    /// The closure receives a [`TFlowBuilder`] and should return one or more
     /// [`Comp`](crate::comp::Comp) values (or a tuple of them).
     ///
     /// # Panics
@@ -75,8 +75,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
         });
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloIter {
             iter: self,
@@ -105,8 +107,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloWithIter {
             iter: self,
@@ -138,8 +142,14 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn.clone(), nodes, output_ids);
+        let mut graph = CompiledGraph::compile(timestamp_fn.clone(), nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
+        // Honour the configured warmup: the graph suppresses output until it
+        // has seen `min_warmup` records.
+        graph.set_min_warmup(options.min_warmup);
+        let validator = crate::validation::ValueValidator::new(options.clone());
 
         TFloValidatedIter {
             iter: self,
@@ -147,6 +157,7 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             timestamp_fn,
             options,
             last_ts: None,
+            validator,
             _marker: std::marker::PhantomData,
         }
     }
@@ -166,13 +177,16 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
         let mut builder = TFlowBuilder::new();
         let comps = f(&mut builder);
 
-        let timestamp_fn = builder.timestamp_fn.clone().unwrap_or_else(|| {
-            Arc::new(|_| 0)
-        });
+        let timestamp_fn = builder
+            .timestamp_fn
+            .clone()
+            .unwrap_or_else(|| Arc::new(|_| 0));
 
         let output_ids = comps.output_ids();
+        let fingerprint = builder.fingerprint();
         let nodes = builder.into_nodes();
-        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids);
+        let graph = CompiledGraph::compile(timestamp_fn, nodes, output_ids)
+            .with_topology_fingerprint(fingerprint);
 
         TFloTryIter {
             iter: self,
@@ -211,7 +225,7 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
     ///         |t| {
     ///             t.timestamp(|x| x.ts);
     ///             let price = t.prop(|x| x.price);
-    ///             price.sma(5_u64.secs())
+    ///             price.map_f64(|x| x * 2.0)
     ///         }
     ///     )
     ///     .collect();
@@ -232,10 +246,10 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
     {
         let mut builder = TFlowBuilder::new();
         let _comps = builder_fn(&mut builder);
-        
-        let timestamp_fn = builder.get_timestamp_fn().unwrap_or_else(|| {
-            Arc::new(|_| 0)
-        });
+
+        let timestamp_fn = builder
+            .get_timestamp_fn()
+            .unwrap_or_else(|| Arc::new(|_| 0));
 
         crate::keyed::TFloKeyedIter {
             iter: self,
@@ -244,6 +258,8 @@ pub trait TFlowIteratorExt<R>: Iterator<Item = R> + Sized {
             key_fn: Arc::new(key_fn),
             builder_fn: Box::new(builder_fn),
             policy,
+            ready_queue: std::collections::VecDeque::new(),
+            flushed: false,
             _marker: std::marker::PhantomData,
         }
     }
@@ -367,7 +383,7 @@ where
             let record = self.iter.next()?;
             match self.graph.step_with_status(&record) {
                 crate::compile::StepResult::Ready(item) => return Some(Ok(item)),
-                crate::compile::StepResult::WarmingUp { .. } => continue,
+                crate::compile::StepResult::WarmingUp { .. } => {}
                 crate::compile::StepResult::Error(e) => return Some(Err(TFloError::Compute(e))),
             }
         }
@@ -381,6 +397,7 @@ pub struct TFloValidatedIter<I, R, O> {
     timestamp_fn: Arc<dyn Fn(&R) -> i64 + Send + Sync>,
     options: crate::validation::ValidationOptions,
     last_ts: Option<i64>,
+    validator: crate::validation::ValueValidator,
     _marker: std::marker::PhantomData<R>,
 }
 
@@ -409,7 +426,7 @@ where
             let record = self.iter.next()?;
             let ts = (self.timestamp_fn)(&record);
 
-            // Check sorted order if enabled
+            // Check sorted order if enabled.
             if self.options.assert_sorted {
                 if let Some(last) = self.last_ts {
                     if ts < last {
@@ -420,20 +437,43 @@ where
                     }
                 }
             }
+            // Check the maximum inter-record gap if configured.
+            if let Some(max_gap) = self.options.max_gap_ms {
+                if let Some(last) = self.last_ts {
+                    if ts.saturating_sub(last) > max_gap {
+                        return Some(Err(TFloError::TimestampGapExceeded {
+                            previous: last,
+                            current: ts,
+                            max_gap,
+                        }));
+                    }
+                }
+            }
             self.last_ts = Some(ts);
 
             if let Some(item) = self.graph.step(&record) {
+                // Apply the NaN / infinity / negative value checks. They are
+                // only meaningful for scalar `f64` outputs (`as_f64` is `None`
+                // for everything else).
+                if let Some(value) = item.value.as_f64() {
+                    match self.validator.check_strict(value) {
+                        Ok(true) => return Some(Ok(item.value)),
+                        // A `reject_*` option matched — filter this value out.
+                        Ok(false) => continue,
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
                 return Some(Ok(item.value));
             }
-            // Continue if step returned None (warmup period)
+            // Continue if step returned None (warmup period).
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::duration::IntoDuration;
 
     #[derive(Clone, Debug)]
     struct TestRecord {
@@ -442,7 +482,7 @@ mod tests {
     }
 
     #[test]
-    fn test_temporal_sma() {
+    fn test_temporal_map() {
         let records = vec![
             TestRecord {
                 ts: 1000,
@@ -463,14 +503,14 @@ mod tests {
             .tflo(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                value.sma(10_u64.secs())
+                value.map_f64(|x| x * 2.0)
             })
             .collect();
 
         assert_eq!(results.len(), 3);
-        assert!((results[0] - 10.0).abs() < 0.001);
-        assert!((results[1] - 15.0).abs() < 0.001);
-        assert!((results[2] - 20.0).abs() < 0.001);
+        assert!((results[0] - 20.0).abs() < 0.001);
+        assert!((results[1] - 40.0).abs() < 0.001);
+        assert!((results[2] - 60.0).abs() < 0.001);
     }
 
     #[test]
@@ -491,13 +531,13 @@ mod tests {
             .with(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                value.sma(10_u64.secs())
+                value.map_f64(|x| x + 1.0)
             })
             .collect();
 
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].0.value, 10.0);
-        assert!((results[0].1 - 10.0).abs() < 0.001);
+        assert!((results[0].1 - 11.0).abs() < 0.001);
     }
 
     #[test]
@@ -518,14 +558,14 @@ mod tests {
             .tflo(|t| {
                 let _ = t.timestamp(|x| x.ts);
                 let value = t.prop(|x| x.value);
-                let sma = value.sma(10_u64.secs());
-                let max = value.max(10_u64.secs());
-                (sma, max)
+                let doubled = value.map_f64(|x| x * 2.0);
+                let tripled = value.map_f64(|x| x * 3.0);
+                (doubled, tripled)
             })
             .collect();
 
         assert_eq!(results.len(), 2);
-        assert!((results[1].0 - 15.0).abs() < 0.001); // SMA
-        assert!((results[1].1 - 20.0).abs() < 0.001); // Max
+        assert!((results[1].0 - 40.0).abs() < 0.001); // doubled
+        assert!((results[1].1 - 60.0).abs() < 0.001); // tripled
     }
 }

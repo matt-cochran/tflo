@@ -2,8 +2,16 @@
 /target/
 /tflo-wasm/pkg/
 
+# ── FrontRails / StructureOS / IntentOS scratch state ──────────────────
+# MCP tools store per-workspace caches, backups, and llm context here.
+/.frontrails/
+/.structureos/
+
 # ── tflo-site ──────────────────────────────────────────────────────────
 /tflo-site/public/wasm/
+/tflo-site/.astro/
+/tflo-site/dist/
+/tflo-site/node_modules/
 
 # ── IDE / editor ───────────────────────────────────────────────────────
 .idea/
@@ -16,6 +24,10 @@
 .DS_Store
 Thumbs.db
 *.Zone.Identifier
+
+# ── Python (fixture generators in tflo-fintech/tests/golden/scripts/) ─
+__pycache__/
+*.pyc
 
 # ── Misc ───────────────────────────────────────────────────────────────
 *.log

@@ -1,5 +1,13 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing
+)]
 use tflo_core::prelude::*;
 use tflo_fintech::prelude::*;
+use tflo_ops::prelude::*;
 
 #[derive(Clone)]
 struct Bar {
@@ -55,7 +63,12 @@ fn comp_kama_count_matches_talib_seed_contract() {
 }
 
 #[test]
-fn comp_ppo_uses_sma_price_oscillator_contract() {
+fn comp_ppo_uses_ema_price_oscillator_contract() {
+    // PPO = ((EMA(fast) - EMA(slow)) / EMA(slow)) * 100 — matches TA-Lib's
+    // default `matype=EMA`. For this 4-bar input the EMA[fast-1] and
+    // EMA[slow-1] seeds equal the corresponding SMAs (EMA is seeded from
+    // an SMA), so the first two emitted values coincide with what an
+    // SMA-based PPO would produce. Subsequent bars would diverge.
     let output: Vec<f64> = bars(&[1.0, 2.0, 3.0, 4.0])
         .into_iter()
         .tflo(|t| {

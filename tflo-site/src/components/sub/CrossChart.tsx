@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -12,6 +12,18 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { Tick, CrossEvent } from "../../lib/wasm";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_COLORS,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+  EmptyChart,
+  chartTooltipLabelFormatter,
+} from "./chartTheme";
 
 interface CrossChartProps {
   ticks: Tick[];
@@ -21,34 +33,39 @@ interface CrossChartProps {
 }
 
 function CrossChartInner({ ticks, results, config, height }: CrossChartProps) {
-  const chartData = ticks.map((tick) => ({
-    ts: tick.ts,
-    value: tick.value,
-  }));
+  const chartData = useMemo(
+    () => ticks.map((tick) => ({ ts: tick.ts, value: tick.value })),
+    [ticks],
+  );
 
-  if (chartData.length === 0) {
-    return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#666",
-          background: "#f5f5f5",
-          borderRadius: 8,
-          fontSize: "0.9rem",
-        }}
-      >
-        No data
-      </div>
-    );
-  }
+  const crossTsSet = useMemo(
+    () => new Set(results.map((ev) => ev.ts)),
+    [results],
+  );
 
   const threshold = config.threshold;
 
-  // Build a set of crossing timestamps for custom dot rendering
-  const crossTsSet = new Set(results.map((ev) => ev.ts));
+  const yDomain = useMemo<[(dataMin: number) => number, (dataMax: number) => number]>(
+    () => [
+      (dataMin: number) => Math.floor(Math.min(dataMin, threshold) - 5),
+      (dataMax: number) => Math.ceil(Math.max(dataMax, threshold) + 5),
+    ],
+    [threshold],
+  );
+
+  const thresholdLabel = useMemo(
+    () => ({
+      value: `Threshold: ${threshold}`,
+      position: "right" as const,
+      fontSize: 10,
+      fill: CHART_COLORS.cross,
+    }),
+    [threshold],
+  );
+
+  if (chartData.length === 0) {
+    return <EmptyChart height={height} />;
+  }
 
   return (
     <div
@@ -57,56 +74,38 @@ function CrossChartInner({ ticks, results, config, height }: CrossChartProps) {
       style={{ width: "100%", height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={chartData}
-          margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis dataKey="ts" tick={false} axisLine={{ stroke: "#ccc" }} />
+        <LineChart data={chartData} margin={CHART_MARGIN}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="ts" tick={false} axisLine={CHART_AXIS_LINE} />
           <YAxis
-            domain={[
-              (dataMin: number) => Math.floor(Math.min(dataMin, threshold) - 5),
-              (dataMax: number) => Math.ceil(Math.max(dataMax, threshold) + 5),
-            ]}
-            tick={{ fontSize: 11 }}
-            axisLine={{ stroke: "#ccc" }}
+            domain={yDomain}
+            tick={CHART_AXIS_TICK}
+            axisLine={CHART_AXIS_LINE}
           />
           <Tooltip
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              fontSize: 12,
-            }}
-            labelFormatter={(label) => `t=${label}`}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={chartTooltipLabelFormatter}
           />
 
-          {/* Threshold reference line */}
           <ReferenceLine
             y={threshold}
-            stroke="#e53935"
+            stroke={CHART_COLORS.cross}
             strokeDasharray="6 3"
             strokeWidth={1.5}
-            label={{
-              value: `Threshold: ${threshold}`,
-              position: "right",
-              fontSize: 10,
-              fill: "#e53935",
-            }}
+            label={thresholdLabel}
           />
 
-          {/* Price line with cross markers */}
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#0066cc"
+            stroke={CHART_COLORS.price}
             strokeWidth={2}
             isAnimationActive={false}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             dot={(dotProps: any) => {
-              const cx = dotProps.cx;
-              const cy = dotProps.cy;
-              const idx = dotProps.index;
+              const { cx, cy, index: idx } = dotProps;
               if (cx == null || cy == null) return null;
               const tick = ticks[idx];
               if (tick && crossTsSet.has(tick.ts)) {
@@ -122,8 +121,8 @@ function CrossChartInner({ ticks, results, config, height }: CrossChartProps) {
                       cx={5}
                       cy={5}
                       r={4}
-                      fill="#e53935"
-                      stroke="#fff"
+                      fill={CHART_COLORS.cross}
+                      stroke={CHART_COLORS.markerBg}
                       strokeWidth={1.5}
                     />
                   </svg>
@@ -134,12 +133,11 @@ function CrossChartInner({ ticks, results, config, height }: CrossChartProps) {
             name="Price"
           />
 
-          {/* Vertical dashed lines at crossing points */}
           {results.map((ev, idx) => (
             <ReferenceLine
               key={`cross-${idx}`}
               x={ev.ts}
-              stroke="#e53935"
+              stroke={CHART_COLORS.cross}
               strokeDasharray="3 3"
               strokeWidth={1}
               strokeOpacity={0.5}

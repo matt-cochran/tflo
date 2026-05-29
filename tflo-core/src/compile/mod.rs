@@ -15,40 +15,34 @@
 //!
 //! # Architecture
 //!
-//! Computed node outputs are held in a [`ValueStore`] as a typed [`Value`]
+//! Computed node outputs are held in a [`ValueStore`] as a typed [`NodeOutput`]
 //! (`f64` inline, everything else boxed). The external API stays fully
 //! type-safe through generics and the [`ExtractOutput`] trait.
 
+mod absent;
 mod eval;
 mod extract;
 mod inspect;
 mod node;
 mod pipeline;
+mod snapshot;
 #[cfg(test)]
 mod tests;
 mod value;
 
 use crate::comp::NodeId;
-use crate::custom_node::BoxedCustomNode;
-use crate::event::ThresholdCrossEventMode;
+use crate::operator::BoxedOperator;
 use crate::pipeline::{PipelineContext, Timestamped};
-use crate::primitives::{
-    CorrelationCountWindow, CorrelationTimeWindow, CountEma, CountWindow, CrossDetector,
-    CumulativeMax, CumulativeMin, CumulativeProduct, CumulativeSum, GlitchFilter, GlitchResult,
-    HysteresisCrossDetector, LagBuffer, MedianCountWindow, MedianTimeWindow, MomentsCountWindow,
-    MomentsTimeWindow, PrevByTracker, PrevTracker, PulseWidthDetector, PulseWidthResult,
-    RsiCountWindow, RsiTimeWindow, RuntDetector, RuntResult, TimeEma, TimeWindow, WindowDetector,
-    WindowEvent, WmaCountWindow, WmaTimeWindow,
-};
+pub use absent::{Absent, Computed, finite_or_warming};
 pub use extract::ExtractOutput;
 pub use inspect::{GraphPlan, GraphStateSummary};
 pub use node::{CompiledNode, CompositionNodeEntry, offset_node_ids};
 pub use pipeline::{PipelinedGraph, StepResult};
-pub(crate) use value::Value;
 use std::any::Any;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
+pub use value::NodeOutput;
 
 // ============================================================================
 // VALUE STORE - Type-erased storage for computed values
@@ -56,18 +50,18 @@ use std::sync::{Arc, Mutex};
 
 /// Storage for computed node outputs, keyed by [`NodeId`].
 ///
-/// Values are held as a typed [`Value`] — `f64` inline, everything else boxed.
+/// Values are held as a typed [`NodeOutput`] — `f64` inline, everything else boxed.
 #[derive(Default)]
 pub struct ValueStore {
-    pub(crate) values: HashMap<NodeId, Value>,
+    pub(crate) values: HashMap<NodeId, NodeOutput>,
 }
 
 // ============================================================================
 // EXTRACT OUTPUT - Trait for type-safe extraction
 // ============================================================================
 
-/// Macro to implement ExtractOutput for simple cloneable types.
-/// All these types use the same extraction pattern: get_cloned from first ID.
+/// Macro to implement `ExtractOutput` for simple cloneable types.
+/// All these types use the same extraction pattern: `get_cloned` from first ID.
 macro_rules! impl_extract_output {
     ($($t:ty),+ $(,)?) => {
         $(
@@ -80,30 +74,53 @@ macro_rules! impl_extract_output {
     };
 }
 
-// Primitive types
+// Primitive types other than `f64` (`f64` has a bespoke impl below). These are
+// only ever produced by `map`/`fold` composition nodes, so plain `get_cloned`
+// on the boxed value is correct.
 impl_extract_output!(
-    f64, f32, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize, String
+    f32, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize, String
 );
 
-// Domain types
-impl_extract_output!(
-    ThresholdCrossEventMode,
-    GlitchResult,
-    RuntResult,
-    PulseWidthResult,
-    WindowEvent
-);
+/// `f64` extraction flattens the typed-absence model back to the historical
+/// NaN sentinel: a present `Ok` yields the value, any [`Absent`] reason yields
+/// `f64::NAN`. This keeps `O = f64` callers fully back-compatible. Callers who
+/// want the typed reason should use `O = Computed` instead.
+impl ExtractOutput for f64 {
+    fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
+        match store.values.get(ids.first()?)? {
+            NodeOutput::Computed(c) => Some(c.unwrap_or(Self::NAN)),
+            NodeOutput::Other(b) => b.downcast_ref::<Self>().copied(),
+        }
+    }
 
-/// Blanket impl for Option<T> - handles both filtered and direct values
+    fn as_f64(&self) -> Option<f64> {
+        Some(*self)
+    }
+}
+
+/// `Computed` extraction is the opt-in path that preserves the typed
+/// [`Absent`] reason a node produced for an absent record.
+impl ExtractOutput for Computed {
+    fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
+        match store.values.get(ids.first()?)? {
+            NodeOutput::Computed(c) => Some(*c),
+            NodeOutput::Other(b) => b.downcast_ref::<f64>().copied().map(Ok),
+        }
+    }
+}
+
+/// Blanket impl for `Option<T>` - handles both filtered and direct values
 impl<T: ExtractOutput + Clone + 'static> ExtractOutput for Option<T> {
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         let id = ids.first()?;
         // First try Option<T> (from filter/filter_map that store Option directly)
-        if let Some(opt) = store.get_cloned::<Option<T>>(id) {
+        if let Some(opt) = store.get_cloned::<Self>(id) {
             return Some(opt);
         }
-        // Fall back to T directly (for optional outputs, missing = None)
-        Some(store.get_cloned::<T>(id))
+        // Fall back to T's own extraction (for optional outputs, missing = None).
+        // Using `T::extract` rather than a raw `get_cloned` keeps the typed
+        // absence model intact — e.g. `T = f64` flattens `Absent` to NaN.
+        Some(T::extract(store, ids))
     }
 
     fn output_id_count() -> usize {
@@ -121,18 +138,24 @@ pub struct CompiledGraph<R, O, C: PipelineContext = Timestamped> {
     pub(crate) store: ValueStore,
     pub(crate) records_seen: usize,
     pub(crate) min_warmup: usize,
+    /// Optional topology fingerprint (see
+    /// [`TFlowBuilder::fingerprint`](crate::builder::TFlowBuilder::fingerprint)).
+    /// Stamped into snapshot metadata and verified on restore. `None` when
+    /// the caller did not set one — keeps back-compat for code paths that
+    /// haven't adopted the Phase 1 contract.
+    pub(crate) topology_fingerprint: Option<[u8; 32]>,
     pub(crate) _phantom: PhantomData<(O, C)>,
 }
 
 /// A post-compilation composition node (`map` / `fold`).
 pub(crate) enum CompositionNodeKind {
     Map {
-        mapper: Arc<dyn Fn(&ValueStore) -> Option<Value> + Send + Sync>,
+        mapper: Arc<dyn Fn(&ValueStore) -> Option<NodeOutput> + Send + Sync>,
     },
     Fold {
         state: Arc<Mutex<Box<dyn Any + Send + Sync>>>,
         folder: Arc<
-            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value>
+            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<NodeOutput>
                 + Send
                 + Sync,
         >,
@@ -143,194 +166,20 @@ pub(crate) enum CompositionNodeKind {
 pub(crate) enum NodeState {
     /// No state needed.
     Stateless,
-    /// Time-based window.
-    TimeWindow(TimeWindow),
-    /// Count-based window.
-    CountWindow(CountWindow),
-    /// Time-based EMA.
-    TimeEma(TimeEma),
-    /// Count-based EMA.
-    CountEma(CountEma),
-    /// Previous value tracker.
-    Prev(PrevTracker),
-    /// Previous value by key.
-    PrevBy(PrevByTracker<u64>),
-    /// Lag buffer.
-    Lag(LagBuffer),
-    /// Cross detector.
-    Cross(CrossDetector),
-    /// Hysteresis cross detector.
-    CrossHysteresis(HysteresisCrossDetector),
-    /// Glitch filter.
-    GlitchFilterState(GlitchFilter),
-    /// Runt detector.
-    RuntDetectorState(RuntDetector),
-    /// Pulse width detector state.
-    PulseWidthState(PulseWidthDetector),
-    /// Window detector state.
-    WindowDetectorState(WindowDetector),
-    /// State for scan_f64.
+    /// State for `scan_f64`.
     ScanState(Box<dyn Any + Send + Sync>),
-    /// State for scan2_f64.
+    /// State for `scan2_f64`.
     Scan2State(Box<dyn Any + Send + Sync>),
-    /// Rate tracker (stores previous timestamp and value).
-    Rate {
-        prev_ts: Option<i64>,
-        prev_value: Option<f64>,
-    },
-    /// Velocity tracker (first derivative).
-    Velocity {
-        prev_ts: Option<i64>,
-        prev_value: Option<f64>,
-    },
-    /// Acceleration tracker (second derivative).
-    Acceleration {
-        prev_ts: Option<i64>,
-        prev_velocity: Option<f64>,
-        velocity_state: Box<NodeState>,
-    },
-    /// Median/quantile time window.
-    MedianTimeWindow(MedianTimeWindow),
-    /// Median/quantile count window.
-    MedianCountWindow(MedianCountWindow),
-    /// Correlation time window (holds two series).
-    CorrelationTimeWindow(CorrelationTimeWindow),
-    /// Correlation count window (holds two series).
-    CorrelationCountWindow(CorrelationCountWindow),
-    /// Higher moments time window.
-    MomentsTimeWindow(MomentsTimeWindow),
-    /// Higher moments count window.
-    MomentsCountWindow(MomentsCountWindow),
-    /// WMA time window.
-    WmaTimeWindow(WmaTimeWindow),
-    /// WMA count window.
-    WmaCountWindow(WmaCountWindow),
-    /// RSI time window.
-    RsiTimeWindow(RsiTimeWindow),
-    /// RSI count window.
-    RsiCountWindow(RsiCountWindow),
-    /// RSI with Wilder smoothing.
-    RsiWilderState(RsiWilderState),
-    /// Cumulative sum.
-    CumSum(CumulativeSum),
-    /// Cumulative max.
-    CumMax(CumulativeMax),
-    /// Cumulative min.
-    CumMin(CumulativeMin),
-    /// Cumulative product.
-    CumProd(CumulativeProduct),
-    /// Percentage change tracker.
-    PctChange { prev: Option<f64> },
-    /// Log return tracker.
-    LogReturn { prev: Option<f64> },
-    /// State for a custom plugin node.
-    Custom(BoxedCustomNode),
-}
-
-// ============================================================================
-// RSI Wilder State Structure
-// ============================================================================
-
-/// State tracker for RSI with Wilder smoothing.
-pub(crate) struct RsiWilderState {
-    pub period: usize,
-    pub prev: Option<f64>,
-    pub count: usize,
-    pub sum_gain: f64,
-    pub sum_loss: f64,
-    pub avg_gain: f64,
-    pub avg_loss: f64,
-    pub initialized: bool,
-}
-
-impl RsiWilderState {
-    pub fn new(period: usize) -> Self {
-        Self {
-            period,
-            prev: None,
-            count: 0,
-            sum_gain: 0.0,
-            sum_loss: 0.0,
-            avg_gain: 0.0,
-            avg_loss: 0.0,
-            initialized: false,
-        }
-    }
+    /// State for a plugin node.
+    Plugin(BoxedOperator),
 }
 
 /// The operation to perform for a node.
 pub(crate) enum NodeOp<R> {
+    /// Extract a property from the input record.
     Prop(Arc<dyn Fn(&R) -> f64 + Send + Sync>),
+    /// Constant value.
     Const(f64),
-    Sma(NodeId),
-    Ema(NodeId),
-    Std(NodeId),
-    Variance(NodeId),
-    Max(NodeId),
-    Min(NodeId),
-    Sum(NodeId),
-    Count(NodeId),
-    Prev(NodeId),
-    PrevBy(NodeId, Arc<dyn Fn(&R) -> u64 + Send + Sync>),
-    Lag(NodeId),
-    Delta(NodeId),
-    Add(NodeId, NodeId),
-    Sub(NodeId, NodeId),
-    Mul(NodeId, NodeId),
-    Div(NodeId, NodeId),
-    MulConst(NodeId, f64),
-    AddConst(NodeId, f64),
-    Abs(NodeId),
-    Sqrt(NodeId),
-    Ln(NodeId),
-    Neg(NodeId),
-    Cross(NodeId, NodeId),
-    CrossAbove(NodeId, NodeId),
-    CrossUnder(NodeId, NodeId),
-    CrossHysteresis(NodeId, NodeId),
-    Rate(NodeId),
-    Velocity(NodeId),
-    Acceleration(NodeId),
-    Gt(NodeId, NodeId),
-    Gte(NodeId, NodeId),
-    Lt(NodeId, NodeId),
-    Lte(NodeId, NodeId),
-    Eq(NodeId, NodeId),
-    // Statistical
-    Median(NodeId),
-    Quantile(NodeId, f64),
-    Correlation(NodeId, NodeId),
-    Covariance(NodeId, NodeId),
-    Skewness(NodeId),
-    Kurtosis(NodeId),
-    Rank(NodeId),
-    // Moving averages
-    Wma(NodeId),
-    // Momentum
-    Rsi(NodeId),
-    // Cumulative
-    CumSum(NodeId),
-    CumMax(NodeId),
-    CumMin(NodeId),
-    CumProd(NodeId),
-    // Returns
-    PctChange(NodeId),
-    LogReturn(NodeId),
-    // Math
-    Pow(NodeId, f64),
-    Exp(NodeId),
-    Log10(NodeId),
-    Log2(NodeId),
-    Clamp(NodeId, f64, f64),
-    Floor(NodeId),
-    Ceil(NodeId),
-    Round(NodeId),
-    DivConst(NodeId, f64),
-    // Trigger primitives
-    GlitchFilter(NodeId),
-    RuntDetect(NodeId),
-    PulseWidth(NodeId),
-    WindowDetect(NodeId),
     // Custom functional operators
     MapF64(NodeId, Arc<dyn Fn(f64) -> f64 + Send + Sync>),
     Map2F64(NodeId, NodeId, Arc<dyn Fn(f64, f64) -> f64 + Send + Sync>),
@@ -339,17 +188,17 @@ pub(crate) enum NodeOp<R> {
     ScanF64(
         NodeId,
         Arc<dyn Fn() -> Box<dyn Any + Send + Sync> + Send + Sync>,
-        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64) -> f64 + Send + Sync>,
+        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64) -> Computed + Send + Sync>,
     ),
     Scan2F64(
         NodeId,
         NodeId,
         Arc<dyn Fn() -> Box<dyn Any + Send + Sync> + Send + Sync>,
-        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64, f64) -> f64 + Send + Sync>,
+        Arc<dyn Fn(&mut Box<dyn Any + Send + Sync>, f64, f64) -> Computed + Send + Sync>,
     ),
-    /// Custom plugin node: resolves `inputs` and delegates to a
-    /// [`CustomNode`](crate::custom_node::CustomNode) held in `NodeState`.
-    Custom {
+    /// Plugin node: resolves `inputs` and delegates to an [`Operator`](crate::operator::Operator)
+    /// held in `NodeState`.
+    Plugin {
         /// Input node IDs, in declaration order.
         inputs: Vec<NodeId>,
     },
@@ -382,6 +231,11 @@ where
     where
         O2: ExtractOutput,
     {
+        // SAFETY: `max_node_id() + 1` and the `n.id.0 + offset` /
+        // `e.id.0 + offset` sites below are all `usize` arithmetic on
+        // graph-bounded indices. Two graphs being zipped each fit in
+        // memory, so their combined index space also fits in `usize`.
+        #[allow(clippy::arithmetic_side_effects)]
         let offset = self.max_node_id() + 1;
 
         // Offset all node IDs from other graph
@@ -389,7 +243,10 @@ where
             .nodes
             .into_iter()
             .map(|mut n| {
-                n.id = NodeId(n.id.0 + offset);
+                #[allow(clippy::arithmetic_side_effects)] // see SAFETY above
+                {
+                    n.id = NodeId(n.id.0 + offset);
+                }
                 n.offset_input_ids(offset);
                 n
             })
@@ -400,7 +257,10 @@ where
             .composition_nodes
             .into_iter()
             .map(|mut e| {
-                e.id = NodeId(e.id.0 + offset);
+                #[allow(clippy::arithmetic_side_effects)] // see SAFETY above
+                {
+                    e.id = NodeId(e.id.0 + offset);
+                }
                 e
             })
             .collect();
@@ -421,6 +281,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup.max(other.min_warmup),
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -442,14 +303,18 @@ where
         O2: ExtractOutput,
         F: Fn(O) -> O2 + Send + Sync + 'static,
     {
+        // SAFETY: `max_node_id() + 1` — graph-bounded `usize`; cannot
+        // overflow on any realizable graph (see `zip` for the full
+        // rationale).
+        #[allow(clippy::arithmetic_side_effects)]
         let new_id = NodeId(self.max_node_id() + 1);
         let input_ids = self.output_ids.clone();
 
-        let mapper: Arc<dyn Fn(&ValueStore) -> Option<Value> + Send + Sync> =
+        let mapper: Arc<dyn Fn(&ValueStore) -> Option<NodeOutput> + Send + Sync> =
             Arc::new(move |store| {
                 let input = O::extract(store, &input_ids)?;
                 let output = f(input);
-                Some(Value::Other(Box::new(output)))
+                Some(NodeOutput::Other(Box::new(output)))
             });
 
         self.composition_nodes.push(CompositionNodeEntry {
@@ -465,6 +330,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -529,13 +395,16 @@ where
         Acc: ExtractOutput + Clone,
         F: Fn(Acc, O) -> Acc + Send + Sync + 'static,
     {
+        // SAFETY: see `map` / `zip` — `max_node_id() + 1` cannot
+        // overflow on any realizable graph.
+        #[allow(clippy::arithmetic_side_effects)]
         let new_id = NodeId(self.max_node_id() + 1);
         let input_ids = self.output_ids.clone();
         let state: Arc<Mutex<Box<dyn Any + Send + Sync>>> = Arc::new(Mutex::new(Box::new(initial)));
         let state_clone = Arc::clone(&state);
 
         let folder: Arc<
-            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<Value>
+            dyn Fn(&ValueStore, &Mutex<Box<dyn Any + Send + Sync>>) -> Option<NodeOutput>
                 + Send
                 + Sync,
         > = Arc::new(move |store, acc_mutex| {
@@ -544,7 +413,7 @@ where
             let current = guard.downcast_ref::<Acc>()?.clone();
             let next = f(current, input);
             *guard = Box::new(next.clone());
-            Some(Value::Other(Box::new(next)))
+            Some(NodeOutput::Other(Box::new(next)))
         });
 
         self.composition_nodes.push(CompositionNodeEntry {
@@ -563,6 +432,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -588,6 +458,7 @@ where
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: self.min_warmup,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }

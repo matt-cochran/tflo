@@ -16,7 +16,7 @@ Welford's algorithm avoids this by updating the mean incrementally. Instead of r
 `WelfordAccumulator` is the core. It's a struct with three fields and a `push` method that does exactly three updates:
 
 ```rust
-use tflo_core::primitives::WelfordAccumulator;
+use tflo_ops::primitives::WelfordAccumulator;
 
 let mut acc = WelfordAccumulator::new();
 
@@ -58,7 +58,7 @@ All variance and std methods return `f64::NAN` if there are fewer than 2 values.
 For streaming use, you usually don't want an infinite accumulator — you want the variance over the last N seconds or last N samples. That's what `WelfordWindow` handles:
 
 ```rust
-use tflo_core::primitives::WelfordWindow;
+use tflo_ops::primitives::WelfordWindow;
 use std::time::Duration;
 
 let mut window = WelfordWindow::new(Duration::from_secs(300)); // 5 minute window
@@ -79,7 +79,7 @@ The window evicts old values when they fall outside the time range. It uses Welf
 Variance is the second moment. But distributions have shape — skewness and kurtosis tell you about asymmetry and tail weight. `MomentsCountWindow` extends the same incremental approach to higher moments:
 
 ```rust
-use tflo_core::primitives::MomentsCountWindow;
+use tflo_ops::primitives::MomentsCountWindow;
 
 let mut window = MomentsCountWindow::new(100);
 
@@ -98,7 +98,7 @@ Skewness needs at least 3 values. Kurtosis needs at least 4. Both return `f64::N
 Pearson correlation measures whether two series move together. `CorrelationCountWindow` uses a Welford-style incremental algorithm that tracks joint statistics — sum of x, sum of y, sum of x², sum of y², sum of xy:
 
 ```rust
-use tflo_core::primitives::CorrelationCountWindow;
+use tflo_ops::primitives::CorrelationCountWindow;
 
 let mut window = CorrelationCountWindow::new(20);
 
@@ -120,6 +120,7 @@ You don't have to use the raw structs. These are all available as graph nodes vi
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 let results: Vec<f64> = events.into_iter()
     .tflo(|t| {

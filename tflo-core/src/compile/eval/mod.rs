@@ -1,13 +1,15 @@
 mod ctx;
+// The `eval` submodule shares its parent's name — a deliberate
+// `eval/{ctx,eval}.rs` split of the evaluation code.
+#[allow(clippy::module_inception)]
 mod eval;
-mod helpers;
+mod state;
 
 use self::ctx::CompilationCtx;
 use crate::comp::Node;
 use crate::comp::NodeId;
 use crate::compile::{
-    CompiledGraph, CompiledNode, CompositionNodeKind, ExtractOutput, GraphPlan, GraphStateSummary,
-    StepResult, ValueStore,
+    CompiledGraph, CompiledNode, CompositionNodeKind, ExtractOutput, StepResult, ValueStore,
 };
 use crate::pipeline::{PipelineContext, PipelineItem};
 use std::collections::HashSet;
@@ -58,6 +60,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             store: ValueStore::new(),
             records_seen: 0,
             min_warmup: 1,
+            topology_fingerprint: None,
             _phantom: PhantomData,
         }
     }
@@ -74,58 +77,6 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         Self::compile(timestamp_fn, nodes, output_ids)
     }
 
-    /// Get the total number of nodes in the graph.
-    #[must_use]
-    pub fn node_count(&self) -> usize {
-        self.nodes.len() + self.composition_nodes.len()
-    }
-
-    /// Get a debug representation of the graph structure.
-    ///
-    /// Returns information about the graph's nodes, dependencies, and configuration
-    /// without exposing internal state. Useful for debugging and observability.
-    #[must_use]
-    pub fn graph_plan(&self) -> GraphPlan {
-        GraphPlan {
-            node_count: self.node_count(),
-            base_node_count: self.nodes.len(),
-            composition_node_count: self.composition_nodes.len(),
-            output_count: self.output_ids.len(),
-            records_seen: self.records_seen,
-            min_warmup: self.min_warmup,
-            warmup_remaining: self.min_warmup.saturating_sub(self.records_seen),
-            context_type: std::any::type_name::<C>().to_string(),
-        }
-    }
-
-    /// Get runtime state summary for observability.
-    ///
-    /// Returns a summary of the graph's runtime state including warmup status,
-    /// node counts, and other metrics useful for monitoring and debugging.
-    #[must_use]
-    pub fn state_summary(&self) -> GraphStateSummary {
-        GraphStateSummary {
-            records_seen: self.records_seen,
-            min_warmup: self.min_warmup,
-            warmup_remaining: self.min_warmup.saturating_sub(self.records_seen),
-            is_warmed_up: self.records_seen >= self.min_warmup,
-            node_count: self.node_count(),
-            output_count: self.output_ids.len(),
-        }
-    }
-
-    /// Get the maximum node ID in the graph (for offset calculations).
-    pub(crate) fn max_node_id(&self) -> usize {
-        let base_max = self.nodes.iter().map(|n| n.id.0).max().unwrap_or(0);
-        let comp_max = self
-            .composition_nodes
-            .iter()
-            .map(|n| n.id.0)
-            .max()
-            .unwrap_or(0);
-        base_max.max(comp_max)
-    }
-
     /// Execute one step of the computation with typed output and status.
     ///
     /// Returns `StepResult` which explicitly indicates whether the computation
@@ -137,7 +88,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     /// for tick in ticks {
     ///     match graph.step_with_status(&tick) {
     ///         StepResult::Ready(item) => println!("At {}: value={}", item.ctx, item.value),
-    ///         StepResult::WarmingUp { remaining } => println!("Warming up, {} more needed", remaining),
+    ///         StepResult::WarmingUp { remaining, .. } => println!("Warming up, {} more needed", remaining),
     ///         StepResult::Error(e) => eprintln!("Error: {}", e),
     ///     }
     /// }
@@ -165,16 +116,181 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     ///     _ => { /* ... */ }
     /// }
     /// ```
+    /// Fire every event-time timer in `timer_service` whose `fire_ts` is at
+    /// or below `watermark`, in `(fire_ts, registration_seq)` order. Each
+    /// fire calls the registering node's `on_timer`, writes the resulting
+    /// output to the value store at that node's id, and emits a tuple
+    /// `(fire_ts, value)` for the caller to wrap into a
+    /// [`PipelineItem`](crate::pipeline::PipelineItem).
+    ///
+    /// This is called by the keyed executor before the record step (to
+    /// flush timers due strictly *before* the new record), and on idle
+    /// watermark advances ([`KeyedGraphState::advance_event_time_watermark`](crate::keyed::KeyedGraphState::advance_event_time_watermark)).
+    ///
+    /// Only plugin nodes (those with a `NodeState::Plugin`) can have
+    /// registered timers; non-plugin nodes silently no-op if a registration
+    /// somehow targets them.
+    pub(crate) fn fire_due_timers(
+        &mut self,
+        timer_service: &mut crate::timer::TimerService,
+        watermark: i64,
+    ) -> Vec<(i64, O)>
+    where
+        O: ExtractOutput,
+    {
+        let mut emitted: Vec<(i64, O)> = Vec::new();
+        // Drain due timers first to avoid holding a `&mut timer_service`
+        // across node-state borrows.
+        let mut due: Vec<crate::timer::TimerEntry> = Vec::new();
+        while let Some(entry) = timer_service.pop_due(watermark) {
+            due.push(entry);
+        }
+        for entry in due {
+            let Some(node_idx) = self.nodes.iter().position(|n| n.id == entry.node_id) else {
+                continue;
+            };
+            // Split-borrow: nodes vs store. Both come from self.
+            let (nodes, store) = (&mut self.nodes, &mut self.store);
+            let Some(node) = nodes.get_mut(node_idx) else {
+                continue;
+            };
+            let output_opt = match &mut node.state {
+                crate::compile::NodeState::Plugin(op) => {
+                    let mut ctx = crate::timer::TimerCtx {
+                        service: timer_service,
+                        current_node_id: entry.node_id,
+                        current_ts: entry.fire_ts,
+                    };
+                    Some(op.on_timer(entry.fire_ts, &mut ctx))
+                }
+                crate::compile::NodeState::Stateless
+                | crate::compile::NodeState::ScanState(_)
+                | crate::compile::NodeState::Scan2State(_) => None,
+            };
+            if let Some(output) = output_opt {
+                store.store_value(node.id, output);
+                if let Some(value) = O::extract(store, &self.output_ids) {
+                    emitted.push((entry.fire_ts, value));
+                }
+            }
+        }
+        emitted
+    }
+
+    /// Execute one step against `record` with the per-key timer service
+    /// available to operators via [`TimerCtx`](crate::timer::TimerCtx).
+    ///
+    /// Same semantics as [`step_with_context`](Self::step_with_context),
+    /// but plugin nodes are evaluated with their `eval_with_ctx` method so
+    /// they can register/delete event-time timers. Non-keyed graphs that
+    /// have no use for timers can keep calling `step_with_context`.
+    pub(crate) fn step_with_context_and_timers(
+        &mut self,
+        record: &R,
+        ts: i64,
+        ctx: C,
+        timer_service: &mut crate::timer::TimerService,
+    ) -> StepResult<C, O>
+    where
+        O: ExtractOutput,
+    {
+        // Saturating: see step_with_context for rationale.
+        self.records_seen = self.records_seen.saturating_add(1);
+        if self.records_seen < self.min_warmup {
+            return StepResult::WarmingUp {
+                remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
+            };
+        }
+        self.store.clear();
+
+        for node in &mut self.nodes {
+            let value = match &mut node.state {
+                crate::compile::NodeState::Plugin(op) => {
+                    // Build inputs list, then dispatch with TimerCtx.
+                    let inputs_ids = match &node.op {
+                        crate::compile::NodeOp::Plugin { inputs } => inputs.clone(),
+                        // Non-`Plugin` ops paired with a `Plugin` state are
+                        // structurally impossible (the builder pairs them),
+                        // but we don't `unreachable!()` because the lint
+                        // family forbids it. An empty input list collapses
+                        // gracefully into the operator's WarmingUp path.
+                        crate::compile::NodeOp::Prop(_)
+                        | crate::compile::NodeOp::Const(_)
+                        | crate::compile::NodeOp::MapF64(..)
+                        | crate::compile::NodeOp::Map2F64(..)
+                        | crate::compile::NodeOp::FilterF64(..)
+                        | crate::compile::NodeOp::FilterMapF64(..)
+                        | crate::compile::NodeOp::ScanF64(..)
+                        | crate::compile::NodeOp::Scan2F64(..) => Vec::new(),
+                    };
+                    let values: Vec<crate::compile::Computed> = inputs_ids
+                        .iter()
+                        .map(|id| Self::get_computed(&self.store, id))
+                        .collect();
+                    let mut ctx_inner = crate::timer::TimerCtx {
+                        service: timer_service,
+                        current_node_id: node.id,
+                        current_ts: ts,
+                    };
+                    op.eval_with_ctx(&values, ts, &mut ctx_inner)
+                }
+                crate::compile::NodeState::Stateless
+                | crate::compile::NodeState::ScanState(_)
+                | crate::compile::NodeState::Scan2State(_) => {
+                    Self::eval_node(node, record, ts, &self.store)
+                }
+            };
+            self.store.store_value(node.id, value);
+        }
+
+        for entry in &self.composition_nodes {
+            let value = match &entry.kind {
+                CompositionNodeKind::Map { mapper } => mapper(&self.store),
+                CompositionNodeKind::Fold { state, folder } => folder(&self.store, state),
+            };
+            if let Some(v) = value {
+                self.store.store_value(entry.id, v);
+            }
+        }
+
+        match O::extract(&self.store, &self.output_ids) {
+            Some(value) => StepResult::Ready(PipelineItem { ctx, value }),
+            None => StepResult::WarmingUp {
+                remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
+            },
+        }
+    }
+
+    /// Execute one step with an explicitly-supplied context value. Used
+    /// by keyed execution (where the context carries the key in addition
+    /// to the timestamp) and by callers that need to inject a custom
+    /// context into the pipeline.
+    ///
+    /// This entry point does **not** route through the per-key event-time
+    /// timer service; the keyed-execution path uses an internal variant
+    /// (with a [`TimerCtx`](crate::timer::TimerCtx)) for graphs whose
+    /// operators register timers.
     pub fn step_with_context(&mut self, record: &R, ts: i64, ctx: C) -> StepResult<C, O>
     where
         O: ExtractOutput,
     {
-        self.records_seen += 1;
+        // Saturating: a stream long enough to push `records_seen` past
+        // `usize::MAX` would have run for geological time on any 64-bit
+        // host; pinning at the ceiling keeps `is_warmed_up()` correct
+        // (still warm) without panicking.
+        self.records_seen = self.records_seen.saturating_add(1);
 
         // Check warmup status
         if self.records_seen < self.min_warmup {
             return StepResult::WarmingUp {
-                remaining: self.min_warmup - self.records_seen,
+                // Saturating: `records_seen < min_warmup` is checked
+                // above, so the subtraction is always nonneg in
+                // practice — keep `saturating_sub` for belt-and-braces
+                // (and to satisfy the lint without an `#[allow]`).
+                remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
             };
         }
 
@@ -198,11 +314,16 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
             }
         }
 
-        // Extract typed output and wrap in PipelineItem
+        // Extract typed output and wrap in PipelineItem. Extraction only fails
+        // when an output node has not been evaluated yet (a composition node
+        // still warming up) — a base node always stores a `Computed`, and an
+        // absent base node still extracts (as `NaN` for `O = f64`, or the
+        // typed reason for `O = Computed`).
         match O::extract(&self.store, &self.output_ids) {
             Some(value) => StepResult::Ready(PipelineItem { ctx, value }),
             None => StepResult::WarmingUp {
                 remaining: self.min_warmup.saturating_sub(self.records_seen),
+                reason: crate::compile::Absent::WarmingUp,
             },
         }
     }
@@ -249,7 +370,8 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
     #[doc(hidden)]
     pub fn step_raw(&mut self, record: &R) -> i64 {
         let ts = (self.timestamp_fn)(record);
-        self.records_seen += 1;
+        // Saturating — see `step_with_context` for rationale.
+        self.records_seen = self.records_seen.saturating_add(1);
 
         // Clear previous values
         self.store.clear();
@@ -274,119 +396,16 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         ts
     }
 
-    /// Get the number of records processed.
+    /// Stamp this compiled graph with a topology fingerprint.
+    ///
+    /// Once set, [`snapshot`](Self::snapshot) embeds the fingerprint in
+    /// the snapshot metadata and [`restore`](Self::restore) refuses to
+    /// load any snapshot whose fingerprint differs. The recommended
+    /// source of the value is
+    /// [`TFlowBuilder::fingerprint`](crate::builder::TFlowBuilder::fingerprint).
     #[must_use]
-    pub fn records_seen(&self) -> usize {
-        self.records_seen
-    }
-
-    /// Check if the graph is warmed up (has seen minimum required records).
-    #[must_use]
-    pub fn is_warmed_up(&self) -> bool {
-        self.records_seen >= self.min_warmup
-    }
-
-    /// Set the minimum warmup period.
-    pub fn set_min_warmup(&mut self, min: usize) {
-        self.min_warmup = min;
-    }
-
-    /// Take a snapshot of the current computation state for checkpointing.
-    ///
-    /// Returns an opaque `StateSnapshot` that can be persisted and later
-    /// passed to [`restore()`](Self::restore).
-    ///
-    /// The snapshot captures the graph topology (node structure, output IDs)
-    /// and current runtime state (records seen, warmup status). Full node
-    /// state serialization (window buffers, accumulators, etc.) is a work in
-    /// progress — see [GAPS.md](../../GAPS.md#24).
-    ///
-    /// # Usage
-    ///
-    /// ```ignore
-    /// let snapshot = graph.snapshot();
-    /// // persist `snapshot` somewhere
-    /// // ... later ...
-    /// let mut restored = CompiledGraph::compile(ts_fn, nodes, output_ids);
-    /// restored.restore(&snapshot).unwrap();
-    /// ```
-    #[must_use]
-    pub fn snapshot(&self) -> crate::keyed::StateSnapshot {
-        use crate::keyed::{SnapshotMetadata, StateSnapshot};
-
-        let snapshot_data = crate::keyed::SnapshotData {
-            records_seen: self.records_seen,
-            min_warmup: self.min_warmup,
-            // Node state serialization is not yet implemented for all 45+ variants.
-            // See GAPS.md item #24 for the full implementation plan.
-            node_count: self.nodes.len(),
-            output_count: self.output_ids.len(),
-        };
-
-        let data = serde_json::to_vec(&snapshot_data).unwrap_or_default();
-
-        let timestamp_ms: i64 = {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as i64
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                // SystemTime::now() is unreliable on wasm; use 0 as placeholder
-                0
-            }
-        };
-
-        StateSnapshot {
-            data,
-            metadata: SnapshotMetadata {
-                key: None,
-                timestamp_ms,
-                version: 1,
-            },
-        }
-    }
-
-    /// Restore computation state from a previously taken snapshot.
-    ///
-    /// The snapshot must have been taken from an identically structured
-    /// compiled graph (same node topology, same output IDs). Returns an
-    /// error if the snapshot data is invalid or the graph structure
-    /// doesn't match.
-    ///
-    /// Currently restores top-level metadata (records_seen, min_warmup).
-    /// Full per-node state restoration is a work in progress.
-    pub fn restore(
-        &mut self,
-        snapshot: &crate::keyed::StateSnapshot,
-    ) -> Result<(), crate::error::ComputeError> {
-        let snapshot_data: crate::keyed::SnapshotData = serde_json::from_slice(&snapshot.data)
-            .map_err(|_| crate::error::ComputeError::InvalidInput {
-                reason: "snapshot data invalid: expected SnapshotData format",
-            })?;
-
-        // Verify graph structure compatibility
-        if snapshot_data.node_count != self.nodes.len() {
-            return Err(crate::error::ComputeError::InvalidInput {
-                reason: "snapshot node count mismatch: graph topology has changed",
-            });
-        }
-
-        if snapshot_data.output_count != self.output_ids.len() {
-            return Err(crate::error::ComputeError::InvalidInput {
-                reason: "snapshot output count mismatch: graph topology has changed",
-            });
-        }
-
-        self.records_seen = snapshot_data.records_seen;
-        self.min_warmup = snapshot_data.min_warmup;
-
-        // Clear the value store to reset cached evaluations
-        self.store.clear();
-
-        Ok(())
+    pub const fn with_topology_fingerprint(mut self, fingerprint: [u8; 32]) -> Self {
+        self.topology_fingerprint = Some(fingerprint);
+        self
     }
 }

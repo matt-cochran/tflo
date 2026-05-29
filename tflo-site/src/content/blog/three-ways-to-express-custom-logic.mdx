@@ -1,13 +1,13 @@
 ---
 title: "There are three ways to express custom logic in tflo — and I kept picking the wrong one"
-description: "Extension traits, closure-based primitives, and the CustomNode trait all solve different problems. Here's when each one fits, with runnable examples."
+description: "Extension traits, closure-based primitives, and the Operator trait all solve different problems. Here's when each one fits, with runnable examples."
 pubDate: 2025-04-10
 tags: ["extensions", "closures", "primitives", "architecture", "examples"]
 ---
 
 You want to compute something custom. The built-in operators get you 80% of the way, but the last 20% — the domain-specific formula, the detector your problem needs, the thing that makes your system different — isn't in the library.
 
-tflo gives you three ways to express that custom logic. I keep reaching for the wrong one. If you've ever written a full `CustomNode` implementation for a one-line formula, or built an extension trait for a stateful algorithm that has no business being stateless, you've done the same thing.
+tflo gives you three ways to express that custom logic. I keep reaching for the wrong one. If you've ever written a full `Operator` implementation for a one-line formula, or built an extension trait for a stateful algorithm that has no business being stateless, you've done the same thing.
 
 Here's what I learned about when each path fits.
 
@@ -17,7 +17,7 @@ Here's what I learned about when each path fits.
 
 **Closure-based primitives** — drop a closure inline in your `.tflo()` block. `map_f64` for transforms, `scan_f64` for state machines. Best for custom formulas you'd rather not compile into a separate struct.
 
-**`CustomNode` trait** — implement the trait, attach the node. A reusable stateful node with its own `eval`/`reset` contract. Best for reusable nodes with complex internal state.
+**`Operator` trait** — implement the trait, attach the node. A reusable stateful node with its own `eval`/`reset` contract. Best for reusable nodes with complex internal state.
 
 The table at the bottom of this post shows the full comparison. But first, let me show you when each one hurts — and when it sings.
 
@@ -31,6 +31,7 @@ Here's a `normalized_score` that z-scores a price series:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 trait CustomExt<R: 'static> {
     fn normalized_score<W: Into<Window>>(&self, window: W) -> Comp<R, f64>;
@@ -200,47 +201,51 @@ Closures bridge the gap between "I can express this as a composition" and "I nee
 
 ### Where closures fall short
 
-Closure bodies are opaque to the graph engine. Rust compiles them, but `tflo-core` can't inspect or display the formula inside. If you need a node that names itself in graph plans, closures won't help — extension traits at least expose the method name, and a `CustomNode` carries its own `name()`.
+Closure bodies are opaque to the graph engine. Rust compiles them, but `tflo-core` can't inspect or display the formula inside. If you need a node that names itself in graph plans, closures won't help — extension traits at least expose the method name, and an `Operator` carries its own `name()`.
 
-Also, closures top out at two inputs (`scan2_f64`). If you need a node with three or more wired inputs, or a clean `reset()` contract, you want `CustomNode`.
+Also, closures top out at two inputs (`scan2_f64`). If you need a node with three or more wired inputs, or a clean `reset()` contract, you want `Operator`.
 
 ---
 
-## Custom CustomNode: when you need a reusable node
+## Custom Operator: when you need a reusable node
 
-The `CustomNode` trait is the most structured path. It gives you `eval()`, `reset()`, and a `name()` for graph-plan output — a reusable, named node you can attach anywhere. It lives in `tflo_core::custom_node` and is re-exported from the prelude. It's the same mechanism `tflo-fintech` uses to ship indicators like ADX and KAMA without any finance code in `tflo-core`.
+The `Operator` trait is the most structured path. It gives you `eval()`, `reset()`, and a `name()` for graph-plan output — a reusable, named node you can attach anywhere. It lives in `tflo_core::operator` and is re-exported from the prelude. It's the same mechanism `tflo-fintech` uses to ship indicators like ADX and KAMA without any finance code in `tflo-core`.
 
-A `CustomNode` receives one `f64` per wired input — in declaration order — and returns one `f64`. Returning `f64::NAN` means "still warming up", matching every built-in node:
+An `Operator` receives one `Computed` per wired input — in declaration order — plus the record timestamp `ts`, and returns a `NodeOutput`. Wrap your `Result<f64, Absent>` with `NodeOutput::computed(...)`. The `require` helper reads an input; because `eval` returns `NodeOutput` rather than `Computed`, use `match` instead of `?` to propagate absence:
 
 ```rust
 use std::collections::VecDeque;
-use tflo_core::custom_node::CustomNode;
+use tflo_core::compile::{Absent, Computed, NodeOutput};
+use tflo_core::operator::{require, Operator};
 
 struct RateOfChange {
     period: usize,
     buffer: VecDeque<f64>,
 }
 
-impl CustomNode for RateOfChange {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let current = inputs.first().copied().unwrap_or(f64::NAN);
+impl Operator for RateOfChange {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let current = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
         self.buffer.push_back(current);
         if self.buffer.len() > self.period + 1 {
             self.buffer.pop_front();
         }
         if self.buffer.len() < self.period + 1 {
-            return f64::NAN;
+            return NodeOutput::computed(Err(Absent::WarmingUp));
         }
         let n_periods_ago = self.buffer.front().copied().unwrap_or(current);
-        if n_periods_ago == 0.0 { return f64::NAN; }
-        (current - n_periods_ago) / n_periods_ago
+        if n_periods_ago == 0.0 { return NodeOutput::computed(Err(Absent::DivideByZero)); }
+        NodeOutput::computed(Ok((current - n_periods_ago) / n_periods_ago))
     }
     fn reset(&mut self) { self.buffer.clear(); }
     fn name(&self) -> &str { "rate_of_change" }
 }
 ```
 
-Attach it with `comp.custom_node1(factory)` for a single input, or `Comp::custom_node(&[&a, &b], factory)` to wire several inputs. The graph stores the *factory*, not the instance, so every per-key graph in keyed execution gets its own fresh state:
+Attach it with `comp.custom_node1(factory)` for a single input, or `Comp::custom_node(&a, &[&b], factory)` to wire several inputs (`a` is the mandatory first input). The graph stores the *factory*, not the instance, so every per-key graph in keyed execution gets its own fresh state:
 
 ```rust
 let roc: Vec<f64> = detections.into_iter()
@@ -252,7 +257,7 @@ let roc: Vec<f64> = detections.into_iter()
     .collect();
 ```
 
-### Where CustomNode wins
+### Where Operator wins
 
 You need a clean lifecycle. `reset()` gives you a defined contract for stream restarts. The struct can hold complex state — multiple buffers, configuration, lookup tables — that would be awkward to express in a closure.
 
@@ -260,7 +265,7 @@ You're building a reusable component. If you plan to share this node across proj
 
 You need several wired inputs. `Comp::custom_node` takes a slice of input `Comp`s and hands you all their resolved values per record — a natural fit for a multi-input detector. Closures top out at two inputs with `scan2_f64`.
 
-### Where CustomNode is overkill
+### Where Operator is overkill
 
 For a one-line formula. I've written `struct Clamp { min: f64, max: f64 }` with a full trait impl, only to realize `map_f64(|x| x.clamp(min, max))` would have done the same thing in four characters. Don't do what I did.
 
@@ -272,7 +277,7 @@ For experimental code. When you're iterating on a formula — trying different a
 
 Here's the honest comparison:
 
-| | **Extension trait** | **Closure primitive** | **CustomNode** |
+| | **Extension trait** | **Closure primitive** | **Operator** |
 |---|---|---|---|
 | **What it does** | Composes existing operators | Inline custom logic | Full custom node |
 | **New runtime behavior** | No — same node types | Yes — closure body is new | Yes — full trait impl |
@@ -298,7 +303,7 @@ Every concept in this post has a full, compilable, CI-verified example in the `t
 
 - **Custom EMA with scan_f64** — [`tflo-examples/examples/ema-the-forgetful-indicator`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/ema-the-forgetful-indicator) — multiple alpha variants compared against built-in EMA
 
-- **Custom `CustomNode`** — [`tflo-examples/examples/custom-nodes`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/custom-nodes) — Rate of Change and an SNR filter implemented as full trait implementors
+- **Custom `Operator`** — [`tflo-examples/examples/custom-nodes`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/custom-nodes) — Rate of Change and an SNR filter implemented as full trait implementors
 
 Each example is a `cargo run` away. They're tested in CI, so they stay in sync with the API. No more copy-pasted snippets that drift.
 
@@ -324,9 +329,9 @@ I walk through three questions:
 
 **Does this need internal state — a buffer, a running sum, a decay factor?** If yes, can the state fit in a single closure? `scan_f64` or `scan2_f64`. No struct, no registration, no ceremony.
 
-**Is this a reusable component I'll share across projects?** Or does it need three-plus wired inputs and a clean `reset()` contract? `CustomNode`. The boilerplate pays for itself in reuse.
+**Is this a reusable component I'll share across projects?** Or does it need three-plus wired inputs and a clean `reset()` contract? `Operator`. The boilerplate pays for itself in reuse.
 
-That third question is the one I kept skipping. I'd reach for `CustomNode` first because it felt like the "proper" way to extend the system. It's not. The proper way is whatever fits the problem with the least surface area.
+That third question is the one I kept skipping. I'd reach for `Operator` first because it felt like the "proper" way to extend the system. It's not. The proper way is whatever fits the problem with the least surface area.
 
 Closures are first-class citizens in tflo. Use them like one.
 
@@ -338,4 +343,4 @@ Closures are first-class citizens in tflo. Use them like one.
 
 1. Full source: [`tflo-examples` crate on GitHub](https://github.com/matt-cochran/tflo/tree/main/tflo-examples)
 2. tflo README — [Custom Functional Graph Primitives](https://github.com/matt-cochran/tflo#custom-functional-graph-primitives)
-3. [3 ways to extend tflo](/blog/three-extension-mechanisms) — CEL, Rego, Rhai, and `CustomNode` compared
+3. [3 ways to extend tflo](/blog/three-extension-mechanisms) — CEL, Rego, Rhai, and `Operator` compared

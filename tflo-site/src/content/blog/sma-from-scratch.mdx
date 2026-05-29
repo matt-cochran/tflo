@@ -45,6 +45,7 @@ You create one through the `Comp` API:
 
 ```rust
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // Time-based: SMA over the last 5 seconds
 let sma_time = price.sma(5_u64.secs());

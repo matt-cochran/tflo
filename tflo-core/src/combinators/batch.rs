@@ -31,14 +31,28 @@ use std::time::Duration;
 /// assert_eq!(batches[1].len(), 1); // 2500
 /// assert_eq!(batches[2].len(), 1); // 3500
 /// ```
-pub fn batch_by_time<I, T, F, K>(iter: I, key_fn: F, interval: Duration) -> BatchByTime<I, T, F>
+pub const fn batch_by_time<I, T, F, K>(
+    iter: I,
+    key_fn: F,
+    interval: Duration,
+) -> BatchByTime<I, T, F>
 where
     I: Iterator<Item = T>,
     F: Fn(&T) -> K,
     K: Into<i64>,
 {
     #[allow(clippy::cast_possible_wrap)]
-    let interval_ms = interval.as_millis() as i64;
+    let interval_ms_raw = interval.as_millis() as i64;
+    // Saturate to a minimum of 1ms so a degenerate `Duration::ZERO` caller
+    // cannot trigger a divide-by-zero panic in `next()` below. We choose
+    // saturation over `Result<>` because the only sensible recovery for
+    // "I gave you a zero-width window" is "treat each record as its own
+    // bucket", which is exactly what 1ms gives you.
+    let interval_ms = if interval_ms_raw < 1 {
+        1
+    } else {
+        interval_ms_raw
+    };
     BatchByTime {
         iter,
         key_fn,
@@ -92,6 +106,13 @@ where
             match self.iter.next() {
                 Some(item) => {
                     let ts: i64 = (self.key_fn)(&item).into();
+                    // SAFETY: `self.interval_ms` is saturated to >= 1 in
+                    // `batch_by_time()` above, so this division cannot panic.
+                    // The multiplication `(ts / interval_ms) * interval_ms`
+                    // is the truncate-to-interval-boundary identity: its
+                    // result is in `[ts - interval_ms + 1, ts]`, so it
+                    // cannot overflow `i64`.
+                    #[allow(clippy::integer_division, clippy::arithmetic_side_effects)]
                     let boundary = (ts / self.interval_ms) * self.interval_ms;
 
                     match self.current_boundary {
@@ -125,6 +146,7 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]

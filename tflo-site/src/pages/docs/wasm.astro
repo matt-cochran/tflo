@@ -101,10 +101,32 @@ const sma = computeSma(ticks, &#123; period: 3 &#125;);
       used by the Rust crate &mdash; the wasm target just swaps the host environment.
     </p>
 
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Pattern matching in the browser</h2>
+    <p class="text-text-muted mb-4">
+      The sibling <code>tflo-cep-wasm</code> crate exposes
+      <code>tflo-cep</code>'s closure-based event-pattern matching to JavaScript.
+      Build patterns with the same six-method API as the Rust crate
+      (<code>when</code> / <code>then</code> / <code>notThen</code> /
+      <code>within</code> / <code>emit</code>) using plain JS callbacks &mdash; the
+      shared <code>engine::Runtime</code> handles the matching, so feature additions
+      land on both surfaces simultaneously.
+    </p>
+    <p class="text-text-muted mb-4">
+      For an end-to-end browser SDK with a capture layer
+      (<code>IntersectionObserver</code> viewport tracking, throttled DOM listeners),
+      pluggable sinks (Console, Edge, GA4, custom), and a consent gate, see the
+      companion <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
+      package &mdash; documented on the
+      <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+      page. Total bundle: ~41 KB optimized <code>.wasm</code> + ~10 KB TypeScript glue
+      (~25 KB gzip).
+    </p>
+
     <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
       <p class="text-text-muted">
         <strong class="text-white">Try it now:</strong> Head to the
-        <a href="/playground" class="text-primary hover:underline">Interactive Playground</a>.
+        <a href="/playground" class="text-primary hover:underline">Interactive Playground</a>
+        or read the <a href="/docs/patterns" class="text-primary hover:underline">event patterns</a> docs.
       </p>
     </div>
   </div>

@@ -1,18 +1,17 @@
 //! Rhai script engine with caching.
 
-use crate::context::IntoRhaiScope;
-use crate::error::{RhaiError, RhaiResult};
-use rhai::{Dynamic, Engine, AST};
+use crate::options::RhaiOptions;
+use rhai::{AST, Engine};
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 use std::sync::Arc;
 
 /// Rhai script engine with caching and custom functions.
+///
+/// Compile/eval/load methods live in [`crate::script_exec`].
 #[derive(Debug)]
 pub struct ScriptEngine {
-    engine: Arc<Engine>,
-    scripts: HashMap<String, AST>,
+    pub(crate) engine: Arc<Engine>,
+    pub(crate) scripts: HashMap<String, AST>,
 }
 
 impl Default for ScriptEngine {
@@ -22,16 +21,25 @@ impl Default for ScriptEngine {
 }
 
 impl ScriptEngine {
-    /// Create a new script engine.
+    /// Create a new script engine with conservative DoS-mitigation
+    /// resource caps applied via [`RhaiOptions::default`].
     #[must_use]
     pub fn new() -> Self {
+        Self::with_options(&RhaiOptions::default())
+    }
+
+    /// Create a script engine with the given Rhai resource budgets.
+    #[must_use]
+    pub fn with_options(options: &RhaiOptions) -> Self {
         Self {
-            engine: Arc::new(Engine::new()),
+            engine: Arc::new(options.build_engine()),
             scripts: HashMap::new(),
         }
     }
 
-    /// Create a script engine with a custom Rhai engine.
+    /// Create a script engine with a caller-supplied Rhai engine. The
+    /// caller owns the engine's configuration — no [`RhaiOptions`] are
+    /// applied here.
     #[must_use]
     pub fn with_engine(engine: Engine) -> Self {
         Self {
@@ -44,100 +52,6 @@ impl ScriptEngine {
     #[must_use]
     pub fn engine(&self) -> &Engine {
         &self.engine
-    }
-
-    /// Compile and cache a script.
-    pub fn compile(&mut self, name: &str, script: &str) -> RhaiResult<()> {
-        let ast = self
-            .engine
-            .compile(script)
-            .map_err(|e| RhaiError::CompileError {
-                script: script.to_string(),
-                message: e.to_string(),
-            })?;
-        let _ = self.scripts.insert(name.to_string(), ast);
-        Ok(())
-    }
-
-    /// Load and compile a script from a file.
-    pub fn load_file<P: AsRef<Path>>(&mut self, name: &str, path: P) -> RhaiResult<()> {
-        let content = fs::read_to_string(path)?;
-        self.compile(name, &content)
-    }
-
-    /// Load all scripts from a directory.
-    pub fn load_directory<P: AsRef<Path>>(&mut self, path: P) -> RhaiResult<usize> {
-        let mut count = 0;
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().map_or(false, |e| e == "rhai") {
-                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                    self.load_file(name, &path)?;
-                    count += 1;
-                }
-            }
-        }
-        Ok(count)
-    }
-
-    /// Evaluate a cached script.
-    pub fn eval<T: IntoRhaiScope, R: Clone + 'static>(
-        &self,
-        script_name: &str,
-        context: &T,
-    ) -> RhaiResult<R> {
-        let ast = self
-            .scripts
-            .get(script_name)
-            .ok_or_else(|| RhaiError::ScriptError {
-                message: format!("script not found: {script_name}"),
-            })?;
-
-        let mut scope = context.into_rhai_scope();
-        self.engine
-            .eval_ast_with_scope::<R>(&mut scope, ast)
-            .map_err(|e| RhaiError::EvaluationError {
-                script: script_name.to_string(),
-                message: e.to_string(),
-            })
-    }
-
-    /// Evaluate a cached script and return Dynamic.
-    pub fn eval_dynamic<T: IntoRhaiScope>(
-        &self,
-        script_name: &str,
-        context: &T,
-    ) -> RhaiResult<Dynamic> {
-        let ast = self
-            .scripts
-            .get(script_name)
-            .ok_or_else(|| RhaiError::ScriptError {
-                message: format!("script not found: {script_name}"),
-            })?;
-
-        let mut scope = context.into_rhai_scope();
-        self.engine
-            .eval_ast_with_scope::<Dynamic>(&mut scope, ast)
-            .map_err(|e| RhaiError::EvaluationError {
-                script: script_name.to_string(),
-                message: e.to_string(),
-            })
-    }
-
-    /// Evaluate an expression directly.
-    pub fn eval_expression<T: IntoRhaiScope, R: Clone + 'static>(
-        &self,
-        expr: &str,
-        context: &T,
-    ) -> RhaiResult<R> {
-        let mut scope = context.into_rhai_scope();
-        self.engine
-            .eval_with_scope::<R>(&mut scope, expr)
-            .map_err(|e| RhaiError::EvaluationError {
-                script: expr.to_string(),
-                message: e.to_string(),
-            })
     }
 
     /// Check if a script is loaded.
@@ -166,6 +80,8 @@ impl ScriptEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::RhaiResult;
+    use crate::traits::IntoRhaiScope;
     use rhai::Scope;
 
     struct TestContext {

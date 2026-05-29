@@ -4,10 +4,12 @@ import CodeBlock from '../../components/CodeBlock.astro';
 import DemoChart from '../../components/DemoChart.tsx';
 
 const smaCode = `//! Full runnable example: tflo-examples/examples/docs-indicators
+// use tflo_core::prelude::*; use tflo_ops::prelude::*;
 let sma = value.sma(20_u64.secs());     // 20-second SMA (time-based)
 let sma = value.sma(20usize);           // 20-tick SMA (count-based)`;
 
 const rsiCode = `//! Full runnable example: tflo-examples/examples/docs-indicators
+// use tflo_core::prelude::*; use tflo_ops::prelude::*;
 let rsi = value.rsi(14usize);               // 14-period RSI (count-based)
 let rsi = value.rsi(14_u64.secs());         // 14-second RSI (time-based)`;
 
@@ -21,7 +23,8 @@ let (macd_line, signal_line, histogram) = price.macd_n(
 );`;
 
 const bbCode = `//! Full runnable example: tflo-examples/examples/docs-indicators
-// In tflo-core this operation is named deviation_band.
+// use tflo_core::prelude::*; use tflo_ops::prelude::*;
+// deviation_band is provided by the Composites trait from tflo-ops.
 let (middle, upper, lower) = value.deviation_band(
     20usize,  // window (also accepts Duration via .secs())
     2.0,      // multiplier (k)
@@ -32,6 +35,9 @@ let (middle, upper, lower) = value.deviation_band(
 // let (middle, upper, lower) = price.bollinger_bands(20usize, 2.0);`;
 
 const combineCode = `//! Full runnable example: tflo-examples/examples/docs-indicators
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
 let results = events.into_iter()
     .tflo(|t| {
         t.timestamp(|x| x.ts);
@@ -47,15 +53,16 @@ let results = events.into_iter()
     })
     .collect();
 
-// Core ops are methods on Comp<R,f64> in tflo-core/src/comp/`;
+// Catalog ops come from tflo-ops (WindowOps, StatefulOps, CrossOps, etc.)`;
 
-const wildersCode = `// Wilder's RSI (TradingView compatible) — a core op:
+const wildersCode = `// Wilder's RSI (TradingView compatible) — via tflo-ops:
+// use tflo_core::prelude::*; use tflo_ops::prelude::*;
 let rsi = value.rsi_wilder_n(14);
 
 // See tflo-fintech/tests/golden/ for validation against TA-Lib/TradingView`;
 ---
 
-<DocsLayout title="Operations & Indicators" description="Streaming operations in tflo-core, plus financial indicators in the tflo-fintech plugin.">
+<DocsLayout title="Operations & Indicators" description="Streaming operations in tflo-ops, plus financial indicators in the tflo-fintech plugin.">
   <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-4xl font-extrabold text-white mb-2">Operations &amp; Indicators</h1>
     <p class="text-lg text-text-muted mb-6">Streaming operations chained on <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp.rs"><code>Comp</code></a> &mdash; moving averages, statistics, derivatives, signal conditioning &mdash; plus financial technical-analysis indicators in the optional <code>tflo-fintech</code> plugin.</p>
@@ -64,7 +71,7 @@ let rsi = value.rsi_wilder_n(14);
       <p class="text-text-muted text-sm mb-2">
         <strong class="text-white">Two crates, one API surface.</strong>
         Generic temporal event processing operations (SMA, EMA, RSI, std, correlation, derivatives, deviation bands,
-        z-score, …) live in <code>tflo-core</code> and need no extra dependency.
+        z-score, …) live in <code>tflo-ops</code> — add it alongside <code>tflo-core</code> and import with <code>use tflo_ops::prelude::*;</code>.
       </p>
       <p class="text-text-muted text-sm">
         Financial indicators (MACD, ADX, ATR, KAMA, Stochastic, CCI, OBV, VWAP, …) live in the
@@ -142,13 +149,14 @@ let rsi = value.rsi_wilder_n(14);
     </div>
 
     <p class="text-text-muted mb-12">
-      All operations are <strong>chainable methods on <code>Comp&lt;R,f64&gt;</code></strong>. Core ops are defined in
-      <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/"><code>tflo-core/src/comp/</code></a>;
+      All operations are <strong>chainable methods on <code>Comp&lt;R,f64&gt;</code></strong>. The catalog ops (<code>sma</code>, <code>ema</code>, <code>rsi</code>, detectors, etc.) are defined as extension traits in
+      <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-ops/src/ops/"><code>tflo-ops/src/ops/</code></a>;
       financial indicators come from the <code>FintechIndicators</code> trait in <code>tflo-fintech</code>.
+      Bring in the catalog with <code>use tflo_ops::prelude::*;</code> alongside <code>use tflo_core::prelude::*;</code>.
       Windowed ops accept <code>impl Into&lt;Window&gt;</code> — pass a <code>Duration</code> (<code>.sma(5_u64.secs())</code>)
       for time-based windows, or a <code>usize</code> (<code>.sma(20usize)</code>) for count-based windows.
       <strong>Core node</strong> = dedicated <code>Comp</code> variant; <strong>Composite</strong> = composed from other primitives via <code>scan_f64</code> / <code>scan2_f64</code>.
-      The <strong>Crate</strong> column shows whether an op ships in <code>tflo-core</code> or the <code>tflo-fintech</code> plugin.
+      The <strong>Crate</strong> column shows whether an op ships in <code>tflo-ops</code> or the <code>tflo-fintech</code> plugin.
     </p>
 
     <!-- Operation Inventory -->
@@ -177,21 +185,21 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">SMA</td>
               <td class="p-3"><code>.sma(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Simple Moving Average</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">EMA</td>
               <td class="p-3"><code>.ema(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Exponential Moving Average (time- or count-based decay)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">WMA</td>
               <td class="p-3"><code>.wma(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Weighted Moving Average with linearly increasing weights</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
@@ -250,28 +258,28 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">RSI</td>
               <td class="p-3"><code>.rsi(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Relative Strength Index (0–100)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">RSI Wilder</td>
               <td class="p-3"><code>.rsi_wilder_n(n)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Wilder's smoothed RSI — matches TradingView / TA-Lib</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Momentum</td>
               <td class="p-3"><code>.momentum(n)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>value - value(n ago)</code> (finance alias: <code>mom_n</code>)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Rate of Change</td>
               <td class="p-3"><code>.rate_of_change(n)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rate of Change percentage (finance alias: <code>roc_n</code>)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
@@ -379,21 +387,21 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">Std Dev</td>
               <td class="p-3"><code>.std(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling standard deviation</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Variance</td>
               <td class="p-3"><code>.variance(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling variance</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Deviation Band</td>
               <td class="p-3"><code>.deviation_band(window, k)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Returns <code>(middle, upper, lower)</code> (finance alias: <code>bollinger_bands</code>)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
@@ -542,56 +550,56 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">Z-Score</td>
               <td class="p-3"><code>.zscore(window)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>(value - mean) / std</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Median</td>
               <td class="p-3"><code>.median(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling median</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Quantile</td>
               <td class="p-3"><code>.quantile(window, q)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling quantile (0.0–1.0)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Correlation</td>
               <td class="p-3"><code>.correlation(&other, window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling Pearson correlation</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Covariance</td>
               <td class="p-3"><code>.covariance(&other, window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling covariance</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Skewness</td>
               <td class="p-3"><code>.skewness(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling skewness</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Kurtosis</td>
               <td class="p-3"><code>.kurtosis(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rolling excess kurtosis</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Rank</td>
               <td class="p-3"><code>.rank(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Current percentile rank (0.0–1.0)</td>
             </tr>
           </tbody>
@@ -622,91 +630,91 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">Prev</td>
               <td class="p-3"><code>.prev()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Previous value</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">PrevBy</td>
               <td class="p-3"><code>.prev_by(key_fn)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Previous value by key</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Lag</td>
               <td class="p-3"><code>.lag(duration)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Value from N seconds ago</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Delta</td>
               <td class="p-3"><code>.delta(duration)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>current - lag(duration)</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">CumSum</td>
               <td class="p-3"><code>.cumsum()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Cumulative sum</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">CumMax</td>
               <td class="p-3"><code>.cummax()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Cumulative max</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">CumMin</td>
               <td class="p-3"><code>.cummin()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Cumulative min</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">CumProd</td>
               <td class="p-3"><code>.cumprod()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Cumulative product</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">PctChange</td>
               <td class="p-3"><code>.pct_change()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>(cur - prev) / prev * 100</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">LogReturn</td>
               <td class="p-3"><code>.log_return()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>ln(cur / prev)</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Rate</td>
               <td class="p-3"><code>.rate(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rate of change per unit time</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Velocity</td>
               <td class="p-3"><code>.velocity(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">First derivative</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Acceleration</td>
               <td class="p-3"><code>.acceleration(window)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Second derivative</td>
             </tr>
           </tbody>
@@ -737,112 +745,112 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">Add</td>
               <td class="p-3"><code>+</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Arithmetic addition via <code>std::ops::Add</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Sub</td>
               <td class="p-3"><code>-</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Arithmetic subtraction via <code>std::ops::Sub</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Mul</td>
               <td class="p-3"><code>*</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Arithmetic multiplication via <code>std::ops::Mul</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Div</td>
               <td class="p-3"><code>/</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Arithmetic division via <code>std::ops::Div</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Neg</td>
               <td class="p-3"><code>-</code> (unary)</td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Unary negation via <code>std::ops::Neg</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Greater Than</td>
               <td class="p-3"><code>.gt(&amp;other)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Returns 1.0 if true, 0.0 otherwise</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Greater Than or Equal</td>
               <td class="p-3"><code>.gte(&amp;other)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Returns 1.0 if true, 0.0 otherwise</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Less Than</td>
               <td class="p-3"><code>.lt(&amp;other)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Returns 1.0 if true, 0.0 otherwise</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Less Than or Equal</td>
               <td class="p-3"><code>.lte(&amp;other)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Returns 1.0 if true, 0.0 otherwise</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Abs</td>
               <td class="p-3"><code>.abs()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Absolute value</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Sqrt</td>
               <td class="p-3"><code>.sqrt()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Square root</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Ln</td>
               <td class="p-3"><code>.ln()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Natural logarithm</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Exp</td>
               <td class="p-3"><code>.exp()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Exponential function</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Pow</td>
               <td class="p-3"><code>.pow(n)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Raising to a power</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Floor / Ceil / Round</td>
               <td class="p-3"><code>.floor()</code>, <code>.ceil()</code>, <code>.round()</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Rounding operations</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Clamp</td>
               <td class="p-3"><code>.clamp(min, max)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Constrain value to [min, max] range</td>
             </tr>
           </tbody>
@@ -873,35 +881,35 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">DC Remove</td>
               <td class="p-3"><code>.dc_remove(window)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>signal - SMA(signal)</code> — AC coupling</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Baseline Correct</td>
               <td class="p-3"><code>.baseline_correct(window, percentile)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Subtract rolling percentile baseline</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Normalize Range</td>
               <td class="p-3"><code>.normalize_range(window)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Normalize signal to [0, 1]</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Calibrate</td>
               <td class="p-3"><code>.calibrate(gain, offset)</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>output = input * gain + offset</code></td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">Peak Decline</td>
               <td class="p-3"><code>.peak_decline()</code></td>
               <td class="p-3">Composite</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3"><code>(current - cummax) / cummax</code> — always ≤ 0 (finance alias: <code>drawdown</code>)</td>
             </tr>
           </tbody>
@@ -932,42 +940,42 @@ let rsi = value.rsi_wilder_n(14);
               <td class="p-3 text-white font-medium">map_f64</td>
               <td class="p-3"><code>.map_f64(|x| ...)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Stateless unary transform (optional <code>.named("...")</code>)</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">map2_f64</td>
               <td class="p-3"><code>.map2_f64(&amp;other, |x, y| ...)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Stateless binary transform</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">filter_f64</td>
               <td class="p-3"><code>.filter_f64(|x| ...)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Suppress values where predicate returns false</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">filter_map_f64</td>
               <td class="p-3"><code>.filter_map_f64(|x| ...)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Transform + optionally suppress</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">scan_f64</td>
               <td class="p-3"><code>.scan_f64(|| init, |state, x| ...)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Stateful unary scan</td>
             </tr>
             <tr class="border-t border-border hover:bg-bg-hover transition-colors">
               <td class="p-3 text-white font-medium">scan2_f64</td>
               <td class="p-3"><code>.scan2_f64(&amp;other, || init, |state, x, y| ...)</code></td>
               <td class="p-3">Core node</td>
-              <td class="p-3"><code>tflo-core</code></td>
+              <td class="p-3"><code>tflo-ops</code></td>
               <td class="p-3">Stateful binary scan</td>
             </tr>
           </tbody>

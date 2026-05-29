@@ -1,21 +1,19 @@
-//! Runtime [`CustomNode`] implementations for OHLC-bound indicators.
+//! Runtime [`Operator`] implementations for OHLC-bound indicators.
 //!
 //! ADX, ATR, +DI, -DI, and KAMA need TA-Lib-exact lookback and Wilder seeding,
 //! so they are real stateful nodes rather than composites. Each plugs into a
 //! `tflo` graph through [`Comp::custom_node`](tflo_core::comp::Comp::custom_node).
 //!
 //! Input order for the three-input nodes (ADX/ATR/+DI/-DI) is
-//! `[close, high, low]`.
+//! `[close, high, low]`. Each `eval` reads and propagates every input
+//! *before* touching its OHLC history, so an absent input never lands a
+//! placeholder in the buffers.
 
 mod talib_math;
 
 use talib_math::{kama_last, ta_adx_last, ta_minus_di_last, ta_plus_di_last, true_range};
-use tflo_core::custom_node::CustomNode;
-
-#[inline]
-fn input_at(inputs: &[f64], idx: usize) -> f64 {
-    inputs.get(idx).copied().unwrap_or(f64::NAN)
-}
+use tflo_core::compile::{Absent, Computed, NodeOutput, finite_or_warming};
+use tflo_core::operator::{Operator, require};
 
 /// Average Directional Index (ADX) — Wilder-smoothed trend strength.
 ///
@@ -31,7 +29,7 @@ pub struct AdxNode {
 impl AdxNode {
     /// Create an ADX node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -41,12 +39,29 @@ impl AdxNode {
     }
 }
 
-impl CustomNode for AdxNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.close.push(input_at(inputs, 0));
-        self.high.push(input_at(inputs, 1));
-        self.low.push(input_at(inputs, 2));
-        ta_adx_last(&self.high, &self.low, &self.close, self.period)
+impl Operator for AdxNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        self.close.push(close);
+        self.high.push(high);
+        self.low.push(low);
+        NodeOutput::computed(finite_or_warming(ta_adx_last(
+            &self.high,
+            &self.low,
+            &self.close,
+            self.period,
+        )))
     }
 
     fn reset(&mut self) {
@@ -74,7 +89,7 @@ pub struct PlusDiNode {
 impl PlusDiNode {
     /// Create a +DI node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -84,12 +99,29 @@ impl PlusDiNode {
     }
 }
 
-impl CustomNode for PlusDiNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.close.push(input_at(inputs, 0));
-        self.high.push(input_at(inputs, 1));
-        self.low.push(input_at(inputs, 2));
-        ta_plus_di_last(&self.high, &self.low, &self.close, self.period)
+impl Operator for PlusDiNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        self.close.push(close);
+        self.high.push(high);
+        self.low.push(low);
+        NodeOutput::computed(finite_or_warming(ta_plus_di_last(
+            &self.high,
+            &self.low,
+            &self.close,
+            self.period,
+        )))
     }
 
     fn reset(&mut self) {
@@ -117,7 +149,7 @@ pub struct MinusDiNode {
 impl MinusDiNode {
     /// Create a -DI node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -127,12 +159,29 @@ impl MinusDiNode {
     }
 }
 
-impl CustomNode for MinusDiNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.close.push(input_at(inputs, 0));
-        self.high.push(input_at(inputs, 1));
-        self.low.push(input_at(inputs, 2));
-        ta_minus_di_last(&self.high, &self.low, &self.close, self.period)
+impl Operator for MinusDiNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        self.close.push(close);
+        self.high.push(high);
+        self.low.push(low);
+        NodeOutput::computed(finite_or_warming(ta_minus_di_last(
+            &self.high,
+            &self.low,
+            &self.close,
+            self.period,
+        )))
     }
 
     fn reset(&mut self) {
@@ -162,7 +211,7 @@ pub struct AtrNode {
 impl AtrNode {
     /// Create an ATR node with the given lookback period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             high: Vec::new(),
             low: Vec::new(),
@@ -174,11 +223,20 @@ impl AtrNode {
     }
 }
 
-impl CustomNode for AtrNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        let close = input_at(inputs, 0);
-        let high = input_at(inputs, 1);
-        let low = input_at(inputs, 2);
+impl Operator for AtrNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let close = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let high = match require(inputs, 1) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        let low = match require(inputs, 2) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
 
         self.close.push(close);
         self.high.push(high);
@@ -186,25 +244,47 @@ impl CustomNode for AtrNode {
         let n = self.close.len();
         let period = self.period;
 
-        if n < period + 1 {
-            return f64::NAN;
+        // SAFETY: `period + 1` cannot overflow usize for any realistic
+        // indicator period.
+        #[allow(clippy::arithmetic_side_effects)]
+        let min_n = period + 1;
+        if n < min_n {
+            return NodeOutput::computed(Err(Absent::WarmingUp));
         }
 
         // On the exact trigger index: seed with SMA of first `period` TR values.
         if !self.seeded {
             let mut sum_tr = 0.0;
             for i in 0..period {
-                sum_tr += true_range(self.high[i + 1], self.low[i + 1], self.close[i]);
+                // SAFETY: `i < period` and `n >= period + 1`, so
+                // `i + 1 <= period < n`, in-bounds for `high`/`low` (which
+                // are `n` long after the pushes above).
+                #[allow(clippy::arithmetic_side_effects)]
+                let i1 = i + 1;
+                // SAFETY: `i1 = i + 1 <= period < n = self.high.len() =
+                // self.low.len()`, and `i < period < n = self.close.len()`,
+                // so all three indices are in bounds.
+                #[allow(clippy::indexing_slicing)]
+                {
+                    sum_tr += true_range(self.high[i1], self.low[i1], self.close[i]);
+                }
             }
             self.prev_atr = sum_tr / period as f64;
             self.seeded = true;
-            return self.prev_atr;
+            return NodeOutput::computed(Ok(self.prev_atr));
         }
 
         // Ongoing: Wilder smoothing — ATR = (prev_ATR * (period - 1) + TR) / period.
-        let prev_tr = true_range(high, low, self.close[n - 2]);
+        // SAFETY: `n >= period + 1 >= 2` once we are past the seeding branch
+        // (`self.seeded` only flips after the first call with `n == period + 1`),
+        // so `n - 2 >= 0` cannot underflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let prev_close_idx = n - 2;
+        // SAFETY: `prev_close_idx = n - 2 < n = self.close.len()`, in bounds.
+        #[allow(clippy::indexing_slicing)]
+        let prev_tr = true_range(high, low, self.close[prev_close_idx]);
         self.prev_atr = (self.prev_atr * (period as f64 - 1.0) + prev_tr) / period as f64;
-        self.prev_atr
+        NodeOutput::computed(Ok(self.prev_atr))
     }
 
     fn reset(&mut self) {
@@ -232,7 +312,7 @@ pub struct KamaNode {
 impl KamaNode {
     /// Create a KAMA node with the given efficiency-ratio period.
     #[must_use]
-    pub fn new(period: usize) -> Self {
+    pub const fn new(period: usize) -> Self {
         Self {
             values: Vec::new(),
             period,
@@ -240,10 +320,14 @@ impl KamaNode {
     }
 }
 
-impl CustomNode for KamaNode {
-    fn eval(&mut self, inputs: &[f64]) -> f64 {
-        self.values.push(input_at(inputs, 0));
-        kama_last(&self.values, self.period)
+impl Operator for KamaNode {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let value = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        self.values.push(value);
+        NodeOutput::computed(finite_or_warming(kama_last(&self.values, self.period)))
     }
 
     fn reset(&mut self) {

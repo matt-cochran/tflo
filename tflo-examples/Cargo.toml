@@ -10,6 +10,7 @@ publish = false
 
 [dependencies]
 tflo-core = { workspace = true, features = ["full"] }
+tflo-ops = { workspace = true }
 tflo-fintech = { workspace = true }
 
 # Scripting filter adapters
@@ -17,12 +18,22 @@ tflo-cel = { workspace = true }
 tflo-rhai = { workspace = true }
 tflo-rego = { workspace = true }
 
-# State-store backends
-tflo-state-files = { workspace = true }
-tflo-state-s3 = { workspace = true }
+# State-store backends — Phase 1 examples use the async path on both.
+tflo-state-files = { workspace = true, features = ["async"] }
+tflo-state-s3 = { workspace = true, features = ["async"] }
+
+# Phase 2/3/4 connectors and sinks — used by the iot-portal example.
+tflo-connect-kafka = { workspace = true, features = ["async"] }
+tflo-connect-mqtt = { workspace = true, features = ["async"] }
+tflo-sink-influx = { workspace = true, features = ["async"] }
+tflo-arrow = { workspace = true, features = ["parquet"] }
+
+# Arrow types used in the iot-portal example.
+arrow = { version = "58", default-features = false }
+arrow-schema = { version = "58", default-features = false }
 
 # Scripting crate re-exports (needed to implement context traits)
-cel-interpreter = "0.8"
+cel-interpreter = "0.10"
 rhai = "1.19"
 
 # S3 mock impl requires async_trait

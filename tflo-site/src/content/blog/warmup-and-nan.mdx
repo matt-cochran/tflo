@@ -42,12 +42,13 @@ pub enum StepResult<C: PipelineContext, O> {
     Ready(PipelineItem<C, O>),
     WarmingUp {
         remaining: usize,
+        reason: Absent,
     },
     Error(ComputeError),
 }
 ```
 
-`WarmingUp { remaining }` — that's how many more records you need before this operator starts producing. Print it, log it, monitor it.
+`WarmingUp { remaining, .. }` — `remaining` is how many more records you need before this operator starts producing. Print it, log it, monitor it. The `reason` field carries the typed [`Absent`] cause: once `remaining` hits zero the graph is warmed up, and a still-empty output means something else (a filtered value, a divide-by-zero) — `reason` tells you which.
 
 You can also inspect the graph's warmup state without stepping:
 
@@ -102,13 +103,14 @@ pub const fn strict() -> Self {
 }
 ```
 
-The `reject_nan` flag is stored but currently only `assert_sorted` is checked during validated iteration. The `error_on_nan` flag is similarly stored for future enforcement. For now, use standalone validators (`require_not_nan`, `require_finite`) from `tflo_core::validation` as a pre-filter step before the graph.
+`validated()` enforces every option: `reject_nan` / `reject_inf` filter the offending value out of the stream, `error_on_nan` / `error_on_inf` / `error_on_negative` surface a typed `Err(TFloError)`, `assert_sorted` and `max_gap_ms` police timestamps, and `min_warmup` suppresses early output.
 
 Apply validation at the stream level (sortedness check) or as a pre-filter:
 
 ```rust
 use tflo_core::prelude::*;
 use tflo_core::validation::ValidationOptions;
+use tflo_ops::prelude::*;
 
 // Validate at the stream level
 let results: Vec<TFloResult<f64>> = data
@@ -129,7 +131,7 @@ Found yourself staring at a graph that's producing fewer outputs than it should?
 
 **Step 2 — Check for NaN.** Scan your input data. If any value is `f64::NAN` or `f64::INFINITY`, that's likely the source. One NaN entering the graph can silence every downstream node.
 
-**Step 3 — Check sortedness and sanitize inputs.** Wrap your stream with `validated(ValidationOptions::strict(), ...)` to catch out-of-order timestamps. For NaN/Inf rejection, filter your data first with standalone validators (`require_not_nan`, `require_finite`) from `tflo_core::validation` before it enters the graph.
+**Step 3 — Validate the stream.** Wrap your stream with `validated(ValidationOptions::strict(), ...)` — it catches out-of-order timestamps, oversized timestamp gaps, and NaN/infinite/negative values, surfacing each as a typed `Err(TFloError)`. (The standalone `require_not_nan` / `require_finite` helpers from `tflo_core::validation` are still available if you prefer to pre-filter.)
 
 **Step 4 — Inspect with state_summary().** Call `graph.state_summary()` at any point. You get `records_seen`, `min_warmup`, `warmup_remaining`, `is_warmed_up`, `node_count`, and `output_count`. It's the fastest way to understand what your graph thinks is happening.
 

@@ -14,6 +14,8 @@ pub use helpers::{
     require_not_nan, require_positive,
 };
 
+use crate::error::TFloError;
+
 /// Options for validating temporal computations.
 ///
 /// # Examples
@@ -35,9 +37,9 @@ pub struct ValidationOptions {
     pub reject_nan: bool,
     /// Whether to reject infinite input values.
     pub reject_inf: bool,
-    /// Whether to return errors for NaN values (stronger than reject_nan).
+    /// Whether to return errors for NaN values (stronger than `reject_nan`).
     pub error_on_nan: bool,
-    /// Whether to return errors for infinite values (stronger than reject_inf).
+    /// Whether to return errors for infinite values (stronger than `reject_inf`).
     pub error_on_inf: bool,
     /// Whether to return errors for negative values in operations that don't allow them.
     pub error_on_negative: bool,
@@ -164,9 +166,12 @@ impl TimestampValidator {
 
     /// Check a timestamp and return whether it's valid (in order).
     pub fn check(&mut self, ts: i64) -> bool {
-        let valid = self.last_ts.map_or(true, |last| ts >= last);
+        let valid = self.last_ts.is_none_or(|last| ts >= last);
         if !valid {
-            self.violations += 1;
+            // Saturate: a long-running stream could in principle exceed
+            // `usize::MAX` violations; pinning at the ceiling is more
+            // informative than panicking.
+            self.violations = self.violations.saturating_add(1);
         }
         self.last_ts = Some(ts);
         valid
@@ -174,12 +179,12 @@ impl TimestampValidator {
 
     /// Get the number of out-of-order violations.
     #[must_use]
-    pub fn violations(&self) -> usize {
+    pub const fn violations(&self) -> usize {
         self.violations
     }
 
     /// Reset the validator.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.last_ts = None;
         self.violations = 0;
     }
@@ -205,18 +210,23 @@ impl WarmupTracker {
     }
 
     /// Record that a new record has been processed.
-    pub fn record(&mut self) {
-        self.records_seen += 1;
+    pub const fn record(&mut self) {
+        // Saturate so a long-running stream pins at `usize::MAX` rather
+        // than wrapping/panicking. `is_warmed_up` only checks `>=
+        // min_required`, so pinning is semantically correct (still warm).
+        self.records_seen = self.records_seen.saturating_add(1);
     }
 
     /// Record warmup for a specific node.
     pub fn record_node(&mut self, node_id: usize) {
-        *self.by_node.entry(node_id).or_insert(0) += 1;
+        let entry = self.by_node.entry(node_id).or_insert(0);
+        // Saturate per-node count for the same reason as `record()`.
+        *entry = entry.saturating_add(1);
     }
 
     /// Check if globally warmed up.
     #[must_use]
-    pub fn is_warmed_up(&self) -> bool {
+    pub const fn is_warmed_up(&self) -> bool {
         self.records_seen >= self.min_required
     }
 
@@ -225,12 +235,12 @@ impl WarmupTracker {
     pub fn is_node_warmed_up(&self, node_id: usize, required: usize) -> bool {
         self.by_node
             .get(&node_id)
-            .map_or(false, |&count| count >= required)
+            .is_some_and(|&count| count >= required)
     }
 
     /// Get the number of records seen.
     #[must_use]
-    pub fn records_seen(&self) -> usize {
+    pub const fn records_seen(&self) -> usize {
         self.records_seen
     }
 
@@ -252,7 +262,7 @@ pub struct ValueValidator {
 impl ValueValidator {
     /// Create a new value validator with the given options.
     #[must_use]
-    pub fn new(options: ValidationOptions) -> Self {
+    pub const fn new(options: ValidationOptions) -> Self {
         Self {
             options,
             nan_count: 0,
@@ -261,15 +271,16 @@ impl ValueValidator {
     }
 
     /// Check a value and return whether it's valid.
-    pub fn check(&mut self, value: f64) -> bool {
+    pub const fn check(&mut self, value: f64) -> bool {
         if value.is_nan() {
-            self.nan_count += 1;
+            // Saturating count — see `WarmupTracker::record` for rationale.
+            self.nan_count = self.nan_count.saturating_add(1);
             if self.options.reject_nan {
                 return false;
             }
         }
         if value.is_infinite() {
-            self.inf_count += 1;
+            self.inf_count = self.inf_count.saturating_add(1);
             if self.options.reject_inf {
                 return false;
             }
@@ -277,20 +288,62 @@ impl ValueValidator {
         true
     }
 
+    /// Check a value against every value-validation option.
+    ///
+    /// This is the full enforcement path used by
+    /// [`validated()`](crate::iter_ext::TFlowIteratorExt::validated):
+    ///
+    /// - `Ok(true)` — the value passes.
+    /// - `Ok(false)` — a `reject_*` option matched; the value should be
+    ///   filtered out of the output.
+    /// - `Err(..)` — an `error_on_*` option matched; the stream should fail.
+    ///
+    /// When both an `error_on_*` and the matching `reject_*` option are set,
+    /// the error takes precedence (it is the stronger check).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TFloError::NaN`], [`TFloError::Infinite`], or
+    /// [`TFloError::NegativeValue`] when the corresponding `error_on_*` option
+    /// is enabled and the value matches.
+    pub fn check_strict(&mut self, value: f64) -> Result<bool, TFloError> {
+        if value.is_nan() {
+            // Saturating count — see `WarmupTracker::record` for rationale.
+            self.nan_count = self.nan_count.saturating_add(1);
+            if self.options.error_on_nan {
+                return Err(TFloError::NaN);
+            }
+            return Ok(!self.options.reject_nan);
+        }
+        if value.is_infinite() {
+            self.inf_count = self.inf_count.saturating_add(1);
+            if self.options.error_on_inf {
+                return Err(TFloError::Infinite);
+            }
+            return Ok(!self.options.reject_inf);
+        }
+        if value < 0.0 && self.options.error_on_negative {
+            return Err(TFloError::NegativeValue {
+                reason: "validated() received a negative value (error_on_negative is enabled)",
+            });
+        }
+        Ok(true)
+    }
+
     /// Get the count of NaN values seen.
     #[must_use]
-    pub fn nan_count(&self) -> usize {
+    pub const fn nan_count(&self) -> usize {
         self.nan_count
     }
 
     /// Get the count of infinite values seen.
     #[must_use]
-    pub fn inf_count(&self) -> usize {
+    pub const fn inf_count(&self) -> usize {
         self.inf_count
     }
 
     /// Reset the validator.
-    pub fn reset(&mut self) {
+    pub const fn reset(&mut self) {
         self.nan_count = 0;
         self.inf_count = 0;
     }

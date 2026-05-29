@@ -7,6 +7,7 @@
 use super::vector::GoldenVector;
 use tflo_core::prelude::*;
 use tflo_fintech::prelude::*;
+use tflo_ops::prelude::*;
 
 // ── Input record ─────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ struct TFloRecord {
 fn get_period(params: &serde_json::Value) -> Result<usize, super::GoldenError> {
     params
         .get("period")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .map(|n| n as usize)
         .ok_or_else(|| super::GoldenError::Validation("Missing 'period' parameter".to_string()))
 }
@@ -33,12 +34,12 @@ fn get_period(params: &serde_json::Value) -> Result<usize, super::GoldenError> {
 fn param(params: &serde_json::Value, name: &str) -> Result<usize, super::GoldenError> {
     params
         .get(name)
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .map(|n| n as usize)
         .ok_or_else(|| super::GoldenError::Validation(format!("Missing '{name}' parameter")))
 }
 
-/// Build TFloRecords from a golden vector's input.
+/// Build `TFloRecords` from a golden vector's input.
 fn build_records(vector: &GoldenVector) -> Vec<TFloRecord> {
     vector
         .input
@@ -64,7 +65,7 @@ fn run_tflo_single<F>(records: &[TFloRecord], build: F) -> Vec<f64>
 where
     F: FnOnce(&mut TFlowBuilder<TFloRecord>) -> Comp<TFloRecord, f64>,
 {
-    records.to_vec().into_iter().tflo(build).collect()
+    records.iter().cloned().tflo(build).collect()
 }
 
 /// Run a single-output graph with the standard builder closure pattern.
@@ -86,7 +87,7 @@ fn run_tflo_two<F>(records: &[TFloRecord], build: F) -> Vec<(f64, f64)>
 where
     F: FnOnce(&mut TFlowBuilder<TFloRecord>) -> (Comp<TFloRecord, f64>, Comp<TFloRecord, f64>),
 {
-    records.to_vec().into_iter().tflo(build).collect()
+    records.iter().cloned().tflo(build).collect()
 }
 
 /// Run a three-output `.tflo()` graph and return raw computed tuple values.
@@ -100,14 +101,14 @@ where
         Comp<TFloRecord, f64>,
     ),
 {
-    records.to_vec().into_iter().tflo(build).collect()
+    records.iter().cloned().tflo(build).collect()
 }
 
 // ── Warmup alignment ─────────────────────────────────────────────────
 
 /// Find the index of the first `Some` value in a slice of optional f64s.
 fn first_non_null(values: &[Option<f64>]) -> Option<usize> {
-    values.iter().position(|v| v.is_some())
+    values.iter().position(std::option::Option::is_some)
 }
 
 /// Align raw single-output `.tflo()` values with the expected output
@@ -408,7 +409,7 @@ impl GoldenRunner {
                 let period = get_period(params)?;
                 let nbdev = params
                     .get("nbdev")
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .ok_or_else(|| super::GoldenError::Validation("Missing 'nbdev'".to_string()))?;
                 // deviation_band returns (middle, upper, lower)
                 // Fixture order: [upper, middle, lower]

@@ -1,44 +1,8 @@
 //! CEL context conversion traits and helpers.
 
+pub use crate::traits::IntoCelContext;
 use cel_interpreter::{Context, Value};
 use std::collections::HashMap;
-
-/// Trait for types that can be converted to a CEL evaluation context.
-///
-/// Implement this trait for your domain types to enable CEL filtering
-/// and rule evaluation.
-///
-/// # Examples
-///
-/// ```rust
-/// use tflo_cel::context::IntoCelContext;
-/// use cel_interpreter::Context;
-///
-/// struct Detection {
-///     ts: i64,
-///     freq_hz: u64,
-///     power_dbm: f64,
-///     snr_db: f64,
-///     is_signal: bool,
-/// }
-///
-/// impl IntoCelContext for Detection {
-///     fn into_cel_context(&self) -> Context<'static> {
-///         let mut ctx = Context::default();
-///         ctx.add_variable("ts", self.ts).unwrap();
-///         ctx.add_variable("freq_hz", self.freq_hz as i64).unwrap();
-///         ctx.add_variable("freq_mhz", self.freq_hz as f64 / 1e6).unwrap();
-///         ctx.add_variable("power", self.power_dbm).unwrap();
-///         ctx.add_variable("snr", self.snr_db).unwrap();
-///         ctx.add_variable("is_signal", self.is_signal).unwrap();
-///         ctx
-///     }
-/// }
-/// ```
-pub trait IntoCelContext {
-    /// Convert this value into a CEL context for evaluation.
-    fn into_cel_context(&self) -> Context<'static>;
-}
 
 /// Helper struct for building CEL contexts from key-value pairs.
 #[derive(Debug, Default)]
@@ -97,23 +61,35 @@ impl ContextBuilder {
         for (name, value) in self.variables {
             // CEL context expects references, but we need to work around lifetime issues
             // by using the add_variable method which copies values
+            // Conversions from primitive types are infallible; the Result
+            // is only there for fallible custom types we don't pass.
             match value {
                 Value::String(s) => {
-                    let _ = ctx.add_variable(&name, s.to_string());
+                    drop(ctx.add_variable(&name, s.to_string()));
                 }
                 Value::Int(i) => {
-                    let _ = ctx.add_variable(&name, i);
+                    drop(ctx.add_variable(&name, i));
                 }
                 Value::UInt(u) => {
-                    let _ = ctx.add_variable(&name, u as i64);
+                    drop(ctx.add_variable(&name, u as i64));
                 }
                 Value::Float(f) => {
-                    let _ = ctx.add_variable(&name, f);
+                    drop(ctx.add_variable(&name, f));
                 }
                 Value::Bool(b) => {
-                    let _ = ctx.add_variable(&name, b);
+                    drop(ctx.add_variable(&name, b));
                 }
-                _ => {}
+                // List/Map/Function/Bytes/Duration/Timestamp/Null are not
+                // representable as primitive CEL scope values via this
+                // builder; skip them. Listed explicitly so a future
+                // cel-interpreter variant addition would surface in CI.
+                Value::List(_)
+                | Value::Map(_)
+                | Value::Function(_, _)
+                | Value::Bytes(_)
+                | Value::Duration(_)
+                | Value::Timestamp(_)
+                | Value::Null => {}
             }
         }
         ctx
@@ -125,21 +101,28 @@ impl IntoCelContext for HashMap<String, serde_json::Value> {
     fn into_cel_context(&self) -> Context<'static> {
         let mut ctx = Context::default();
         for (key, value) in self {
+            // Conversions from primitive types are infallible; the Result
+            // is only there for fallible custom types we don't pass.
             match value {
                 serde_json::Value::String(s) => {
-                    let _ = ctx.add_variable(key, s.clone());
+                    drop(ctx.add_variable(key, s.clone()));
                 }
                 serde_json::Value::Number(n) => {
                     if let Some(i) = n.as_i64() {
-                        let _ = ctx.add_variable(key, i);
+                        drop(ctx.add_variable(key, i));
                     } else if let Some(f) = n.as_f64() {
-                        let _ = ctx.add_variable(key, f);
+                        drop(ctx.add_variable(key, f));
                     }
                 }
                 serde_json::Value::Bool(b) => {
-                    let _ = ctx.add_variable(key, *b);
+                    drop(ctx.add_variable(key, *b));
                 }
-                _ => {}
+                // Null/Array/Object don't map to primitive CEL values;
+                // listed explicitly so a future serde_json variant
+                // would surface in CI.
+                serde_json::Value::Null
+                | serde_json::Value::Array(_)
+                | serde_json::Value::Object(_) => {}
             }
         }
         ctx
@@ -155,7 +138,7 @@ mod tests {
         let ctx = ContextBuilder::new()
             .with_string("name", "test")
             .with_int("count", 42)
-            .with_float("ratio", 3.14)
+            .with_float("ratio", 1.5)
             .with_bool("active", true)
             .build();
 

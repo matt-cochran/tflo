@@ -3,6 +3,8 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::events::ThresholdCrossEventMode;
+use tflo_ops::prelude::*;
 
 // A datacenter host CPU-utilization sample, in percent.
 #[derive(Clone, Debug)]
@@ -12,7 +14,7 @@ struct CpuSample {
 }
 
 impl CpuSample {
-    fn new(ts: i64, cpu_pct: f64) -> Self {
+    const fn new(ts: i64, cpu_pct: f64) -> Self {
         Self { ts, cpu_pct }
     }
 }
@@ -31,7 +33,12 @@ fn main() {
     let samples: Vec<CpuSample> = sample_cpu_load()
         .into_iter()
         .enumerate()
-        .map(|(i, cpu_pct)| CpuSample::new((i as i64 + 1) * 1000, cpu_pct))
+        .map(|(i, cpu_pct)| {
+            // SAFETY: i bounded by sample_cpu_load().len() (≈15); (i+1)*1000 fits in i64
+            #[allow(clippy::arithmetic_side_effects)]
+            let ts = (i as i64 + 1) * 1000;
+            CpuSample::new(ts, cpu_pct)
+        })
         .collect();
 
     // ---- Count-based RSI(14) ----
@@ -101,7 +108,7 @@ fn main() {
                     sample.ts, item.value, plan.records_seen
                 );
             }
-            tflo_core::compile::StepResult::WarmingUp { remaining } => {
+            tflo_core::compile::StepResult::WarmingUp { remaining, .. } => {
                 println!("ts={} WARMING_UP (need {remaining} more)", sample.ts);
             }
             tflo_core::compile::StepResult::Error(e) => {

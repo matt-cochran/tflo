@@ -1,6 +1,12 @@
+// SAFETY (file-level rationale for `#[allow(clippy::arithmetic_side_effects)]`
+// on the tuple-arity sums below): every `+` here adds at most 6
+// `output_id_count()` values (one per tuple slot) plus the corresponding
+// `split_at` checks. Each `output_id_count()` returns the number of
+// `NodeId`s a graph output occupies — a per-type compile-time constant
+// that is always ≥ 1 and in practice 1–2. Summing six of those cannot
+// overflow `usize` on any realizable target.
 use crate::comp::NodeId;
 use crate::compile::ValueStore;
-
 
 /// Trait for extracting typed outputs from the value store.
 pub trait ExtractOutput: Sized + Send + Sync + 'static {
@@ -10,6 +16,16 @@ pub trait ExtractOutput: Sized + Send + Sync + 'static {
     /// The number of node IDs required to extract this type.
     fn output_id_count() -> usize {
         1
+    }
+
+    /// Best-effort view of this output value as an `f64`.
+    ///
+    /// Returns `Some` only for the `f64` output type; the default is `None`.
+    /// [`validated()`](crate::iter_ext::TFlowIteratorExt::validated) uses this
+    /// to apply the NaN / infinity / negative value checks, which are only
+    /// meaningful for a scalar `f64` output.
+    fn as_f64(&self) -> Option<f64> {
+        None
     }
 }
 
@@ -27,6 +43,7 @@ where
         Some((A::extract(store, a_ids)?, B::extract(store, b_ids)?))
     }
 
+    #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
     fn output_id_count() -> usize {
         A::output_id_count() + B::output_id_count()
     }
@@ -41,7 +58,9 @@ where
     fn extract(store: &ValueStore, ids: &[NodeId]) -> Option<Self> {
         let a_count = A::output_id_count();
         let b_count = B::output_id_count();
-        if ids.len() < a_count + b_count {
+        #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
+        let needed = a_count + b_count;
+        if ids.len() < needed {
             return None;
         }
         let (a_ids, rest) = ids.split_at(a_count);
@@ -53,6 +72,7 @@ where
         ))
     }
 
+    #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
     fn output_id_count() -> usize {
         A::output_id_count() + B::output_id_count() + C::output_id_count()
     }
@@ -69,7 +89,9 @@ where
         let a_count = A::output_id_count();
         let b_count = B::output_id_count();
         let c_count = C::output_id_count();
-        if ids.len() < a_count + b_count + c_count {
+        #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
+        let needed = a_count + b_count + c_count;
+        if ids.len() < needed {
             return None;
         }
         let (a_ids, rest) = ids.split_at(a_count);
@@ -83,6 +105,7 @@ where
         ))
     }
 
+    #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
     fn output_id_count() -> usize {
         A::output_id_count() + B::output_id_count() + C::output_id_count() + D::output_id_count()
     }
@@ -101,7 +124,9 @@ where
         let b_count = B::output_id_count();
         let c_count = C::output_id_count();
         let d_count = D::output_id_count();
-        if ids.len() < a_count + b_count + c_count + d_count {
+        #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
+        let needed = a_count + b_count + c_count + d_count;
+        if ids.len() < needed {
             return None;
         }
         let (a_ids, rest) = ids.split_at(a_count);
@@ -117,6 +142,7 @@ where
         ))
     }
 
+    #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
     fn output_id_count() -> usize {
         A::output_id_count()
             + B::output_id_count()
@@ -141,7 +167,9 @@ where
         let c_count = C::output_id_count();
         let d_count = D::output_id_count();
         let e_count = E::output_id_count();
-        if ids.len() < a_count + b_count + c_count + d_count + e_count {
+        #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
+        let needed = a_count + b_count + c_count + d_count + e_count;
+        if ids.len() < needed {
             return None;
         }
         let (a_ids, rest) = ids.split_at(a_count);
@@ -159,6 +187,7 @@ where
         ))
     }
 
+    #[allow(clippy::arithmetic_side_effects)] // see file-level SAFETY
     fn output_id_count() -> usize {
         A::output_id_count()
             + B::output_id_count()

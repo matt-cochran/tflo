@@ -1,0 +1,23 @@
+[package]
+name = "tflo-cep"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Closure-based event-pattern matching for the tflo temporal event processing engine"
+license.workspace = true
+repository.workspace = true
+keywords = ["streaming", "cep", "pattern-matching", "events", "temporal"]
+categories = ["data-structures", "algorithms"]
+
+[features]
+default = []
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

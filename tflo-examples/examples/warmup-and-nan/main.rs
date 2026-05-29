@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::{CompiledGraph, StepResult};
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 /// A single PM2.5 measurement from an air-quality monitor.
 #[derive(Clone, Debug)]
@@ -13,7 +14,7 @@ struct AirSample {
 }
 
 impl AirSample {
-    fn new(ts: i64, pm25: f64) -> Self {
+    const fn new(ts: i64, pm25: f64) -> Self {
         Self { ts, pm25 }
     }
 }
@@ -78,7 +79,9 @@ fn main() {
 
         match graph.step_with_status(record) {
             StepResult::Ready(item) => println!("  → Ready: {:.4}", item.value),
-            StepResult::WarmingUp { remaining } => println!("  → WarmingUp: need {remaining} more"),
+            StepResult::WarmingUp { remaining, .. } => {
+                println!("  → WarmingUp: need {remaining} more")
+            }
             StepResult::Error(e) => println!("  → Error: {e}"),
         }
     }

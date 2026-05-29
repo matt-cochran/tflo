@@ -1,0 +1,267 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const installSnippet = `npm install @tflo/browser-events`;
+
+const initSnippet = `import {
+  TFloBrowser,
+  Pattern,
+  ConsoleSink,
+  EdgeSink,
+  GA4Sink,
+  type EventRecord,
+} from "@tflo/browser-events";
+
+const tflo = new TFloBrowser({
+  sinks: [
+    new ConsoleSink(),                                    // dev visibility
+    new EdgeSink({ name: "edge", endpoint: "/collect" }), // first-party
+    new GA4Sink({ name: "ga4", sendTo: "G-XXXXXXX" }),    // optional
+  ],
+  consent: () => localStorage.getItem("analytics_consent") === "yes",
+});
+
+await tflo.init(); // load the ~40 KB WASM bundle`;
+
+const captureSnippet = `// Time on each section — IntersectionObserver under the hood.
+tflo.captureViewport({
+  target: document,
+  selector: "section[data-section-id]",
+  threshold: 0.5, // half visible counts as "in view"
+});
+// Emits viewport:enter, viewport:exit, and viewport:dwell (with durationMs).
+
+// Capture clicks with custom payload extraction.
+tflo.capture<MouseEvent>({
+  target: document,
+  type: "click",
+  fields: (e) => {
+    const el = (e.target as HTMLElement | null)?.closest("[data-analytics-action]");
+    return el
+      ? { action: el.getAttribute("data-analytics-action"), cartId: el.dataset.cartId }
+      : {};
+  },
+});
+
+// Capture page lifecycle.
+tflo.capture({ target: document, type: "visibilitychange" });
+window.addEventListener("pagehide", () => void tflo.flush());`;
+
+const patternsSnippet = `// Cart abandonment — closing the tab still ships the signal.
+const abandonedCart = new Pattern<EventRecord>("abandoned_cart")
+  .timestamp((e) => e.ts)
+  .when((e) => e.fields.action === "add_to_cart")
+  .notThen((e) => e.fields.action === "purchase")
+  .within(5 * 60 * 1000)
+  .emit((m) => ({
+    name: "abandoned_cart",
+    payload: { cartId: m.first().fields.cartId },
+    sinks: ["edge"], // only ship to the first-party collector
+  }));
+
+// Engaged with a section — viewed → deep dwell.
+const engaged = new Pattern<EventRecord>("section_engaged")
+  .timestamp((e) => e.ts)
+  .when((e) => e.kind === "viewport:enter" && e.fields.sectionId === "pricing")
+  .then((e) => e.kind === "viewport:dwell" && (e.fields.durationMs as number) > 5_000)
+  .within(60_000)
+  .emit((m) => ({
+    name: "section_engaged",
+    payload: {
+      sectionId: m.first().fields.sectionId,
+      dwellMs: m.last().fields.durationMs,
+    },
+  }));
+
+tflo.addPattern(abandonedCart);
+tflo.addPattern(engaged);`;
+
+const customSinkSnippet = `import type { Sink, DerivedSignal } from "@tflo/browser-events";
+
+// Segment integration — same shape as the bundled sinks.
+class SegmentSink implements Sink {
+  readonly name = "segment";
+  send(signal: DerivedSignal): void {
+    window.analytics?.track(signal.name, signal.payload);
+  }
+}
+
+// Your own warehouse — async delivery.
+class WarehouseSink implements Sink {
+  readonly name = "warehouse";
+  async send(signal: DerivedSignal): Promise<void> {
+    await fetch("https://api.example.com/events", {
+      method: "POST",
+      headers: { authorization: "Bearer ..." },
+      body: JSON.stringify(signal),
+    });
+  }
+}
+
+new TFloBrowser({
+  sinks: [new SegmentSink(), new WarehouseSink(), new EdgeSink({ ... })],
+});`;
+---
+
+<DocsLayout title="Browser analytics" description="End-to-end browser event workflow — capture, derive, route — running entirely client-side via WASM.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">
+      Browser analytics
+    </h1>
+    <p class="text-lg text-text-muted mb-6">
+      The canonical use case for <code>tflo</code> in the browser:
+      <strong class="text-white">capture DOM events, derive typed domain signals,
+      ship them anywhere</strong>. The matching engine runs entirely in WebAssembly
+      &mdash; no analytics server, no SDK lock-in, no vendor that owns the meaning of
+      your events.
+    </p>
+    <p class="text-text-muted mb-12">
+      The companion package
+      <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
+      bundles the <code>tflo-cep</code> WASM engine with a capture layer, viewport
+      tracker, and pluggable sink router. <code>GA4Sink</code> is one option among many
+      &mdash; the engine has zero analytics-vendor knowledge.
+    </p>
+
+    <!-- Why bother -->
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">Why client-side derivation</h2>
+    <p class="text-text-muted mb-4">
+      Most browser analytics either ship raw events to a third-party SaaS and let
+      <em>them</em> decide what counts as "engagement," or hand-roll a tangle of
+      <code>addEventListener</code> + ad-hoc timeouts that drifts out of sync with
+      what marketing or product actually asked for. Both approaches end with the
+      meaning of your events living somewhere you don't control.
+    </p>
+    <p class="text-text-muted mb-4">
+      Deriving signals client-side fixes both. Patterns express domain meaning
+      (<em>abandoned_cart</em>, <em>section_engaged</em>, <em>rage_click</em>) as
+      declarative chains the team can read. The rest of the stack &mdash; sinks,
+      collectors, warehouses &mdash; only sees the derived signals, not the raw event
+      firehose. And because everything runs in the browser via WASM, the same engine
+      that powers your edge gateway runs in your marketing site without a server.
+    </p>
+
+    <!-- 1. Install -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">1. Install</h2>
+    <CodeBlock code={installSnippet} lang="shell" />
+    <p class="text-text-muted mt-3 mb-8">
+      Browser bundlers (Vite, Webpack 5, Rollup, Astro) load the WASM artifact
+      automatically. Build size: roughly 40 KB of optimized <code>.wasm</code>
+      plus ~10 KB of TypeScript glue.
+    </p>
+
+    <!-- 2. Initialize -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">2. Initialize</h2>
+    <p class="text-text-muted mb-4">
+      Construct <code>TFloBrowser</code> with the sinks you want to route to. Add an
+      optional consent gate to skip outbound delivery when the user hasn't agreed.
+    </p>
+    <CodeBlock code={initSnippet} lang="typescript" />
+    <p class="text-text-muted mt-3 mb-8">
+      Sinks are name-keyed and isolated &mdash; one sink's failure doesn't block the
+      others. The <code>SinkRouter</code> dispatches every emitted signal to every
+      registered sink unless the emit closure specifies a <code>sinks: [...]</code>
+      hint.
+    </p>
+
+    <!-- 3. Capture -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">3. Capture events</h2>
+    <p class="text-text-muted mb-4">
+      Three first-class capture helpers ship in v0.1:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted mb-4">
+      <li><code>capture(...)</code> &mdash; <code>addEventListener</code> with optional throttling.</li>
+      <li><code>captureViewport(...)</code> &mdash; IntersectionObserver-backed time-on-section tracking. Emits <code>viewport:enter</code>, <code>viewport:exit</code>, and <code>viewport:dwell</code> (with <code>durationMs</code> pre-computed).</li>
+      <li><code>ingest(record)</code> &mdash; for events you capture yourself via custom logic.</li>
+    </ul>
+    <CodeBlock code={captureSnippet} lang="typescript" />
+    <p class="text-text-muted mt-3 mb-8">
+      Unbind functions are returned by every <code>capture</code> call &mdash; teardown
+      on destroy. The viewport helper emits a trailing exit + dwell for any element
+      still visible at unbind time, so navigating away from a page still ships the last
+      section's dwell.
+    </p>
+
+    <!-- 4. Patterns -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">4. Derive signals with patterns</h2>
+    <p class="text-text-muted mb-4">
+      Patterns are the domain layer. The same six-method API as the Rust crate &mdash;
+      compiled to the same WASM bytes, driven by the same
+      <code>engine::Runtime</code>. See the
+      <a href="/docs/patterns" class="text-primary hover:underline">event patterns</a>
+      page for the full surface.
+    </p>
+    <CodeBlock code={patternsSnippet} lang="typescript" />
+
+    <!-- 5. Custom sinks -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">5. Route to any sink</h2>
+    <p class="text-text-muted mb-4">
+      The <code>Sink</code> interface is the plug-in seam. The package bundles
+      <code>ConsoleSink</code>, <code>EdgeSink</code> (HTTP POST batching, with
+      <code>sendBeacon</code> fallback on unload), and <code>GA4Sink</code>. Bringing
+      Segment, Mixpanel, your own warehouse, or anything else is a fifty-line class:
+    </p>
+    <CodeBlock code={customSinkSnippet} lang="typescript" />
+    <p class="text-text-muted mt-3 mb-8">
+      The matching engine has zero vendor knowledge. <code>GA4Sink</code> is fifty
+      lines that import nothing &mdash; write your own and the rest of the SDK
+      doesn't change.
+    </p>
+
+    <!-- Why WASM matters -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">Why the WASM bridge matters</h2>
+    <p class="text-text-muted mb-4">
+      The same Rust crate, the same patterns, run in three places:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted mb-4">
+      <li>Inside a Rust service that consumes a Kafka topic.</li>
+      <li>On an ARM edge gateway with a 5&ndash;10 MB binary.</li>
+      <li>In a browser tab via <code>@tflo/browser-events</code>.</li>
+    </ul>
+    <p class="text-text-muted mb-4">
+      Detector composition that lived only on the server is now available where the
+      user is. The browser SDK isn't a separate reimplementation &mdash; it shares the
+      generic <code>engine::Runtime</code> with the Rust crate via the trait
+      abstraction over predicates, emit, and timestamp callbacks. One state machine.
+      Three idiomatic surfaces. Feature additions land once.
+    </p>
+
+    <!-- Browser sizing -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">Browser sizing</h2>
+    <div class="overflow-x-auto rounded-xl border border-border mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Asset</th>
+            <th class="text-left p-4 font-semibold text-white">Size</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border"><td class="p-4">Optimized <code>tflo_cep_wasm_bg.wasm</code></td><td class="p-4">~41 KB</td></tr>
+          <tr class="border-b border-border"><td class="p-4">Generated JS glue</td><td class="p-4">~22 KB</td></tr>
+          <tr class="border-b border-border"><td class="p-4">TypeScript runtime (<code>@tflo/browser-events</code>)</td><td class="p-4">~10 KB (minified)</td></tr>
+          <tr><td class="p-4">Total over the wire (gzip)</td><td class="p-4">~25 KB</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-12 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Companion repos:</strong>
+        <a href="https://github.com/matt-cochran/tflo/tree/main/tflo-cep" class="text-primary hover:underline"><code>tflo-cep</code></a>
+        (Rust crate) &middot;
+        <a href="https://github.com/matt-cochran/tflo/tree/main/tflo-cep-wasm" class="text-primary hover:underline"><code>tflo-cep-wasm</code></a>
+        (wasm-bindgen bridge) &middot;
+        <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
+        (TypeScript SDK).
+      </p>
+      <p class="text-text-muted mt-3">
+        <strong class="text-white">Related docs:</strong>
+        <a href="/docs/patterns" class="text-primary hover:underline">Event patterns</a> &middot;
+        <a href="/docs/wasm" class="text-primary hover:underline">WebAssembly</a> &middot;
+        <a href="/positioning" class="text-primary hover:underline">Positioning</a>
+      </p>
+    </div>
+  </div>
+</DocsLayout>

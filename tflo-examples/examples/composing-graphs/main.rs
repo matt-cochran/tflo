@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // A per-interval API health stat: fraction of requests that returned an error.
 #[derive(Clone, Debug)]
@@ -11,7 +12,7 @@ struct RequestStat {
 }
 
 impl RequestStat {
-    fn new(ts: i64, error_rate: f64) -> Self {
+    const fn new(ts: i64, error_rate: f64) -> Self {
         Self { ts, error_rate }
     }
 }
@@ -87,15 +88,7 @@ fn main() {
 
     // ---- Map: transform output ----
     println!("\n=== Map: categorize SMA ===");
-    fn build_sma_for_map() -> CompiledGraph<RequestStat, f64> {
-        let mut builder = TFlowBuilder::new();
-        builder.timestamp(|x: &RequestStat| x.ts);
-        let error_rate = builder.prop(|x: &RequestStat| x.error_rate);
-        let sma = error_rate.sma(3usize);
-        let nodes = builder.into_nodes();
-        CompiledGraph::compile(Arc::new(|x: &RequestStat| x.ts), nodes, sma.output_ids())
-    }
-    let mut mapped = build_sma_for_map().map(|value| {
+    let mut mapped = build_sma_graph().map(|value| {
         if value > 103.0 {
             "ABOVE".to_string()
         } else {
@@ -111,15 +104,7 @@ fn main() {
 
     // ---- Filter: suppress unwanted outputs ----
     println!("\n=== Filter: keep only values above threshold ===");
-    fn build_sma_for_filter() -> CompiledGraph<RequestStat, f64> {
-        let mut builder = TFlowBuilder::new();
-        builder.timestamp(|x: &RequestStat| x.ts);
-        let error_rate = builder.prop(|x: &RequestStat| x.error_rate);
-        let sma = error_rate.sma(3usize);
-        let nodes = builder.into_nodes();
-        CompiledGraph::compile(Arc::new(|x: &RequestStat| x.ts), nodes, sma.output_ids())
-    }
-    let mut filtered = build_sma_for_filter().filter(|value| *value > 102.0);
+    let mut filtered = build_sma_graph().filter(|value| *value > 102.0);
     println!("SMA(3) > 102.0:");
     for record in &stats {
         if let Some(item) = filtered.step(record) {
@@ -129,23 +114,18 @@ fn main() {
 
     // ---- Fold: count consecutive valid signals ----
     println!("\n=== Fold: count consecutive above-threshold SMAs ===");
-    fn build_sma_for_fold() -> CompiledGraph<RequestStat, f64> {
-        let mut builder = TFlowBuilder::new();
-        builder.timestamp(|x: &RequestStat| x.ts);
-        let error_rate = builder.prop(|x: &RequestStat| x.error_rate);
-        let sma = error_rate.sma(3usize);
-        let nodes = builder.into_nodes();
-        CompiledGraph::compile(Arc::new(|x: &RequestStat| x.ts), nodes, sma.output_ids())
-    }
-    let mut folded =
-        build_sma_for_fold()
-            .filter(|value| *value > 102.0)
-            .fold(
-                0u64,
-                |count, signal| {
-                    if signal.is_some() { count + 1 } else { 0 }
-                },
-            );
+    let mut folded = build_sma_graph().filter(|value| *value > 102.0).fold(
+        0u64,
+        // SAFETY: consecutive-signal counter; saturating_add keeps the value
+        // monotonic at u64::MAX rather than panicking on the (unreachable) overflow.
+        |count, signal| {
+            if signal.is_some() {
+                count.saturating_add(1)
+            } else {
+                0
+            }
+        },
+    );
     println!("Consecutive SMA(3) above 102.0:");
     for record in &stats {
         if let Some(item) = folded.step(record) {

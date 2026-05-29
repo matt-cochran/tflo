@@ -1,47 +1,8 @@
 //! Rhai scope conversion traits and helpers.
 
+pub use crate::traits::{IntoRhaiDynamic, IntoRhaiScope};
 use rhai::{Dynamic, Scope};
 use std::collections::HashMap;
-
-/// Trait for types that can be converted to a Rhai scope.
-///
-/// Implement this trait for your domain types to enable Rhai scripting.
-///
-/// # Examples
-///
-/// ```rust
-/// use tflo_rhai::context::IntoRhaiScope;
-/// use rhai::Scope;
-///
-/// struct Detection {
-///     ts: i64,
-///     freq_hz: u64,
-///     power_dbm: f64,
-///     snr_db: f64,
-/// }
-///
-/// impl IntoRhaiScope for Detection {
-///     fn into_rhai_scope(&self) -> Scope<'static> {
-///         let mut scope = Scope::new();
-///         scope.push("ts", self.ts);
-///         scope.push("freq_hz", self.freq_hz as i64);
-///         scope.push("freq_mhz", self.freq_hz as f64 / 1e6);
-///         scope.push("power", self.power_dbm);
-///         scope.push("snr", self.snr_db);
-///         scope
-///     }
-/// }
-/// ```
-pub trait IntoRhaiScope {
-    /// Convert this value into a Rhai scope for evaluation.
-    fn into_rhai_scope(&self) -> Scope<'static>;
-}
-
-/// Trait for types that can be converted to a Rhai Dynamic value.
-pub trait IntoRhaiDynamic {
-    /// Convert this value into a Rhai Dynamic.
-    fn into_rhai_dynamic(&self) -> Dynamic;
-}
 
 /// Helper struct for building Rhai scopes.
 #[derive(Debug, Default)]
@@ -117,7 +78,15 @@ impl IntoRhaiScope for HashMap<String, serde_json::Value> {
                 serde_json::Value::Bool(b) => {
                     let _ = scope.push(key.clone(), *b);
                 }
-                _ => {}
+                // Null, Array, Object are not representable as primitive
+                // Rhai scope values; skip them. `serde_json::Value` is
+                // marked `#[non_exhaustive]`-by-convention so use an
+                // explicit `Null|Array|Object` to keep this match
+                // honest if upstream ever adds a variant we should think
+                // about.
+                serde_json::Value::Null
+                | serde_json::Value::Array(_)
+                | serde_json::Value::Object(_) => {}
             }
         }
         scope
@@ -133,7 +102,7 @@ mod tests {
         let scope = ScopeBuilder::new()
             .with_string("name", "test")
             .with_int("count", 42)
-            .with_float("ratio", 3.14)
+            .with_float("ratio", 1.5)
             .with_bool("active", true)
             .build();
 

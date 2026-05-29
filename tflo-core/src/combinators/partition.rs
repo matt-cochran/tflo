@@ -131,6 +131,7 @@ impl<I, T> PartitionExt<T> for I where I: Iterator<Item = T> {}
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]

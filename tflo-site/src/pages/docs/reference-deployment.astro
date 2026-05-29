@@ -1,0 +1,121 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const flow = `<span class="text-text-muted">┌──────────────────────────────────────────────────────────────────┐</span>
+<span class="text-text-muted">│</span>                       <span class="text-accent">iot-portal reference deployment</span>            <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                                                                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>   <span class="text-primary">MQTT broker</span> ──── <span class="text-accent">edge gateway (tflo)</span> ──── <span class="text-primary">Kafka topic</span>           <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>     (sensors)         conditioning,           (sharded events)    <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                       hysteresis,                                 <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                       SMA / cross                                 <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                                                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                                  │               <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                                  ▼               <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                         <span class="text-accent">central worker (tflo)</span>    <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                         keyed by sensor,         <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                         Checkpointer,            <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                         KafkaShardRouter         <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                                  │               <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                          ┌───────────────────────┴────┐          <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                          ▼                            ▼          <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                   <span class="text-primary">Influx</span> (TSDB)             <span class="text-primary">Parquet</span> (archive)   <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                   tflo-sink-influx           tflo-arrow           <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>                                                                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">└──────────────────────────────────────────────────────────────────┘</span>`;
+
+const runIt = `cargo run --example iot-portal`;
+---
+
+<DocsLayout title="Reference deployment" description="End-to-end edge-to-cluster reference: MQTT → tflo → Kafka → tflo → Influx + Parquet.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">
+      Reference deployment
+    </h1>
+    <p class="text-lg text-text-muted mb-12">
+      The <code>iot-portal</code> example is the canonical end-to-end pipeline using every
+      connector tflo ships: an edge gateway conditions MQTT sensor data with tflo, publishes
+      typed events into Kafka, a central worker shards them by sensor with
+      <code>KafkaShardRouter</code>, computes derived signals, and writes results to Influx
+      and a Parquet archive. The whole thing runs in CI with in-process mock clients &mdash;
+      no broker, cluster, or TSDB required for a smoke test.
+    </p>
+
+    <div class="card mb-10 overflow-x-auto">
+      <pre class="text-xs sm:text-sm leading-relaxed font-mono whitespace-pre" set:html={flow} />
+    </div>
+
+    <h2 class="text-2xl font-bold text-white mt-10 mb-3">The five stages</h2>
+
+    <ol class="list-decimal pl-6 space-y-4 text-text-muted">
+      <li>
+        <strong class="text-white">MQTT consume.</strong> The edge leg uses
+        <code>tflo-connect-mqtt</code> (<code>rumqttc-backend</code> in production, an
+        in-process mock in the example) to consume sensor readings. <code>MqttCursor</code>
+        holds the bounded QoS-2 dedup window so the in-flight set can't grow unbounded.
+      </li>
+      <li>
+        <strong class="text-white">Edge conditioning with tflo.</strong> An
+        <code>Iterator::tflo(...)</code> closure applies SMA smoothing, hysteresis, and a
+        threshold cross detector. Out goes a typed <code>Signal&lt;Mode, Payload&gt;</code>
+        stream, not raw floats.
+      </li>
+      <li>
+        <strong class="text-white">Kafka publish.</strong>
+        <code>tflo-connect-kafka</code> publishes the signals into a sharded topic. Partition
+        key is the sensor id, so the same sensor's events always land in the same partition.
+      </li>
+      <li>
+        <strong class="text-white">Central worker (sharded).</strong> Worker processes consume
+        from Kafka and route by sensor key with <code>KafkaShardRouter</code>. The
+        <code>Checkpointer</code> coordinates snapshot writes with offset commits &mdash;
+        snapshot first, cursor last, deadline per stage, circuit breaker on consecutive
+        failures.
+      </li>
+      <li>
+        <strong class="text-white">Sink and archive.</strong> Derived signals go two places:
+        <code>tflo-sink-influx</code> writes line protocol to a TSDB, and
+        <code>tflo-arrow</code> writes a Parquet batch for cold-storage replay. The Parquet
+        schema fingerprint is stamped into <code>SnapshotMetadata</code> so a future backfill
+        can refuse a schema-incompatible dataset at restore time.
+      </li>
+    </ol>
+
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">Run it locally</h2>
+    <p class="text-text-muted mb-4">
+      The example uses in-process mocks so it runs offline:
+    </p>
+    <CodeBlock code={runIt} lang="shell" />
+    <p class="text-text-muted mt-3">
+      Source lives at
+      <code>tflo-examples/examples/iot-portal/</code>. The mocks implement the same
+      <code>KafkaConsumer</code> / <code>KafkaProducer</code> / <code>MqttConsumer</code> /
+      <code>InfluxHttpClient</code> traits as the real backends, so swapping in production
+      clients is a feature-flag flip.
+    </p>
+
+    <h2 class="text-2xl font-bold text-white mt-12 mb-3">What this demonstrates</h2>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted">
+      <li>The "tflo at the edge, mature engine in the center" pattern from <a href="/positioning" class="text-primary hover:underline">positioning</a>, with concrete code.</li>
+      <li>End-to-end use of all four core contracts (<code>AsyncStateStore</code>, <code>Cursor</code>, <code>ShardRouter</code>, <code>Operator</code>) &mdash; see <a href="/docs/contracts" class="text-primary hover:underline">Contracts</a>.</li>
+      <li>The full connector ecosystem: Kafka, MQTT, Influx, Arrow / Parquet.</li>
+      <li>Mock-friendly trait surfaces &mdash; production wiring is a feature flip, not a rewrite.</li>
+    </ul>
+
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Source:</strong>
+        <a href="https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/iot-portal" class="text-primary hover:underline">tflo-examples/examples/iot-portal/</a>.
+      </p>
+      <p class="text-text-muted mt-3">
+        <strong class="text-white">Related:</strong>
+        <a href="/docs/deployment-shapes" class="text-primary hover:underline">Deployment shapes</a>
+        &middot;
+        <a href="/docs/contracts" class="text-primary hover:underline">Contracts</a>
+        &middot;
+        <a href="/docs/advanced" class="text-primary hover:underline">Advanced</a>
+      </p>
+    </div>
+  </div>
+</DocsLayout>

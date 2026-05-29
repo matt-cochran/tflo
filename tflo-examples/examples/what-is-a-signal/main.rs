@@ -1,4 +1,6 @@
 use tflo_core::prelude::*;
+use tflo_ops::events::ThresholdCrossEventMode;
+use tflo_ops::prelude::*;
 
 // An RF spectrum-monitoring record: a detection of an emitter on the band.
 #[derive(Clone, Debug)]
@@ -11,7 +13,7 @@ struct Detection {
 }
 
 impl Detection {
-    fn new(ts: i64, snr_db: f64, freq_mhz: f64) -> Self {
+    const fn new(ts: i64, snr_db: f64, freq_mhz: f64) -> Self {
         Self {
             ts,
             snr_db,
@@ -59,7 +61,10 @@ fn main() {
     println!("--- Simple (no payload) ---");
     let cross_signal = Signal::simple(ThresholdCrossEventMode::Rising);
     println!("ThresholdCross signal: mode={:?}", cross_signal.mode);
-    println!("  is_active={}", cross_signal.mode.is_active());
+    println!(
+        "  is_active={}",
+        cross_signal.mode != ThresholdCrossEventMode::None
+    );
 
     // Signal with payload
     println!("\n--- Signal with payload ---");
@@ -95,7 +100,7 @@ fn main() {
             _ => "no cross".to_string(),
         };
         if *above != ThresholdCrossEventMode::None || *below != ThresholdCrossEventMode::None {
-            println!("  ts={:>6} baseline={:.4} dB → {}", ts, sma, desc);
+            println!("  ts={ts:>6} baseline={sma:.4} dB → {desc}");
         }
     }
 
@@ -120,7 +125,7 @@ fn main() {
     println!("Track signal events (SNR crossing baseline while momentum is climbing):");
     for (i, sig) in track_signals.iter().enumerate() {
         if *sig != ThresholdCrossEventMode::None {
-            println!("  idx={}: {:?}", i, sig);
+            println!("  idx={i}: {sig:?}");
         }
     }
 }

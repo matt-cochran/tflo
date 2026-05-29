@@ -1,6 +1,7 @@
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
-/// A single reading from an IoT soil-moisture sensor.
+/// A single reading from an `IoT` soil-moisture sensor.
 #[derive(Clone, Debug)]
 struct SoilReading {
     /// Timestamp in milliseconds.
@@ -10,7 +11,7 @@ struct SoilReading {
 }
 
 impl SoilReading {
-    fn new(ts: i64, moisture_pct: f64) -> Self {
+    const fn new(ts: i64, moisture_pct: f64) -> Self {
         Self { ts, moisture_pct }
     }
 }
@@ -59,8 +60,12 @@ fn main() {
             t.timestamp(|x| x.ts);
             let moisture = t.prop(|x| x.moisture_pct);
             let sma = moisture.sma(3usize);
-            let double = &sma * 2.0;
-            double
+
+            // SAFETY: graph-node combinator (Comp<R> Mul<f64> overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                &sma * 2.0
+            }
         })
         .collect();
     for (reading, val) in soil_with_dropouts.iter().zip(&permissive) {
@@ -79,8 +84,12 @@ fn main() {
             t.timestamp(|x| x.ts);
             let moisture = t.prop(|x| x.moisture_pct);
             let sma = moisture.sma(3usize);
-            let double = &sma * 2.0;
-            double
+
+            // SAFETY: graph-node combinator (Comp<R> Mul<f64> overload); not numeric arithmetic
+            #[allow(clippy::arithmetic_side_effects)]
+            {
+                &sma * 2.0
+            }
         })
         .collect();
     for (reading, result) in soil_with_dropouts.iter().zip(&strict) {
@@ -136,7 +145,7 @@ fn main() {
         .collect();
     for (ts, result) in sample_soil().iter().map(|t| t.ts).zip(&clean_validated) {
         if let Ok(val) = result {
-            println!("  ts={:>6} Ok({:.4})", ts, val);
+            println!("  ts={ts:>6} Ok({val:.4})");
         }
     }
 }

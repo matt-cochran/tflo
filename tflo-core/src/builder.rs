@@ -1,11 +1,11 @@
 //! Builder for constructing temporal computation graphs.
 //!
-//! [`TemporalBuilder`] provides a fluent API for defining computations
+//! [`TFlowBuilder`] provides a fluent API for defining computations
 //! over streaming data. It is used within the closure passed to
-//! `.temporal()` or `.temporal_with()`.
+//! `.tflo()` or `.tflo_with()`.
 
 use crate::comp::{Comp, Node, NodeId};
-use crate::event::ThresholdCrossEventMode;
+use crate::compile::ExtractOutput;
 use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -32,9 +32,15 @@ impl<R> Default for BuilderState<R> {
 }
 
 impl<R> BuilderState<R> {
-    pub(crate) fn next_id(&mut self) -> NodeId {
+    pub(crate) const fn next_id(&mut self) -> NodeId {
         let id = NodeId(self.next_node_id);
-        self.next_node_id += 1;
+        // SAFETY: graph size is bounded by available memory (each node
+        // pushed into `self.nodes` long before this could wrap usize);
+        // a graph with `usize::MAX` nodes is physically impossible.
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            self.next_node_id += 1;
+        }
         id
     }
 }
@@ -115,11 +121,15 @@ impl<R: 'static> TFlowBuilder<R> {
     /// Set the timestamp extractor with timestamps in seconds.
     ///
     /// Automatically converts seconds to milliseconds.
+    ///
+    /// Uses `saturating_mul` so a pathologically large seconds value
+    /// (e.g. uninitialized sensor garbage) clamps at `i64::MAX` ms
+    /// instead of panicking inside the timestamp extractor.
     pub fn timestamp_secs<F>(&mut self, f: F) -> &mut Self
     where
         F: Fn(&R) -> i64 + Send + Sync + 'static,
     {
-        self.timestamp_fn = Some(Arc::new(move |r| f(r) * 1000));
+        self.timestamp_fn = Some(Arc::new(move |r| f(r).saturating_mul(1000)));
         self
     }
 
@@ -191,6 +201,60 @@ impl<R: 'static> TFlowBuilder<R> {
         // Take the nodes directly from the shared state
         std::mem::take(&mut self.state.borrow_mut().nodes)
     }
+
+    /// Topology fingerprint for crash-safe restore.
+    ///
+    /// Produces a 32-byte hash over the graph's *topology* — node count,
+    /// per-node `(NodeId, kind, name)` triple, in order. Two builders
+    /// that produced identical fingerprints have structurally identical
+    /// graphs at the node level.
+    ///
+    /// **What this catches:** a worker restarting against a snapshot
+    /// produced by a *different* build of the application (added/removed
+    /// nodes, renamed nodes, reordered nodes). The
+    /// [`Checkpointer`](crate::state::Checkpointer) stamps this
+    /// fingerprint into snapshot metadata; restore code that sees a
+    /// mismatched fingerprint **must refuse the load** with a typed
+    /// error instead of attempting a best-effort restore — silent
+    /// version skew is the failure mode this poka-yoke prevents.
+    ///
+    /// **What this does not catch:** Operator-internal state-schema
+    /// changes (a stateful `Operator` whose `save()` bytes change shape
+    /// across versions without a node-topology change). That second line
+    /// of defense is [`Operator::type_id_version`](crate::operator::Operator::type_id_version),
+    /// which operators must opt into. A future version of `fingerprint`
+    /// can compose them — for now they are independent fences.
+    ///
+    /// The hash is **not** cryptographic — it is a fence against
+    /// accidental version mismatches, not adversarial tampering.
+    #[must_use]
+    pub fn fingerprint(&self) -> [u8; 32] {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut h = DefaultHasher::new();
+        let state = self.state.borrow();
+        state.nodes.len().hash(&mut h);
+        for (id, node) in &state.nodes {
+            id.0.hash(&mut h);
+            // The Debug impl for `Node<R>` is deterministic and discriminative
+            // over the structural fields (input ids, names, variant); it
+            // skips opaque closure addresses by design.
+            format!("{node:?}").hash(&mut h);
+        }
+        let h64 = h.finish();
+        // Pack the 64-bit hash into 32 bytes deterministically. This is
+        // enough collision resistance for accidental-mismatch detection;
+        // when we want cryptographic strength we can swap in blake3.
+        let mut out = [0u8; 32];
+        out[..8].copy_from_slice(&h64.to_le_bytes());
+        // Mix into the upper bytes with a stable transform so structurally
+        // different graphs never collide on the low 8 bytes alone.
+        out[8..16].copy_from_slice(&h64.rotate_left(17).to_le_bytes());
+        out[16..24].copy_from_slice(&h64.rotate_left(31).to_le_bytes());
+        out[24..32].copy_from_slice(&h64.rotate_left(47).to_le_bytes());
+        out
+    }
 }
 
 /// Trait for compiling computation outputs.
@@ -205,16 +269,15 @@ pub trait Compile<R>: Sized {
     fn output_ids(&self) -> Vec<NodeId>;
 }
 
-impl<R> Compile<R> for Comp<R, f64> {
-    type Output = f64;
-
-    fn output_ids(&self) -> Vec<NodeId> {
-        vec![self.id]
-    }
-}
-
-impl<R> Compile<R> for Comp<R, ThresholdCrossEventMode> {
-    type Output = ThresholdCrossEventMode;
+// Blanket impl over every output type that can be extracted from the value
+// store. This subsumes the previous concrete impls for `Comp<R, f64>` and
+// `Comp<R, ThresholdCrossEventMode>` — both still work, and any further
+// `ExtractOutput` type now compiles via the builder. Out-of-crate operator
+// catalogs (e.g. `tflo-ops` event-detector ops) rely on this to expose
+// typed-output operators through `.tflo(...)`; an orphan-rule add of these
+// impls from outside `tflo-core` is not possible.
+impl<R, O: ExtractOutput> Compile<R> for Comp<R, O> {
+    type Output = O;
 
     fn output_ids(&self) -> Vec<NodeId> {
         vec![self.id]

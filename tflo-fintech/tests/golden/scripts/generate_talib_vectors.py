@@ -8,6 +8,30 @@ that can be used to validate tflo-ta-strict implementations.
 Usage:
     python3 generate_talib_vectors.py --indicator rsi --period 14
     python3 generate_talib_vectors.py --all
+
+Structural note (StructureOS god-file SOS001):
+    This file is flagged as a god file (1011 LOC, 62 functions) but is
+    deliberately exempt from decomposition. Reasoning:
+
+    1. It's a code generator with naturally parallel per-indicator
+       structure (one `<indicator>_talib()` wrapper + one
+       `generate_<indicator>_vectors()` orchestrator per indicator
+       family). Splitting one family per file would create ~10 tiny
+       modules without any maintainability benefit.
+
+    2. Its correctness contract is the byte-exact content of the JSON
+       fixture files it writes under tests/golden/fixtures/, not the
+       organization of the source. Any structural refactor must be
+       gated by `git diff tests/golden/fixtures/` returning empty.
+
+    3. Float arithmetic isn't associative; reordering operations across
+       module boundaries (even imports) can change the last-ULP output.
+       The risk of breaking the entire `tflo-fintech` golden-fixture
+       bit-equality suite is real and the upside is cosmetic.
+
+    If a future StructureOS exemption mechanism lands, replace this
+    note with a formal `.structureos/exemptions.toml` entry. Until
+    then, this docstring is the human-readable record of the decision.
 """
 # pyright: reportUntypedFunctionDecorator=false, reportAny=false, reportAttributeAccessIssue=false
 # ta-lib C extension type stubs are incomplete; all talib.* calls are valid at runtime
@@ -497,9 +521,15 @@ def stochrsi_talib(
 def ppo_talib(
     input_data: list[float], fast: int, slow: int, matype: int = 0
 ) -> list[float | None]:
-    """PPO — Percentage Price Oscillator: ((EMA(fast)-EMA(slow))/EMA(slow))*100."""
+    """PPO — Percentage Price Oscillator: ((EMA(fast)-EMA(slow))/EMA(slow))*100.
+
+    Uses TA-Lib's default ``matype=MA_Type.EMA`` to match the canonical
+    EMA-based definition. The previous SMA-based variant masked seeding
+    differences and required a coarse (1.0) tolerance to pass; with EMA
+    we can validate to 1e-6 against the regenerated fixtures.
+    """
     data = np.array(input_data, dtype=np.float64)
-    result = talib.PPO(data, fastperiod=fast, slowperiod=slow, matype=MA_Type.SMA)
+    result = talib.PPO(data, fastperiod=fast, slowperiod=slow, matype=MA_Type.EMA)
     return [None if np.isnan(x) else float(x) for x in result]
 
 

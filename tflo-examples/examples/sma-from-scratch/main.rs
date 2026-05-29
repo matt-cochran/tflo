@@ -3,8 +3,9 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::{CompiledGraph, StepResult};
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
-/// A single outdoor temperature reading from an IoT sensor.
+/// A single outdoor temperature reading from an `IoT` sensor.
 #[derive(Clone, Debug)]
 struct Reading {
     /// Timestamp in milliseconds.
@@ -14,7 +15,7 @@ struct Reading {
 }
 
 impl Reading {
-    fn new(ts: i64, celsius: f64) -> Self {
+    const fn new(ts: i64, celsius: f64) -> Self {
         Self { ts, celsius }
     }
 }
@@ -71,7 +72,7 @@ fn main() {
         .tflo(|t| {
             t.timestamp(|x| x.ts);
             let temperature = t.prop(|x| x.celsius);
-            temperature.over(20_u64.secs()).sma()
+            temperature.sma(20_u64.secs())
         })
         .collect();
     print_summary("SMA(20s) WindowSpec", &ws_smas);
@@ -95,7 +96,7 @@ fn main() {
                     record.ts, item.value, plan.records_seen, plan.warmup_remaining
                 );
             }
-            StepResult::WarmingUp { remaining } => {
+            StepResult::WarmingUp { remaining, .. } => {
                 println!("ts={} → WARMING_UP (remaining={})", record.ts, remaining);
             }
             StepResult::Error(e) => {

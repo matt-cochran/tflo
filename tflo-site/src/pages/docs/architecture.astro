@@ -2,57 +2,82 @@
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 
-const architectureDiagram = `<span class="text-text-muted">┌──────────────────────────────────────────────────────────┐</span>
-<span class="text-text-muted">│</span>                   <span class="text-accent">Integration Layer</span>                      <span class="text-text-muted">│</span>
-<span class="text-text-muted">│</span>  tflo-connect-kafka   tflo-cel   tflo-rhai   tflo-rego   <span class="text-text-muted">│</span>
-<span class="text-text-muted">├──────────────────────────────────────────────────────────┤</span>
-<span class="text-text-muted">│</span>                   <span class="text-accent">Persistence Layer</span>                      <span class="text-text-muted">│</span>
-<span class="text-text-muted">│</span>          tflo-state-files     tflo-state-s3              <span class="text-text-muted">│</span>
-<span class="text-text-muted">├──────────────────────────────────────────────────────────┤</span>
-<span class="text-text-muted">│</span>                   <span class="text-accent">Domain Plugin Layer</span>                    <span class="text-text-muted">│</span>
-<span class="text-text-muted">│</span>          tflo-fintech (financial TA indicators)         <span class="text-text-muted">│</span>
-<span class="text-text-muted">├──────────────────────────────────────────────────────────┤</span>
-<span class="text-text-muted">│</span>                   <span class="text-accent">Core Layer</span>                             <span class="text-text-muted">│</span>
-<span class="text-text-muted">│</span>  tflo-core (temporal event processing engine: graph,    <span class="text-text-muted">│</span>
-<span class="text-text-muted">│</span>  windowing, statistics, signal detectors, keyed exec)   <span class="text-text-muted">│</span>
-<span class="text-text-muted">└──────────────────────────────────────────────────────────┘</span>`;
+const architectureDiagram = `<span class="text-text-muted">┌──────────────────────────────────────────────────────────────────┐</span>
+<span class="text-text-muted">│</span>                       <span class="text-accent">Connectors &amp; sinks</span>                         <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>   tflo-connect-kafka   tflo-connect-mqtt                         <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>   tflo-sink-influx     tflo-arrow (Parquet / Polars)             <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                  <span class="text-accent">Scripting &amp; policy filters</span>                     <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>          tflo-cel    tflo-rhai    tflo-rego                      <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>             <span class="text-accent">Pattern matching (event sequences)</span>                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>          tflo-cep (closure-based, WASM-clean)                    <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                     <span class="text-accent">Operator catalogs</span>                            <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>   tflo-ops (generic catalog)   tflo-fintech (finance plugin)     <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                          <span class="text-accent">Engine</span>                                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>   tflo-core                                                      <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>     graph + windowing + keyed execution                          <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>     timers + dedup + metrics + async contracts                   <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>     typed Absent + Checkpointer + ShardRouter                    <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                       <span class="text-accent">Persistence</span>                                <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>      tflo-state-files          tflo-state-s3                     <span class="text-text-muted">│</span>
+<span class="text-text-muted">├──────────────────────────────────────────────────────────────────┤</span>
+<span class="text-text-muted">│</span>                         <span class="text-accent">Browser</span>                                  <span class="text-text-muted">│</span>
+<span class="text-text-muted">│</span>      tflo-wasm (ops/fintech)    tflo-cep-wasm (patterns)         <span class="text-text-muted">│</span>
+<span class="text-text-muted">└──────────────────────────────────────────────────────────────────┘</span>`;
 
-const cargoAddCommands = `# Minimal: just the temporal event processing engine
-cargo add tflo-core
+const cargoAddCommands = `# Minimal: engine + operator catalog
+cargo add tflo-core tflo-ops
 
 # Add the financial technical-analysis plugin
-cargo add tflo-core tflo-fintech
+cargo add tflo-core tflo-ops tflo-fintech
 
-# Engine plus async stream support
+# Engine plus async stream support (Tokio)
 cargo add tflo-core --features async`;
 ---
 
-<DocsLayout title="Crate Architecture" description="How the 10 tflo workspace crates fit together.">
+<DocsLayout title="Crate Architecture" description="How the tflo workspace crates fit together.">
   <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-4xl font-extrabold text-white mb-2">Crate Architecture</h1>
-    <p class="text-lg text-text-muted mb-12">How the 10 workspace crates compose into a temporal event processing platform: a generic temporal event processing core plus domain plugins, persistence, scripting, and connectors. tflo is experimental and pre-1.0 — not yet published to crates.io.</p>
+    <p class="text-lg text-text-muted mb-12">
+      How the workspace crates compose into a temporal event-processing platform &mdash; a
+      generic engine plus operator catalogs, scripting, persistence, connectors, and a
+      browser binding. tflo is experimental and pre-1.0 &mdash; not yet published to
+      crates.io.
+    </p>
 
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Dependency Graph</h2>
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Dependency layers</h2>
     <p class="text-text-muted mb-6">
-      tflo follows a layered architecture where higher-level crates build on lower-level ones:
+      <code>tflo-core</code> is contract-only above the engine: connectors, state stores, and
+      scripting integrations live in separate crates so the engine stays free of direct deps
+      on <code>aws-sdk-s3</code>, <code>rdkafka</code>, <code>rumqttc</code>, or
+      <code>reqwest</code>. Operators were extracted from the engine into
+      <code>tflo-ops</code> (and the finance-specific subset into <code>tflo-fintech</code>)
+      so that domain catalogs evolve on their own cadence.
     </p>
 
     <div class="mb-12">
       <CodeBlock code={architectureDiagram} lang="html" />
     </div>
 
-    <!-- Core Layer -->
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Core Layer</h2>
+    <!-- Engine -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Engine</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-core</h3>
         <p class="text-sm text-text-muted mb-3">
-          The temporal event processing engine. Provides the <code>.tflo()</code> and <code>.with()</code>
-          iterator adapters, property extraction, windowing primitives, keyed execution, and
-          the compiled graph runtime. Includes core operations (<code>tflo-core/src/comp/</code>) —
-          moving averages, streaming statistics, derivatives — and signal detection
-          (<code>tflo-core/src/primitives/</code>). Async support via <code>--features async</code>.
+          The temporal event-processing engine. Provides the <code>.tflo()</code> /
+          <code>.with()</code> / <code>.tflo_keyed()</code> iterator adapters, property
+          extraction, windowing primitives, the compiled graph runtime, the typed
+          <code>Computed = Result&lt;f64, Absent&gt;</code> semantics, the
+          <code>Operator</code> trait, timers, the <code>Deduplicator</code>, the
+          <code>Metrics</code> trait, the async state / checkpoint / shard-router contracts,
+          and <code>Builder::fingerprint()</code>. Async support via
+          <code>--features async</code>.
         </p>
         <p class="text-xs text-text-muted">
           <code>cargo add tflo-core</code>
@@ -60,17 +85,33 @@ cargo add tflo-core --features async`;
       </div>
     </div>
 
-    <!-- Domain Plugin Layer -->
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Domain Plugin Layer</h2>
+    <!-- Operator catalogs -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Operator catalogs</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-ops
+        </h3>
+        <p class="text-sm text-text-muted mb-3">
+          The generic operator catalog. Owns every windowed aggregation (SMA, EMA, STD, VAR,
+          WMA, median, quantile, skewness, kurtosis, correlation, covariance), the stateful
+          trackers (prev, lag, cumulative_*, pct_change, zscore, rate_of_change, momentum,
+          peak_decline), and the event detectors (cross, glitch, runt, pulse_width,
+          window_detector, zone). Extracted from <code>tflo-core</code> in the hardening
+          pass so domain catalogs can evolve independently.
+        </p>
+        <p class="text-xs text-text-muted">
+          <code>cargo add tflo-ops</code>
+        </p>
+      </div>
+      <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-fintech</h3>
         <p class="text-sm text-text-muted mb-3">
-          Financial technical-analysis indicators (MACD, ADX, ATR, KAMA, Stochastic, CCI, …)
-          as a <code>tflo-core</code> plugin. Finance is one domain among many — it lives in its
-          own crate rather than the generic temporal event processing core. Brings the <code>FintechIndicators</code>
-          and <code>FintechAliases</code> traits into scope via <code>tflo_fintech::prelude</code>.
+          Financial technical-analysis indicators (MACD, ADX, ATR, KAMA, Stochastic, CCI,
+          OBV, VWAP, Bollinger, Ichimoku) as a <code>tflo-ops</code> plugin. Bit-exact
+          golden-fixture suite validated against TA-Lib. Finance is <em>one</em> domain
+          catalog among many.
         </p>
         <p class="text-xs text-text-muted">
           <code>cargo add tflo-fintech</code>
@@ -78,66 +119,187 @@ cargo add tflo-core --features async`;
       </div>
     </div>
 
-    <!-- Persistence Layer -->
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Persistence Layer</h2>
+    <!-- Pattern matching -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Pattern matching</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-cep
+        </h3>
+        <p class="text-sm text-text-muted mb-3">
+          Closure-based event-pattern matching &mdash; "A then B within T", "A then not B
+          within T", bounded sequences. Six-method builder
+          (<code>when</code> / <code>then</code> / <code>not_then</code> /
+          <code>within</code> / <code>emit</code> plus <code>timestamp</code>),
+          <code>Match&lt;E&gt;</code> with <code>first</code> / <code>last</code> /
+          <code>at(name)</code> / <code>named()</code> / <code>all()</code>. The shared
+          <code>engine::Runtime</code> is also reused by
+          <code>tflo-cep-wasm</code>. WASM-clean by construction.
+        </p>
+        <p class="text-xs text-text-muted">
+          <code>cargo add tflo-cep</code>
+        </p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-cep-wasm
+        </h3>
+        <p class="text-sm text-text-muted">
+          WebAssembly bindings for <code>tflo-cep</code>. Wraps <code>engine::Runtime</code>
+          with JS-callback adapters (Rc-based, since wasm32 is single-threaded). ~41 KB
+          optimized <code>.wasm</code>. Consumed by the
+          <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
+          TypeScript SDK &mdash; see the
+          <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+          page for the end-to-end flow.
+        </p>
+      </div>
+    </div>
+
+    <!-- Persistence -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Persistence</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-state-files</h3>
-        <p class="text-sm text-text-muted">File-based checkpoint store. Serializes window state to local files for crash recovery.</p>
+        <p class="text-sm text-text-muted">
+          File-based checkpoint store. Implements both the sync <code>StateStore</code> and
+          (under the <code>async</code> feature) the <code>AsyncStateStore</code> trait via
+          <code>spawn_blocking</code> &mdash; same backend, both interfaces.
+        </p>
       </div>
       <div class="card">
-        <h3 class="text-lg font-semibold text-white mb-2">tflo-state-s3</h3>
-        <p class="text-sm text-text-muted">S3-compatible checkpoint store. Persist and restore window state from any S3-compatible object store.</p>
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-state-s3
+        </h3>
+        <p class="text-sm text-text-muted">
+          S3-compatible checkpoint store. Rewritten in the hardening pass as a direct
+          <code>AsyncStateStore</code> impl over a pluggable <code>S3Client</code> trait
+          (drop in <code>aws-sdk-s3</code>, MinIO, or a mock). Coordinates with
+          <code>Checkpointer</code> for crash-safe (snapshot &rarr; cursor) ordering.
+        </p>
       </div>
     </div>
 
-    <!-- Integration Layer -->
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Integration Layer</h2>
+    <!-- Connectors / sinks -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Connectors &amp; sinks</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
-        <h3 class="text-lg font-semibold text-white mb-2">tflo-connect-kafka</h3>
-        <p class="text-sm text-text-muted">Kafka integration adapter. Ingest events from topics and publish computed results back.</p>
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-connect-kafka
+        </h3>
+        <p class="text-sm text-text-muted">
+          Kafka integration. <code>KafkaShardRouter</code> requires an
+          <code>AsyncStateStore</code> at construction (compile-time poka-yoke against
+          sharded execution without durable state). Optional <code>rdkafka-backend</code>
+          feature wraps the production client. <code>AssignmentEpoch</code> fences events
+          arriving during rebalance.
+        </p>
       </div>
       <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-connect-mqtt
+        </h3>
+        <p class="text-sm text-text-muted">
+          MQTT adapter for the edge. <code>MqttCursor</code> enforces a bounded QoS-2 dedup
+          window (64 KiB cap) so the in-flight set cannot grow unbounded. Optional
+          <code>rumqttc-backend</code> &mdash; pure Rust, cross-compiles cleanly to ARM.
+        </p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-sink-influx
+        </h3>
+        <p class="text-sm text-text-muted">
+          InfluxDB write sink. <code>LineProtocol</code> builder plus a
+          <code>Batcher</code> with soft flush and a hard <code>max_buffer_bytes</code>
+          cap. Pluggable <code>InfluxHttpClient</code> trait so HTTP client choice is the
+          user's.
+        </p>
+      </div>
+      <div class="card">
+        <h3 class="text-lg font-semibold text-white mb-2">
+          tflo-arrow
+        </h3>
+        <p class="text-sm text-text-muted">
+          Arrow / Parquet / Polars interop. <code>schema_fingerprint()</code> stamps a hash
+          into snapshot metadata so backfills against a structurally-different schema are
+          rejected on restore. <code>parquet_io::&#123;read,write&#125;_batches</code> helpers cover
+          replay sources and result sinks.
+        </p>
+      </div>
+    </div>
+
+    <!-- Scripting / policy -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Scripting &amp; policy filters</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
+      <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-cel</h3>
-        <p class="text-sm text-text-muted">Common Expression Language integration. Define custom rules and expressions at runtime.</p>
+        <p class="text-sm text-text-muted">
+          Common Expression Language filter. Implement <code>IntoCelContext</code> for your
+          domain type and call <code>.cel_filter("expr")</code> on any iterator &mdash; no
+          graph step cycle required.
+        </p>
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-rhai</h3>
-        <p class="text-sm text-text-muted">Rhai scripting integration. Embed Rhai scripts for flexible, user-defined computation.</p>
+        <p class="text-sm text-text-muted">
+          Rhai scripting integration. Implement <code>IntoRhaiScope</code> and call
+          <code>.rhai_filter("expr")</code> &mdash; or load full scripts at runtime without
+          recompiling.
+        </p>
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-rego</h3>
-        <p class="text-sm text-text-muted">OPA/Rego policy engine integration. Define policy rules in Rego for compliance and governance.</p>
+        <p class="text-sm text-text-muted">
+          OPA / Rego policy engine integration. Load policies, then call
+          <code>.rego_filter(engine, "data.&lt;pkg&gt;.allow")</code> for compliance and
+          governance use cases.
+        </p>
       </div>
     </div>
 
     <!-- Tooling -->
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Tooling &amp; Examples</h2>
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Tooling &amp; examples</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-wasm</h3>
-        <p class="text-sm text-text-muted">WebAssembly bindings. Run tflo computations in the browser via <code>wasm-bindgen</code> — see the <a href="/docs/wasm" class="text-primary hover:underline">WebAssembly</a> page.</p>
+        <p class="text-sm text-text-muted">
+          WebAssembly bindings for the operator catalogs (<code>tflo-ops</code> and
+          <code>tflo-fintech</code>). Run streaming detectors and TA indicators live in
+          a dashboard, extension, or service worker. For browser event-pattern
+          matching, see the sibling <code>tflo-cep-wasm</code> crate above. See the
+          <a href="/docs/wasm" class="text-primary hover:underline">WebAssembly</a> page.
+        </p>
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">tflo-examples</h3>
-        <p class="text-sm text-text-muted">Runnable examples backing the docs and blog. Not a library — a reference for end-to-end usage patterns.</p>
+        <p class="text-sm text-text-muted">
+          Runnable examples backing the docs and blog. The <code>iot-portal</code> example
+          stitches MQTT, Kafka, Influx, and Parquet into the end-to-end
+          <a href="/docs/reference-deployment" class="text-primary hover:underline">reference deployment</a>.
+        </p>
       </div>
     </div>
 
     <!-- Adding a Crate -->
-    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Adding Crates to Your Project</h2>
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Adding crates to your project</h2>
     <p class="text-text-muted mb-4">
-      Pick the crates you need — you don&rsquo;t have to pull in everything:
+      Pick the crates you need &mdash; you don't have to pull in everything:
     </p>
     <CodeBlock code={cargoAddCommands} lang="shell" />
 
     <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
       <p class="text-text-muted">
-        <strong class="text-white">Next:</strong> Explore <a href="/docs/advanced" class="text-primary hover:underline">Advanced Topics</a> including checkpointing, async, and scripting.
+        <strong class="text-white">Next:</strong> Explore
+        <a href="/docs/contracts" class="text-primary hover:underline">Contracts</a> for the
+        four pluggable traits, or
+        <a href="/docs/advanced" class="text-primary hover:underline">Advanced</a> for
+        checkpointing, async, dedup, metrics, and scripting.
       </p>
     </div>
   </div>

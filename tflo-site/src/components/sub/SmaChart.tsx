@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -11,6 +11,18 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { Tick } from "../../lib/wasm";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_COLORS,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+  EmptyChart,
+  chartTooltipLabelFormatter,
+} from "./chartTheme";
 
 interface SmaChartProps {
   ticks: Tick[];
@@ -19,65 +31,57 @@ interface SmaChartProps {
 }
 
 function SmaChartInner({ ticks, results, height }: SmaChartProps) {
-  const chartData = ticks.map((tick, i) => ({
-    ts: tick.ts,
-    value: tick.value,
-    sma: i < results.length ? results[i] : null,
-  }));
+  const chartData = useMemo(
+    () =>
+      ticks.map((tick, i) => ({
+        ts: tick.ts,
+        value: tick.value,
+        sma: i < results.length ? results[i] : null,
+      })),
+    [ticks, results],
+  );
 
   if (chartData.length === 0) {
-    return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#666",
-          background: "#f5f5f5",
-          borderRadius: 8,
-          fontSize: "0.9rem",
-        }}
-      >
-        No data
-      </div>
-    );
+    return <EmptyChart height={height} />;
   }
 
+  const hasSma = results.some((v) => v !== null);
+
   return (
-    <div role="img" aria-label="SMA chart showing price and moving average" style={{ width: "100%", height }}>
+    <div
+      role="img"
+      aria-label="SMA chart showing price and moving average"
+      style={{ width: "100%", height }}
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis dataKey="ts" tick={false} axisLine={{ stroke: "#ccc" }} />
+        <LineChart data={chartData} margin={CHART_MARGIN}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="ts" tick={false} axisLine={CHART_AXIS_LINE} />
           <YAxis
             domain={["auto", "auto"]}
-            tick={{ fontSize: 11 }}
-            axisLine={{ stroke: "#ccc" }}
+            tick={CHART_AXIS_TICK}
+            axisLine={CHART_AXIS_LINE}
           />
           <Tooltip
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              fontSize: 12,
-            }}
-            labelFormatter={(label) => `t=${label}`}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={chartTooltipLabelFormatter}
           />
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#0066cc"
+            stroke={CHART_COLORS.price}
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
             name="Price"
           />
-          {results.some((v) => v !== null) && (
+          {hasSma && (
             <Line
               type="monotone"
               dataKey="sma"
-              stroke="#ff6b35"
+              stroke={CHART_COLORS.sma}
               strokeWidth={1.5}
               strokeDasharray="4 2"
               dot={false}

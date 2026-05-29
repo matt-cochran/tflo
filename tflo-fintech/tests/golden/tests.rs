@@ -336,12 +336,12 @@ fn test_stochrsi_talib_14_3_3() {
 
 #[test]
 fn test_ppo_talib_12_26() {
-    test_single(concat!(fixtures!("ppo"), "ppo_talib_12_26.json"), TOL_MACD);
+    test_single(concat!(fixtures!("ppo"), "ppo_talib_12_26.json"), 1e-6);
 }
 
 #[test]
 fn test_ppo_talib_5_20() {
-    test_single(concat!(fixtures!("ppo"), "ppo_talib_5_20.json"), TOL_MACD);
+    test_single(concat!(fixtures!("ppo"), "ppo_talib_5_20.json"), 1e-6);
 }
 
 // ── TRIX ────────────────────────────────────────────────────────────

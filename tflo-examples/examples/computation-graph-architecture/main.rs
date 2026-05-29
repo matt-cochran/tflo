@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
 // A power-grid telemetry sample: instantaneous load on a feeder, in megawatts.
 #[derive(Clone, Debug)]
@@ -11,7 +12,7 @@ struct GridSample {
 }
 
 impl GridSample {
-    fn new(ts: i64, load_mw: f64) -> Self {
+    const fn new(ts: i64, load_mw: f64) -> Self {
         Self { ts, load_mw }
     }
 }
@@ -48,7 +49,10 @@ fn main() {
     let load = builder.prop(|x| x.load_mw);
     let sma = load.sma(3usize);
     let std = load.std(3usize);
+    // SAFETY: graph-node combinator (Comp<R> Sub/Div overloads); not numeric arithmetic
+    #[allow(clippy::arithmetic_side_effects)]
     let diff = &load - &sma;
+    #[allow(clippy::arithmetic_side_effects)]
     let zscore = &diff / &std;
     println!("Nodes created:");
     println!("  - prop:  load");
@@ -85,7 +89,7 @@ fn main() {
                     record.ts, record.load_mw, item.value, summary.records_seen
                 );
             }
-            tflo_core::compile::StepResult::WarmingUp { remaining } => {
+            tflo_core::compile::StepResult::WarmingUp { remaining, .. } => {
                 println!(
                     "  ts={:>6} load={:.1} MW → warming_up (need {remaining} more)",
                     record.ts, record.load_mw

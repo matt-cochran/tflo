@@ -1,6 +1,7 @@
 //! Full runnable example: tflo-examples/examples/docs-signals
-//! See tflo-core/src/comp/cross.rs for .cross_above() and .cross_under()
+//! See tflo-ops/src/ops/detectors.rs for .cross_above() and .cross_under()
 use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 use tflo_fintech::prelude::*; // macd_n is a tflo-fintech indicator
 
 #[derive(Clone)]

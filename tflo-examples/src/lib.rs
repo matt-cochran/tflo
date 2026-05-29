@@ -1,3 +1,15 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects
+    )
+)]
+// The examples crate is allowed to use `println!` for demo output.
+#![allow(clippy::print_stdout)]
 //! Shared data structures and helpers for tflo-examples.
 //!
 //! Each blog article named `{name}.mdx` has a corresponding example
@@ -12,7 +24,7 @@ pub struct Tick {
 }
 
 impl Tick {
-    pub fn new(ts: i64, price: f64) -> Self {
+    pub const fn new(ts: i64, price: f64) -> Self {
         Self { ts, price }
     }
 }
@@ -26,7 +38,7 @@ pub struct TradeTick {
 }
 
 impl TradeTick {
-    pub fn new(ts: i64, price: f64, volume: f64) -> Self {
+    pub const fn new(ts: i64, price: f64, volume: f64) -> Self {
         Self { ts, price, volume }
     }
 }
@@ -42,7 +54,7 @@ pub struct OhlcTick {
 }
 
 impl OhlcTick {
-    pub fn new(ts: i64, open: f64, high: f64, low: f64, close: f64) -> Self {
+    pub const fn new(ts: i64, open: f64, high: f64, low: f64, close: f64) -> Self {
         Self {
             ts,
             open,
@@ -62,7 +74,7 @@ pub struct Detection {
 }
 
 impl Detection {
-    pub fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
+    pub const fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
         Self { ts, snr, freq_mhz }
     }
 }
@@ -123,15 +135,16 @@ pub fn sample_rsi_prices() -> Vec<f64> {
 pub fn print_summary(name: &str, values: &[f64]) {
     let count = values.len();
     let last = values.last().copied().unwrap_or(f64::NAN);
-    println!(
-        "{name:>40}: count={count:>4}, last={last:>8.4}, values={values:?}"
-    );
+    println!("{name:>40}: count={count:>4}, last={last:>8.4}, values={values:?}");
 }
 
 /// Pretty-print a summary for tuple outputs.
 pub fn print_tuple3_summary(name: &str, values: &[(f64, f64, f64)]) {
     let count = values.len();
     if let Some(last) = values.last() {
-        println!("{name:>40}: count={count:>4}, last=({:.4}, {:.4}, {:.4})", last.0, last.1, last.2);
+        println!(
+            "{name:>40}: count={count:>4}, last=({:.4}, {:.4}, {:.4})",
+            last.0, last.1, last.2
+        );
     }
 }

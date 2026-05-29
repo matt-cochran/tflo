@@ -3,6 +3,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// A weather-station reading: a timestamp and a sensor measurement
 /// (e.g. temperature in degrees Celsius).
@@ -13,12 +14,12 @@ struct Reading {
 }
 
 impl Reading {
-    fn new(ts: i64, value: f64) -> Self {
+    const fn new(ts: i64, value: f64) -> Self {
         Self { ts, value }
     }
 }
 
-/// Sample readings streamed from an outdoor IoT weather station.
+/// Sample readings streamed from an outdoor `IoT` weather station.
 fn sample_readings() -> Vec<Reading> {
     vec![
         Reading::new(1000, 18.0),
@@ -107,7 +108,9 @@ fn main() {
     print_summary("Manual graph SMA(3)", &outputs);
 
     // ---- Snapshot and restore ----
-    let snapshot = graph.snapshot();
+    let Ok(snapshot) = graph.snapshot() else {
+        return;
+    };
     let mut builder2 = TFlowBuilder::new();
     builder2.timestamp(|x: &Reading| x.ts);
     let value2 = builder2.prop(|x| x.value);
@@ -116,5 +119,10 @@ fn main() {
     let nodes2 = builder2.into_nodes();
     let mut graph2: CompiledGraph<Reading, f64> =
         CompiledGraph::compile(Arc::new(|x: &Reading| x.ts), nodes2, output_ids2);
-    let _ = graph2.restore(&snapshot);
+    if let Err(e) = graph2.restore(&snapshot) {
+        #[allow(clippy::print_stderr)] // example: stderr is fine for demo output
+        {
+            eprintln!("restore failed: {e}");
+        }
+    }
 }

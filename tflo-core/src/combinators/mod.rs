@@ -24,5 +24,5 @@ pub use dedupe::dedupe_by_key;
 pub use group::{GroupByExt, GroupByKey};
 pub use join::window_join;
 pub use merge::merge_by_timestamp;
-pub use partition::{fork, partition, partition_lazy, PartitionExt, PartitionLazy};
-pub use rate_limit::{rate_limit, rate_limit_keep_last, RateLimitKeepLast};
+pub use partition::{PartitionExt, PartitionLazy, fork, partition, partition_lazy};
+pub use rate_limit::{RateLimitKeepLast, rate_limit, rate_limit_keep_last};

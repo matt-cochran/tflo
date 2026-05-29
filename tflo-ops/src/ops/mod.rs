@@ -1,0 +1,27 @@
+//! Concrete operator catalog built on the generic shapes.
+//!
+//! [`windows`] holds the windowed-aggregation operators (SMA, rolling std,
+//! EMA, RSI, …) and the [`WindowOps`](windows::WindowOps) extension trait that
+//! exposes every windowed method on `Comp`. [`stats`] holds the distribution
+//! and bivariate reductions (median, quantile, correlation, …) that
+//! `WindowOps` reuses. [`trackers`] holds the stateful single-state trackers
+//! (prev, lag, delta, cumulative aggregates, returns, rate derivatives) and
+//! the [`StatefulOps`](trackers::StatefulOps) extension trait. [`detectors`]
+//! holds the event-detector operators (cross, glitch, runt, pulse-width,
+//! window) and the [`CrossOps`](detectors::CrossOps) /
+//! [`DetectorOps`](detectors::DetectorOps) extension traits. [`math`] holds
+//! the stateless math operators (abs, sqrt, ln, exp, pow, clamp, …) on the
+//! [`MathOps`](math::MathOps) trait. [`composites`] holds graph-builder
+//! composites (zscore, `deviation_band`, `peak_decline`, momentum, …) on the
+//! [`Composites`](composites::Composites) trait — these compose other
+//! `tflo-ops` operators rather than introducing new runtime nodes.
+
+pub mod composites;
+pub mod detectors;
+pub mod math;
+mod session_tumbling;
+pub mod stats;
+pub mod trackers;
+pub mod windows;
+
+pub use session_tumbling::EmitWindowOps;

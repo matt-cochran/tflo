@@ -12,6 +12,10 @@
   --color-text: #e2e8f0;
   --color-text-muted: #94a3b8;
   --color-border: #334155;
+  /* Aliases consumed by Astro-scoped styles (playground.astro, LiveChart.astro). */
+  --color-surface: var(--color-bg-card);
+  --color-surface-alt: var(--color-bg-card-hover);
+  --color-muted: var(--color-text-muted);
 }
 /* csslint ignore:end */
 
@@ -27,6 +31,22 @@
       system-ui,
       -apple-system,
       sans-serif;
+  }
+
+  /* Form controls in scoped Astro pages don't inherit Tailwind defaults; give
+     them dark-mode appearance so playground / docs forms are legible. */
+  select,
+  input[type="text"],
+  input[type="number"],
+  input[type="search"],
+  textarea {
+    color: var(--color-text);
+    background-color: var(--color-bg-card);
+    border-color: var(--color-border);
+  }
+
+  input[type="range"] {
+    accent-color: var(--color-accent);
   }
 }
 

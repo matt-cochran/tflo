@@ -3,6 +3,7 @@ use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 /// An RF spectrum detection event: a timestamp and the measured
 /// signal-to-noise ratio (dB) at a given centre frequency (MHz).
@@ -14,7 +15,7 @@ struct Detection {
 }
 
 impl Detection {
-    fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
+    const fn new(ts: i64, snr: f64, freq_mhz: f64) -> Self {
         Self { ts, snr, freq_mhz }
     }
 }
@@ -39,7 +40,11 @@ fn sample_detections() -> Vec<Detection> {
 async fn main() {
     let detections = sample_detections();
     if let Some(first) = detections.first() {
-        println!("Monitoring {} detections at {} MHz", detections.len(), first.freq_mhz);
+        println!(
+            "Monitoring {} detections at {} MHz",
+            detections.len(),
+            first.freq_mhz
+        );
     }
 
     // ---- Manual graph: build, compile, step ----
@@ -70,7 +75,9 @@ async fn main() {
     assert!(plan.node_count > 0);
 
     // ---- Snapshot ----
-    let snapshot = graph.snapshot();
+    let Ok(snapshot) = graph.snapshot() else {
+        return;
+    };
     assert!(!snapshot.data.is_empty());
 
     // ---- Restore ----
@@ -82,7 +89,12 @@ async fn main() {
     let nodes2 = builder2.into_nodes();
     let mut graph2: CompiledGraph<Detection, f64> =
         CompiledGraph::compile(Arc::new(|x: &Detection| x.ts), nodes2, output_ids2);
-    let _ = graph2.restore(&snapshot);
+    if let Err(e) = graph2.restore(&snapshot) {
+        #[allow(clippy::print_stderr)] // example: stderr is fine for demo output
+        {
+            eprintln!("restore failed: {e}");
+        }
+    }
 
     // ---- Keyed execution (per receiver channel) ----
     let keyed_detections = vec![

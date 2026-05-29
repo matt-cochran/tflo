@@ -1,5 +1,6 @@
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 
 // ============================================================================
 // Extension trait for custom composite algorithms
@@ -16,29 +17,37 @@ pub trait CustomCompositeExt<R: 'static> {
 }
 
 impl<R: 'static> CustomCompositeExt<R> for Comp<R, f64> {
-    fn spread_ratio(&self, other: &Comp<R, f64>) -> Comp<R, f64> {
-        (self - other) / other
+    fn spread_ratio(&self, other: &Self) -> Self {
+        // SAFETY: graph-node combinator (Comp<R> Sub/Div overloads); not numeric arithmetic
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            (self - other) / other
+        }
     }
 
-    fn mean_band<W: Into<Window>>(
-        &self,
-        window: W,
-        k: f64,
-    ) -> (Comp<R, f64>, Comp<R, f64>, Comp<R, f64>) {
+    fn mean_band<W: Into<Window>>(&self, window: W, k: f64) -> (Self, Self, Self) {
         let w: Window = window.into();
         let middle = self.sma(w);
         let std = self.std(w);
+        // SAFETY: graph-node combinator (Comp<R> Mul/Add/Sub overloads); not numeric arithmetic
+        #[allow(clippy::arithmetic_side_effects)]
         let band_width = &std * k;
+        #[allow(clippy::arithmetic_side_effects)]
         let upper = &middle + &band_width;
+        #[allow(clippy::arithmetic_side_effects)]
         let lower = &middle - &band_width;
         (middle, upper, lower)
     }
 
-    fn normalized_score<W: Into<Window>>(&self, window: W) -> Comp<R, f64> {
+    fn normalized_score<W: Into<Window>>(&self, window: W) -> Self {
         let w: Window = window.into();
         let mean = self.sma(w);
         let std = self.std(w);
-        (self - &mean) / &std
+        // SAFETY: graph-node combinator (Comp<R> Sub/Div overloads); not numeric arithmetic
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            (self - &mean) / &std
+        }
     }
 }
 
@@ -50,7 +59,7 @@ struct Vital {
 }
 
 impl Vital {
-    fn new(ts: i64, bpm: f64) -> Self {
+    const fn new(ts: i64, bpm: f64) -> Self {
         Self { ts, bpm }
     }
 }
@@ -64,7 +73,7 @@ struct VitalPair {
 }
 
 impl VitalPair {
-    fn new(ts: i64, bpm: f64, resp_rate: f64) -> Self {
+    const fn new(ts: i64, bpm: f64, resp_rate: f64) -> Self {
         Self { ts, bpm, resp_rate }
     }
 }
@@ -143,10 +152,7 @@ fn main() {
         })
         .collect();
     for (ts, (ratio, score)) in vital_pairs.iter().map(|v| v.ts).zip(&composed) {
-        println!(
-            "  ts={:>6} spread_ratio={:.4} normalized_score={:.4}",
-            ts, ratio, score
-        );
+        println!("  ts={ts:>6} spread_ratio={ratio:.4} normalized_score={score:.4}");
     }
 
     // ---- Chaining: custom -> built-in -> custom ----

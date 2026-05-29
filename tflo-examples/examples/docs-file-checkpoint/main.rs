@@ -1,15 +1,16 @@
 //! File-based checkpoint/restore round-trip.
 //!
-//! Demonstrates: snapshot(), restore(), FileStateStore save/load.
+//! Demonstrates: `snapshot()`, `restore()`, `FileStateStore` save/load.
 //!
 //! Run: cargo run --example docs-file-checkpoint
 
 use std::sync::Arc;
 use tflo_core::builder::Compile;
 use tflo_core::compile::CompiledGraph;
-use tflo_core::keyed::{SnapshotMetadata, StateSnapshot, StateStore};
+use tflo_core::keyed::{SnapshotMetadata, StateSnapshot};
 use tflo_core::prelude::*;
 use tflo_examples::*;
+use tflo_ops::prelude::*;
 use tflo_state_files::FileStateStore;
 
 /// A telemetry sample from a CNC machine on the factory floor:
@@ -21,7 +22,7 @@ struct MachineSample {
 }
 
 impl MachineSample {
-    fn new(ts: i64, spindle_rpm: f64) -> Self {
+    const fn new(ts: i64, spindle_rpm: f64) -> Self {
         Self { ts, spindle_rpm }
     }
 }
@@ -64,7 +65,7 @@ fn main() -> Result<(), String> {
     print_summary("Spindle RPM SMA(3)", &rpm_sma);
 
     // ---- Take a snapshot ----
-    let snapshot = graph.snapshot();
+    let snapshot = graph.snapshot().map_err(|e| e.to_string())?;
     println!(
         "Snapshot: {} bytes, version={}",
         snapshot.data.len(),
@@ -72,14 +73,18 @@ fn main() -> Result<(), String> {
     );
 
     // ---- Persist to disk via FileStateStore ----
+    //
+    // Phase 1 added an `AsyncStateStore` impl alongside the legacy sync
+    // `StateStore`; the example still uses the sync path to keep the
+    // demo single-threaded. Disambiguate explicitly because both traits
+    // are now in scope.
     let tmp_dir = std::env::temp_dir().join("tflo-checkpoint-demo");
     let store = FileStateStore::new(&tmp_dir)?;
-    store.save(b"spindle-graph", &snapshot)?;
+    <FileStateStore as tflo_core::keyed::StateStore>::save(&store, b"spindle-graph", &snapshot)?;
     println!("Saved snapshot to {}", tmp_dir.display());
 
     // ---- Load it back ----
-    let loaded = store
-        .load(b"spindle-graph")?
+    let loaded = <FileStateStore as tflo_core::keyed::StateStore>::load(&store, b"spindle-graph")?
         .ok_or("snapshot not found after save")?;
     println!(
         "Loaded snapshot: {} bytes, version={}",
@@ -99,10 +104,7 @@ fn main() -> Result<(), String> {
     graph2.restore(&loaded).map_err(|e| e.to_string())?;
 
     let summary2 = graph2.state_summary();
-    println!(
-        "Restored graph: records_seen={}",
-        summary2.records_seen
-    );
+    println!("Restored graph: records_seen={}", summary2.records_seen);
     assert_eq!(summary.records_seen, summary2.records_seen);
 
     // ---- Direct StateSnapshot construction (to show the struct API) ----
@@ -112,11 +114,12 @@ fn main() -> Result<(), String> {
             key: Some(b"spindle-graph".to_vec()),
             timestamp_ms: 0,
             version: 1,
+            topology_fingerprint: None,
         },
     };
 
     // ---- List persisted keys ----
-    let keys = store.list_keys()?;
+    let keys = <FileStateStore as tflo_core::keyed::StateStore>::list_keys(&store)?;
     println!("Keys in store: {}", keys.len());
     assert!(!keys.is_empty());
 

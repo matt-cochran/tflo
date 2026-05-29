@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ComposedChart,
   Line,
@@ -12,6 +12,18 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { Tick, Band } from "../../lib/wasm";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_COLORS,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+  EmptyChart,
+  chartTooltipLabelFormatter,
+} from "./chartTheme";
 
 interface BollingerChartProps {
   ticks: Tick[];
@@ -20,73 +32,62 @@ interface BollingerChartProps {
 }
 
 function BollingerChartInner({ ticks, results, height }: BollingerChartProps) {
-  const chartData = ticks.map((tick, i) => {
-    const point: Record<string, number | null> = {
-      ts: tick.ts,
-      value: tick.value,
-    };
-    if (i < results.length) {
-      const b = results[i];
-      if (b) {
-        point.bollUpper = b.upper;
-        point.bollMiddle = b.middle;
-        point.bollLower = b.lower;
-      }
-    }
-    return point;
-  });
+  const chartData = useMemo(
+    () =>
+      ticks.map((tick, i) => {
+        const point: Record<string, number | null> = {
+          ts: tick.ts,
+          value: tick.value,
+        };
+        if (i < results.length) {
+          const b = results[i];
+          if (b) {
+            point.bollUpper = b.upper;
+            point.bollMiddle = b.middle;
+            point.bollLower = b.lower;
+          }
+        }
+        return point;
+      }),
+    [ticks, results],
+  );
 
   if (chartData.length === 0) {
-    return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#666",
-          background: "#f5f5f5",
-          borderRadius: 8,
-          fontSize: "0.9rem",
-        }}
-      >
-        No data
-      </div>
-    );
+    return <EmptyChart height={height} />;
   }
 
   const hasBands = results.some((b) => b !== null);
 
   return (
-    <div role="img" aria-label="Bollinger Bands chart with price and volatility bands" style={{ width: "100%", height }}>
+    <div
+      role="img"
+      aria-label="Bollinger Bands chart with price and volatility bands"
+      style={{ width: "100%", height }}
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+        <ComposedChart data={chartData} margin={CHART_MARGIN}>
           <defs>
             <linearGradient id="bollBandFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="rgba(76, 175, 80, 0.08)" />
-              <stop offset="95%" stopColor="rgba(76, 175, 80, 0.02)" />
+              <stop offset="5%" stopColor={CHART_COLORS.bandFill} />
+              <stop offset="95%" stopColor="rgba(34, 197, 94, 0.02)" />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis dataKey="ts" tick={false} axisLine={{ stroke: "#ccc" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="ts" tick={false} axisLine={CHART_AXIS_LINE} />
           <YAxis
             domain={["auto", "auto"]}
-            tick={{ fontSize: 11 }}
-            axisLine={{ stroke: "#ccc" }}
+            tick={CHART_AXIS_TICK}
+            axisLine={CHART_AXIS_LINE}
           />
           <Tooltip
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              fontSize: 12,
-            }}
-            labelFormatter={(label) => `t=${label}`}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={chartTooltipLabelFormatter}
           />
 
           {hasBands && (
             <>
-              {/* Semi-transparent fill for the band region */}
               <Area
                 type="monotone"
                 dataKey="bollUpper"
@@ -94,32 +95,29 @@ function BollingerChartInner({ ticks, results, height }: BollingerChartProps) {
                 stroke="none"
                 isAnimationActive={false}
               />
-              {/* Upper band line */}
               <Line
                 type="monotone"
                 dataKey="bollUpper"
-                stroke="rgba(76, 175, 80, 0.35)"
+                stroke={CHART_COLORS.band}
                 strokeWidth={1}
                 dot={false}
                 isAnimationActive={false}
                 name="Upper"
               />
-              {/* Middle band line */}
               <Line
                 type="monotone"
                 dataKey="bollMiddle"
-                stroke="#4caf50"
+                stroke={CHART_COLORS.middle}
                 strokeWidth={1}
                 strokeDasharray="3 3"
                 dot={false}
                 isAnimationActive={false}
                 name="Middle"
               />
-              {/* Lower band line */}
               <Line
                 type="monotone"
                 dataKey="bollLower"
-                stroke="rgba(76, 175, 80, 0.35)"
+                stroke={CHART_COLORS.band}
                 strokeWidth={1}
                 dot={false}
                 isAnimationActive={false}
@@ -128,11 +126,10 @@ function BollingerChartInner({ ticks, results, height }: BollingerChartProps) {
             </>
           )}
 
-          {/* Price line */}
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#0066cc"
+            stroke={CHART_COLORS.price}
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}

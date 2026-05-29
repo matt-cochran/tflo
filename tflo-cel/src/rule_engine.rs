@@ -1,13 +1,11 @@
-//! CEL rule engine with hot reload support.
+//! CEL rule engine — in-memory rule storage + evaluation.
+//!
+//! Config-file loaders (`from_yaml` / `from_json` / `from_file` / `from_str`
+//! / `from_config` / `reload`) live in [`crate::rule_loader`].
 
-use crate::config::RulesConfig;
-use crate::context::IntoCelContext;
 use crate::error::{CelError, CelResult};
+use crate::traits::IntoCelContext;
 use cel_interpreter::Program;
-#[cfg(not(target_arch = "wasm32"))]
-use std::fs;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
 
 /// A compiled rule ready for evaluation.
 #[derive(Debug)]
@@ -28,6 +26,11 @@ pub struct CompiledRule {
 
 impl CompiledRule {
     /// Create a new compiled rule.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CelError::CompileError`]
+    /// when `condition` is not a valid CEL expression.
     pub fn new(name: &str, condition: &str, action: Action) -> CelResult<Self> {
         let program = Program::compile(condition).map_err(|e| CelError::CompileError {
             expression: condition.to_string(),
@@ -53,7 +56,7 @@ impl CompiledRule {
 
     /// Set the priority.
     #[must_use]
-    pub fn with_priority(mut self, priority: i32) -> Self {
+    pub const fn with_priority(mut self, priority: i32) -> Self {
         self.priority = Some(priority);
         self
     }
@@ -125,7 +128,7 @@ pub enum AlertPriority {
 /// Rule engine for evaluating multiple rules.
 #[derive(Debug)]
 pub struct RuleEngine {
-    rules: Vec<CompiledRule>,
+    pub(crate) rules: Vec<CompiledRule>,
 }
 
 impl Default for RuleEngine {
@@ -137,110 +140,8 @@ impl Default for RuleEngine {
 impl RuleEngine {
     /// Create a new empty rule engine.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { rules: Vec::new() }
-    }
-
-    /// Load rules from a YAML string.
-    pub fn from_yaml(yaml: &str) -> CelResult<Self> {
-        let config: RulesConfig =
-            serde_yaml::from_str(yaml).map_err(|e| CelError::ConfigError {
-                message: e.to_string(),
-            })?;
-        Self::from_config(config)
-    }
-
-    /// Load rules from a JSON string.
-    pub fn from_json(json: &str) -> CelResult<Self> {
-        let config: RulesConfig =
-            serde_json::from_str(json).map_err(|e| CelError::ConfigError {
-                message: e.to_string(),
-            })?;
-        Self::from_config(config)
-    }
-
-    /// Load rules from a file.
-    ///
-    /// Not available on wasm32 targets — use [`from_str()`](Self::from_str)
-    /// with file contents loaded from JavaScript.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn from_file<P: AsRef<Path>>(path: P) -> CelResult<Self> {
-        let content = fs::read_to_string(path.as_ref())?;
-        let path_str = path.as_ref().to_string_lossy();
-
-        if path_str.ends_with(".yaml") || path_str.ends_with(".yml") {
-            Self::from_yaml(&content)
-        } else if path_str.ends_with(".json") {
-            Self::from_json(&content)
-        } else {
-            // Try YAML first, then JSON
-            Self::from_yaml(&content).or_else(|_| Self::from_json(&content))
-        }
-    }
-
-    /// Load rules from a string with explicit format.
-    ///
-    /// This is the wasm-compatible alternative to [`from_file()`](Self::from_file).
-    /// Use it when you have already loaded the file contents as a string.
-    ///
-    /// # Arguments
-    /// * `content` — The raw string content.
-    /// * `format` — Either `"yaml"` or `"json"`.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use tflo_cel::rule_engine::RuleEngine;
-    ///
-    /// let yaml = r#"
-    /// rules:
-    ///   - name: high_value
-    ///     condition: "value > 100"
-    ///     action:
-    ///       type: log
-    /// "#;
-    /// let engine = RuleEngine::from_str(yaml, "yaml").expect("valid yaml");
-    /// assert_eq!(engine.rule_count(), 1);
-    /// ```
-    pub fn from_str(content: &str, format: &str) -> CelResult<Self> {
-        match format {
-            "yaml" | "yml" => Self::from_yaml(content),
-            "json" => Self::from_json(content),
-            _ => Err(CelError::ConfigError {
-                message: format!("unsupported format: '{format}'. Use 'yaml' or 'json'."),
-            }),
-        }
-    }
-
-    /// Create from a config struct.
-    pub fn from_config(config: RulesConfig) -> CelResult<Self> {
-        let mut rules = Vec::with_capacity(config.rules.len());
-
-        for rule_config in config.rules {
-            let action = rule_config.action.into_action();
-            let mut rule = CompiledRule::new(&rule_config.name, &rule_config.condition, action)?;
-
-            if let Some(desc) = rule_config.description {
-                rule = rule.with_description(desc);
-            }
-            if let Some(priority) = rule_config.priority {
-                rule = rule.with_priority(priority);
-            }
-            if let Some(tags) = rule_config.tags {
-                rule = rule.with_tags(tags);
-            }
-
-            rules.push(rule);
-        }
-
-        // Sort by priority if present
-        rules.sort_by(|a, b| {
-            let pa = a.priority.unwrap_or(i32::MAX);
-            let pb = b.priority.unwrap_or(i32::MAX);
-            pa.cmp(&pb)
-        });
-
-        Ok(Self { rules })
     }
 
     /// Add a rule to the engine.
@@ -265,7 +166,7 @@ impl RuleEngine {
 
     /// Get the number of rules.
     #[must_use]
-    pub fn rule_count(&self) -> usize {
+    pub const fn rule_count(&self) -> usize {
         self.rules.len()
     }
 
@@ -274,19 +175,10 @@ impl RuleEngine {
     pub fn rules(&self) -> &[CompiledRule] {
         &self.rules
     }
-
-    /// Reload rules from a file.
-    ///
-    /// Not available on wasm32 targets.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn reload<P: AsRef<Path>>(&mut self, path: P) -> CelResult<()> {
-        let new_engine = Self::from_file(path)?;
-        self.rules = new_engine.rules;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::context::ContextBuilder;

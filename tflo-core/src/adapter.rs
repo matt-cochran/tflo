@@ -8,9 +8,9 @@
 //! # Key Concepts
 //!
 //! - **Cursor**: Represents progress through a data stream (offset, sequence number, LSN, etc.)
-//! - **CursorStore**: Persists and retrieves cursors for checkpoint coordination
-//! - **CheckpointPolicy**: Determines when to take snapshots
-//! - **CheckpointId**: Ties together state snapshot + cursor for atomic checkpointing
+//! - **`CursorStore`**: Persists and retrieves cursors for checkpoint coordination
+//! - **`CheckpointPolicy`**: Determines when to take snapshots
+//! - **`CheckpointId`**: Ties together state snapshot + cursor for atomic checkpointing
 
 use crate::keyed::StateSnapshot;
 use std::fmt::Debug;
@@ -20,7 +20,7 @@ use std::fmt::Debug;
 /// Different data planes use different cursor types:
 /// - Kafka: `(topic, partition, offset)`
 /// - Kinesis: `(stream, shard, sequence_number)`
-/// - NATS JetStream: `(subject, consumer, sequence)`
+/// - NATS `JetStream`: `(subject, consumer, sequence)`
 /// - SQL CDC: `(table, lsn)` or `(table, timestamp)`
 ///
 /// This trait allows adapters to abstract over these differences.
@@ -29,6 +29,10 @@ pub trait Cursor: Clone + Send + Sync + Debug + 'static {
     fn to_bytes(&self) -> Vec<u8>;
 
     /// Deserialize a cursor from bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when `data` is not a valid encoding of `Self`.
     fn from_bytes(data: &[u8]) -> Result<Self, String>;
 
     /// Get a human-readable representation for logging/debugging.
@@ -46,12 +50,27 @@ pub trait CursorStore: Send + Sync {
     /// Save a cursor for a given key.
     ///
     /// The key identifies which partition/shard/subject this cursor belongs to.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying store cannot persist the
+    /// cursor (I/O failure, network timeout, permission denied, etc.).
     fn save_cursor(&self, key: &[u8], cursor: &Self::Cursor) -> Result<(), String>;
 
     /// Load the most recent cursor for a given key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying store cannot be queried
+    /// (I/O failure, network timeout, permission denied, etc.). A missing
+    /// cursor is reported as `Ok(None)`, not an error.
     fn load_cursor(&self, key: &[u8]) -> Result<Option<Self::Cursor>, String>;
 
     /// List all keys that have cursors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying store cannot be enumerated.
     fn list_cursor_keys(&self) -> Result<Vec<Vec<u8>>, String>;
 }
 
@@ -86,16 +105,16 @@ impl CheckpointPolicy {
     /// - `records_since_last_checkpoint`: Number of records processed since last checkpoint
     /// - `ms_since_last_checkpoint`: Milliseconds elapsed since last checkpoint
     #[must_use]
-    pub fn should_checkpoint(
+    pub const fn should_checkpoint(
         &self,
         records_since_last_checkpoint: usize,
         ms_since_last_checkpoint: i64,
     ) -> bool {
         match self {
-            CheckpointPolicy::EveryNRecords { n } => records_since_last_checkpoint >= *n,
-            CheckpointPolicy::EveryNMs { ms } => ms_since_last_checkpoint >= *ms,
-            CheckpointPolicy::Manual => false, // Manual checkpoints are triggered externally
-            CheckpointPolicy::Both { records, ms } => {
+            Self::EveryNRecords { n } => records_since_last_checkpoint >= *n,
+            Self::EveryNMs { ms } => ms_since_last_checkpoint >= *ms,
+            Self::Manual => false, // Manual checkpoints are triggered externally
+            Self::Both { records, ms } => {
                 records_since_last_checkpoint >= *records || ms_since_last_checkpoint >= *ms
             }
         }
@@ -121,7 +140,12 @@ pub struct CheckpointId {
 impl CheckpointId {
     /// Create a new checkpoint ID.
     #[must_use]
-    pub fn new(id: String, cursor_bytes: Vec<u8>, timestamp_ms: i64, key: Option<Vec<u8>>) -> Self {
+    pub const fn new(
+        id: String,
+        cursor_bytes: Vec<u8>,
+        timestamp_ms: i64,
+        key: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             id,
             cursor_bytes,
@@ -160,7 +184,15 @@ impl Checkpoint {
 ///
 /// Adapters can implement this trait to emit metrics about keyed execution
 /// (graph count, warmup status, checkpoint latency, etc.) to their monitoring
-/// system (Prometheus, StatsD, etc.).
+/// system (Prometheus, `StatsD`, etc.).
+///
+/// # Status: defined, not yet wired
+///
+/// The trait's contract is stable, but the keyed runtime
+/// ([`crate::keyed`]) and the [`crate::state::Checkpointer`] do not yet
+/// call these methods at their lifecycle points. A `MetricsSink` carrier
+/// plus the wire-up at graph-create, graph-remove, commit, and restore
+/// is a follow-up. Implementors should expect no traffic until then.
 pub trait KeyedMetrics: Send + Sync {
     /// Record that a new graph was created for a key.
     fn record_graph_created(&self, key: &[u8]);
@@ -182,6 +214,24 @@ pub trait KeyedMetrics: Send + Sync {
 }
 
 /// No-op metrics implementation for when metrics are not needed.
+///
+/// # Status
+///
+/// The [`KeyedMetrics`] surface is defined but **not yet wired into the
+/// keyed runtime** — `record_*` methods are documented integration
+/// points, not active callbacks. A future Phase-1.5 task will thread
+/// the trait through [`crate::keyed`] checkpoint and lifecycle hooks.
+/// Until then, supplying a real implementation has no effect.
+///
+/// # Example
+///
+/// ```
+/// use tflo_core::adapter::{KeyedMetrics, NoopMetrics};
+///
+/// let metrics = NoopMetrics;
+/// metrics.record_graph_created(b"sensor-1");
+/// metrics.record_checkpoint_duration(b"sensor-1", 42);
+/// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoopMetrics;
 

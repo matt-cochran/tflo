@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -10,6 +10,18 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { Tick, Band } from "../lib/wasm";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_COLORS,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+  EmptyChart,
+  chartTooltipLabelFormatter,
+} from "./sub/chartTheme";
 
 interface LiveChartProps {
   data: Tick[];
@@ -20,92 +32,69 @@ interface LiveChartProps {
   height?: number;
 }
 
-const CHART_COLORS = {
-  price: "#0066cc",
-  sma: "#ff6b35",
-  upper: "rgba(76, 175, 80, 0.3)",
-  lower: "rgba(76, 175, 80, 0.3)",
-  middle: "#4caf50",
-  cross: "#e53935",
-};
+const LIVE_CHART_COLORS = {
+  upper: CHART_COLORS.band,
+  lower: CHART_COLORS.band,
+  middle: CHART_COLORS.middle,
+} as const;
 
 export default function LiveChart({
   data,
   sma,
   bollinger,
   crosses,
-  width = 600,
   height = 300,
 }: LiveChartProps) {
-  // Merge indicator data into chart points
-  const chartData = data.map((tick, i) => {
-    const point: Record<string, number | null> = {
-      ts: tick.ts,
-      value: tick.value,
-    };
-    if (sma && i < sma.length) point.sma = sma[i];
-    if (bollinger && i < bollinger.length) {
-      const b = bollinger[i];
-      if (b) {
-        point.bollUpper = b.upper;
-        point.bollMiddle = b.middle;
-        point.bollLower = b.lower;
+  const chartData = useMemo(() => {
+    return data.map((tick, i) => {
+      const point: Record<string, number | null> = {
+        ts: tick.ts,
+        value: tick.value,
+      };
+      if (sma && i < sma.length) point.sma = sma[i];
+      if (bollinger && i < bollinger.length) {
+        const b = bollinger[i];
+        if (b) {
+          point.bollUpper = b.upper;
+          point.bollMiddle = b.middle;
+          point.bollLower = b.lower;
+        }
       }
-    }
-    return point;
-  });
+      return point;
+    });
+  }, [data, sma, bollinger]);
 
   if (data.length === 0) {
-    return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#666",
-          background: "#f5f5f5",
-          borderRadius: 8,
-          fontSize: "0.9rem",
-        }}
-      >
-        Press <strong style={{ margin: "0 0.25rem" }}>Play</strong> to start the
-        data feed.
-      </div>
-    );
+    return <EmptyChart height={height} message="Press Play to start the data feed." />;
   }
+
+  const hasBollinger = bollinger && bollinger.some((b) => b !== null);
+  const hasSma = sma && sma.some((v) => v !== null);
 
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={chartData}
-          margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis dataKey="ts" tick={false} axisLine={{ stroke: "#ccc" }} />
+        <LineChart data={chartData} margin={CHART_MARGIN}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="ts" tick={false} axisLine={CHART_AXIS_LINE} />
           <YAxis
             domain={["auto", "auto"]}
-            tick={{ fontSize: 11 }}
-            axisLine={{ stroke: "#ccc" }}
+            tick={CHART_AXIS_TICK}
+            axisLine={CHART_AXIS_LINE}
           />
           <Tooltip
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              fontSize: 12,
-            }}
-            labelFormatter={(label) => `t=${label}`}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={chartTooltipLabelFormatter}
           />
 
-          {/* Bollinger bands area */}
-          {bollinger && bollinger.some((b) => b !== null) && (
+          {hasBollinger && (
             <>
               <Line
                 type="monotone"
                 dataKey="bollUpper"
-                stroke={CHART_COLORS.upper}
+                stroke={LIVE_CHART_COLORS.upper}
                 strokeWidth={1}
                 dot={false}
                 name="Upper"
@@ -113,7 +102,7 @@ export default function LiveChart({
               <Line
                 type="monotone"
                 dataKey="bollLower"
-                stroke={CHART_COLORS.lower}
+                stroke={LIVE_CHART_COLORS.lower}
                 strokeWidth={1}
                 dot={false}
                 name="Lower"
@@ -121,7 +110,7 @@ export default function LiveChart({
               <Line
                 type="monotone"
                 dataKey="bollMiddle"
-                stroke={CHART_COLORS.middle}
+                stroke={LIVE_CHART_COLORS.middle}
                 strokeWidth={1}
                 dot={false}
                 strokeDasharray="3 3"
@@ -130,8 +119,7 @@ export default function LiveChart({
             </>
           )}
 
-          {/* SMA line */}
-          {sma && sma.some((v) => v !== null) && (
+          {hasSma && (
             <Line
               type="monotone"
               dataKey="sma"
@@ -144,7 +132,6 @@ export default function LiveChart({
             />
           )}
 
-          {/* Price line */}
           <Line
             type="monotone"
             dataKey="value"
@@ -154,15 +141,15 @@ export default function LiveChart({
             name="Price"
           />
 
-          {/* Cross reference lines */}
-          {crosses && crosses.length > 0 && (
+          {crosses?.map((cross, idx) => (
             <ReferenceLine
-              y={crosses[0].value}
+              key={`cross-${idx}`}
+              y={cross.value}
               stroke={CHART_COLORS.cross}
               strokeDasharray="6 3"
-              label={`Cross ${crosses[0].direction}`}
+              label={`Cross ${cross.direction}`}
             />
-          )}
+          ))}
         </LineChart>
       </ResponsiveContainer>
     </div>

@@ -7,7 +7,7 @@ tags: ["operators", "rsi", "momentum", "wilder"]
 
 import DemoChart from '../../components/DemoChart.tsx';
 
-RSI began life in finance — a 0-100 gauge of whether a price is "overbought" or "oversold." But strip the trading vocabulary away and it's a generic primitive: a bounded measure of how lopsided the recent gains-versus-losses balance is. That makes it useful far beyond finance — saturation on a sensor, sustained error-rate climb in observability, a runaway packet-rate trend in intrusion detection. Finance is just the domain it was born in; in tflo it's a `tflo-core` operator anyone can use.
+RSI began life in finance — a 0-100 gauge of whether a price is "overbought" or "oversold." But strip the trading vocabulary away and it's a generic primitive: a bounded measure of how lopsided the recent gains-versus-losses balance is. That makes it useful far beyond finance — saturation on a sensor, sustained error-rate climb in observability, a runaway packet-rate trend in intrusion detection. Finance is just the domain it was born in; in tflo it's a generic `tflo-ops` operator anyone can use.
 
 The math sounds simple. You take rises and falls over a window, average them, and plug into a formula. But "average" is the problem — there are two different averaging methods, and they produce different curves.
 
@@ -36,7 +36,7 @@ That part is fixed. The divergence is in how you compute "average gain" and "ave
 This is the default in tflo. A sliding window of the last N gains and N losses, simple mean of each:
 
 ```rust
-use tflo_core::primitives::RsiCountWindow;
+use tflo_ops::primitives::RsiCountWindow;
 
 let mut rsi = RsiCountWindow::new(14);
 
@@ -55,38 +55,38 @@ This is the version most people expect. Each new value carries equal weight. Old
 You can also use the time-based variant when your data has irregular intervals:
 
 ```rust
-use tflo_core::primitives::RsiTimeWindow;
+use tflo_ops::primitives::RsiTimeWindow;
 
 let mut rsi = RsiTimeWindow::new(std::time::Duration::from_secs(300)); // 5 min
 ```
 
 Same formula, but the window evicts by timestamp instead of count.
 
-In the graph, both are accessible through the same API:
+In the graph, both are accessible through the same API (requires `use tflo_ops::prelude::*;`):
 
 ```rust
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
 let rsi_count = price.rsi(14usize);          // count-based, period 14
 let rsi_time = price.rsi(5_u64.mins());      // time-based, 5 minute window
 ```
 
-`Node::Rsi` handles both. The graph compiles the right window based on whether you pass a `Window::Count(n)` or `Window::Time(d)`.
+`WindowOps::rsi` handles both. The graph compiles the right window based on whether you pass a `Window::Count(n)` or `Window::Time(d)`.
 
 ## Wilder's smoothed RSI (TradingView compatible)
 
-TradingView doesn't use simple averaging. It uses Wilder's smoothing — an EMA-like recursive filter with alpha = 1/period. The first value is seeded with a simple average, then each subsequent update smooths recursively:
+TradingView doesn't use simple averaging. It uses Wilder's smoothing — an EMA-like recursive filter with alpha = 1/period. The first value is seeded with a simple average, then each subsequent update smooths recursively. In the graph, use `rsi_wilder_n`:
 
 ```rust
-use tflo_core::primitives::RsiWilderState;
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
 
-let mut rsi = RsiWilderState::new(14);
-
-for price in [44.0, 44.25, 44.5, 43.75, 44.5, /* ... */] {
-    rsi.push(price);
-}
-
-let value = rsi.rsi(); // 0-100
-// Warmup: returns NaN until period + 1 prices pushed
+// Wilder's smoothed RSI — period 14
+let rsi_wilder = price.rsi_wilder_n(14);
 ```
+
+The smoothing implementation lives inside `tflo_ops` as a private `Operator`. You access it exclusively through the graph API; there is no public primitive struct to construct directly.
 
 The difference:
 - **Simple average**: equal weight per period, old value drops off entirely after N periods
@@ -143,7 +143,7 @@ RSI = 50 when nothing happens — neutral, no bias.
 
 ## Which one should you use?
 
-If you're comparing against TradingView charts, use `price.rsi_wilder_n(14)`. If you're backtesting against TA-Lib output, use `price.rsi(14usize)` (default is simple average, which matches TA-Lib). Both are in tflo-core, so you don't need extra crates.
+If you're comparing against TradingView charts, use `price.rsi_wilder_n(14)`. If you're backtesting against TA-Lib output, use `price.rsi(14usize)` (default is simple average, which matches TA-Lib). Both are available via `use tflo_ops::prelude::*;` — the catalog methods live in the `tflo-ops` crate.
 
 The important thing is to know which one you're running. They're different indicators with the same name. tflo gives you both, clearly labeled, so you never have to guess.
 

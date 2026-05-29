@@ -122,11 +122,22 @@ These aren't toy numbers — they're exactly the same `CompiledGraph` engine tha
 
 ## What's next
 
-- **More operators**: more detectors and statistics from `tflo-core`, plus the `tflo-fintech` indicator set
+- **More operators**: more detectors and statistics from `tflo-ops`, plus the `tflo-fintech` indicator set
 - **Real data sources**: WebSocket feeds, WebAudio API for signal processing
 - **Better charting**: the current SVG-based chart works but recharts would give us zoom/pan/tooltip
-- **Monaco editor for CEL rules**: syntax highlighting and validation
-- **SignalBuilder**: side-by-side code editor + live chart for prototyping detectors
+
+> **Update.** Since this post was written, two things have landed:
+> the [`tflo-cep`](https://github.com/matt-cochran/tflo/tree/main/tflo-cep)
+> Rust crate (closure-based event-pattern matching — "A then B within
+> T", bounded sequences) and its WASM bridge
+> [`tflo-cep-wasm`](https://github.com/matt-cochran/tflo/tree/main/tflo-cep-wasm).
+> Together with the companion TypeScript SDK
+> [`@tflo/browser-events`](https://github.com/matt-cochran/tflo-browser-events),
+> tflo can now derive typed domain signals — `abandoned_cart`,
+> `engaged_with_product`, `time_on_section` — directly from DOM events
+> in the browser. See the
+> [browser interaction-data post](/blog/browser-interaction-signals)
+> for the full workflow.
 
 ## Try it
 

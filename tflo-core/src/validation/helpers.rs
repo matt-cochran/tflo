@@ -1,7 +1,7 @@
 //! Validation helpers for scalar values.
 //!
 //! This module provides helper functions for validating scalar values,
-//! including require_finite checks using the Scalar trait.
+//! including `require_finite` checks using the Scalar trait.
 
 use crate::error::ComputeError;
 use crate::error::ComputeResult;
@@ -47,11 +47,7 @@ pub fn require_finite<T: Scalar>(value: T) -> ComputeResult<T> {
 /// ```
 #[must_use]
 pub fn require_finite_opt<T: Scalar>(value: T) -> Option<T> {
-    if value.is_finite() {
-        Some(value)
-    } else {
-        None
-    }
+    if value.is_finite() { Some(value) } else { None }
 }
 
 /// Require that a scalar value is not NaN.
@@ -112,10 +108,7 @@ mod tests {
 
     #[test]
     fn test_require_finite() {
-        assert!(matches!(
-            require_finite(100.0),
-            ComputeResult::Value(100.0)
-        ));
+        assert!(matches!(require_finite(100.0), ComputeResult::Value(100.0)));
         assert!(matches!(
             require_finite(f64::NAN),
             ComputeResult::Error(ComputeError::NaN)
@@ -135,10 +128,7 @@ mod tests {
 
     #[test]
     fn test_require_positive() {
-        assert!(matches!(
-            require_positive(1.0),
-            ComputeResult::Value(1.0)
-        ));
+        assert!(matches!(require_positive(1.0), ComputeResult::Value(1.0)));
         assert!(matches!(
             require_positive(0.0),
             ComputeResult::Error(ComputeError::InvalidInput { .. })
@@ -149,4 +139,3 @@ mod tests {
         ));
     }
 }
-
