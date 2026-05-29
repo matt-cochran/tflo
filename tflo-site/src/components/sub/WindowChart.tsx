@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -13,6 +13,18 @@ import {
   CartesianGrid,
 } from "recharts";
 import type { Tick } from "../../lib/wasm";
+import {
+  CHART_AXIS_LINE,
+  CHART_AXIS_TICK,
+  CHART_COLORS,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TOOLTIP_ITEM_STYLE,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+  EmptyChart,
+  chartTooltipLabelFormatter,
+} from "./chartTheme";
 
 /** One row of window-detector demo output, aligned 1:1 with a tick. */
 export interface WindowResult {
@@ -27,11 +39,10 @@ interface WindowChartProps {
   height: number;
 }
 
-/** Marker fill colour for each window event. */
 const EVENT_COLOR: Record<NonNullable<WindowResult["event"]>, string> = {
-  entered: "#26a69a",
-  exitedLow: "#f59e0b",
-  exitedHigh: "#ef5350",
+  entered: CHART_COLORS.markerValid,
+  exitedLow: CHART_COLORS.warning,
+  exitedHigh: CHART_COLORS.markerInvalid,
 };
 
 function WindowChartInner({
@@ -40,32 +51,51 @@ function WindowChartInner({
   config,
   height,
 }: WindowChartProps) {
-  const chartData = ticks.map((t, i) => ({
-    ts: t.ts,
-    value: t.value,
-    event: results[i]?.event ?? null,
-  }));
-
-  if (chartData.length === 0) {
-    return (
-      <div
-        style={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#666",
-          background: "#f5f5f5",
-          borderRadius: 8,
-          fontSize: "0.9rem",
-        }}
-      >
-        No data
-      </div>
-    );
-  }
+  const chartData = useMemo(
+    () =>
+      ticks.map((t, i) => ({
+        ts: t.ts,
+        value: t.value,
+        event: results[i]?.event ?? null,
+      })),
+    [ticks, results],
+  );
 
   const { low, high } = config;
+
+  const yDomain = useMemo<
+    [(dataMin: number) => number, (dataMax: number) => number]
+  >(
+    () => [
+      (dataMin: number) => Math.floor(Math.min(dataMin, low) - 5),
+      (dataMax: number) => Math.ceil(Math.max(dataMax, high) + 5),
+    ],
+    [low, high],
+  );
+
+  const lowLabel = useMemo(
+    () => ({
+      value: `Low: ${low}`,
+      position: "right" as const,
+      fontSize: 10,
+      fill: CHART_COLORS.markerValid,
+    }),
+    [low],
+  );
+
+  const highLabel = useMemo(
+    () => ({
+      value: `High: ${high}`,
+      position: "right" as const,
+      fontSize: 10,
+      fill: CHART_COLORS.markerValid,
+    }),
+    [high],
+  );
+
+  if (chartData.length === 0) {
+    return <EmptyChart height={height} />;
+  }
 
   return (
     <div
@@ -74,78 +104,53 @@ function WindowChartInner({
       style={{ width: "100%", height }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={chartData}
-          margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis dataKey="ts" tick={false} axisLine={{ stroke: "#ccc" }} />
+        <LineChart data={chartData} margin={CHART_MARGIN}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="ts" tick={false} axisLine={CHART_AXIS_LINE} />
           <YAxis
-            domain={[
-              (dataMin: number) => Math.floor(Math.min(dataMin, low) - 5),
-              (dataMax: number) => Math.ceil(Math.max(dataMax, high) + 5),
-            ]}
-            tick={{ fontSize: 11 }}
-            axisLine={{ stroke: "#ccc" }}
+            domain={yDomain}
+            tick={CHART_AXIS_TICK}
+            axisLine={CHART_AXIS_LINE}
           />
           <Tooltip
-            contentStyle={{
-              background: "#fff",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              fontSize: 12,
-            }}
-            labelFormatter={(label) => `t=${label}`}
+            contentStyle={CHART_TOOLTIP_STYLE}
+            itemStyle={CHART_TOOLTIP_ITEM_STYLE}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+            labelFormatter={chartTooltipLabelFormatter}
           />
 
-          {/* Shaded window band */}
           <ReferenceArea
             y1={low}
             y2={high}
-            fill="rgba(38,166,154,0.10)"
+            fill="rgba(52,211,153,0.12)"
             stroke="none"
           />
 
-          {/* Low boundary line */}
           <ReferenceLine
             y={low}
-            stroke="#26a69a"
+            stroke={CHART_COLORS.markerValid}
             strokeDasharray="4 3"
             strokeOpacity={0.6}
-            label={{
-              value: `Low: ${low}`,
-              position: "right",
-              fontSize: 10,
-              fill: "#26a69a",
-            }}
+            label={lowLabel}
           />
 
-          {/* High boundary line */}
           <ReferenceLine
             y={high}
-            stroke="#26a69a"
+            stroke={CHART_COLORS.markerValid}
             strokeDasharray="4 3"
             strokeOpacity={0.6}
-            label={{
-              value: `High: ${high}`,
-              position: "right",
-              fontSize: 10,
-              fill: "#26a69a",
-            }}
+            label={highLabel}
           />
 
-          {/* Signal line with event markers */}
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#0066cc"
+            stroke={CHART_COLORS.price}
             strokeWidth={2}
             isAnimationActive={false}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             dot={(dotProps: any) => {
-              const cx = dotProps.cx;
-              const cy = dotProps.cy;
-              const idx = dotProps.index;
+              const { cx, cy, index: idx } = dotProps;
               if (cx == null || cy == null) return null;
               const point = chartData[idx];
               if (point && point.event !== null) {
@@ -163,7 +168,7 @@ function WindowChartInner({
                       cy={5}
                       r={4}
                       fill={EVENT_COLOR[point.event]}
-                      stroke="#fff"
+                      stroke={CHART_COLORS.markerBg}
                       strokeWidth={1.5}
                     />
                   </svg>
@@ -174,13 +179,12 @@ function WindowChartInner({
             name="Signal"
           />
 
-          {/* Vertical dashed lines at event ticks */}
           {chartData.map((d, idx) =>
             d.event !== null ? (
               <ReferenceLine
                 key={`event-line-${idx}`}
                 x={d.ts}
-                stroke="#26a69a"
+                stroke={CHART_COLORS.markerValid}
                 strokeDasharray="3 3"
                 strokeWidth={1}
                 strokeOpacity={0.5}
