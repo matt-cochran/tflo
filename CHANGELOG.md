@@ -56,7 +56,7 @@ engine has a single shared implementation across Rust and WebAssembly.
 - `wasm-pack --target web` produces ~41 KB optimized `.wasm` +
   generated TS declarations + JS glue.
 
-### Added — `@tflo/events-browser` (companion repo)
+### Added — `@tflo/browser-events` (companion repo)
 
 Independent npm package wrapping `tflo-cep-wasm`:
 

@@ -90,7 +90,7 @@ let results: Vec<Result<_, TFloError>> = readings.into_iter()
 
 // ── TypeScript quickstart snippets ───────────────────────────────────
 
-const npmInstall = `npm install @tflo/events-browser`;
+const npmInstall = `npm install @tflo/browser-events`;
 
 const tsBootstrap = `import {
   TFloBrowser,
@@ -98,7 +98,7 @@ const tsBootstrap = `import {
   ConsoleSink,
   EdgeSink,
   type EventRecord,
-} from "@tflo/events-browser";
+} from "@tflo/browser-events";
 
 const tflo = new TFloBrowser({
   sinks: [
@@ -162,7 +162,7 @@ const rageClick = new Pattern<EventRecord>("rage_click")
     payload: { targetId: m.first().fields.targetId },
   }));`;
 
-const tsCustomSink = `import type { Sink, DerivedSignal } from "@tflo/events-browser";
+const tsCustomSink = `import type { Sink, DerivedSignal } from "@tflo/browser-events";
 
 class SegmentSink implements Sink {
   readonly name = "segment";
@@ -303,7 +303,7 @@ new TFloBrowser({
     >
       <p class="text-text-muted mb-6">
         The TypeScript SDK
-        <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline"><code>@tflo/events-browser</code></a>
+        <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
         wraps <code>tflo-cep-wasm</code> with a capture layer
         (<code>addEventListener</code> + <code>IntersectionObserver</code>), a
         pluggable <code>Sink</code> interface, and a consent gate. The matching
@@ -399,7 +399,7 @@ new TFloBrowser({
         <li>Read the <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics walkthrough</a> for the full end-to-end workflow.</li>
         <li>The <a href="/docs/patterns" class="text-primary hover:underline">event patterns reference</a> has side-by-side Rust + TypeScript examples for every primitive.</li>
         <li>See the <a href="/blog/browser-interaction-signals" class="text-primary hover:underline">blog post</a> on capturing user interaction data with tflo in the browser.</li>
-        <li>Companion repo: <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline">@tflo/events-browser</a> on GitHub.</li>
+        <li>Companion repo: <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline">@tflo/browser-events</a> on GitHub.</li>
       </ul>
     </section>
   </div>

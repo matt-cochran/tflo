@@ -20,7 +20,7 @@ export async function GET() {
     { title: 'Crate Architecture', description: 'Architecture overview of the tflo crate family.', slug: '/docs/architecture', tags: ['docs'], pubDate: '' },
     { title: 'Advanced', description: 'Checkpointing, async contracts, Deduplicator, Metrics, scripting.', slug: '/docs/advanced', tags: ['docs'], pubDate: '' },
     { title: 'Event patterns', description: 'Closure-based pattern matching with tflo-cep — abandoned_cart, engaged_with_product, rage_click. Rust + TypeScript examples.', slug: '/docs/patterns', tags: ['docs', 'cep'], pubDate: '' },
-    { title: 'Browser analytics', description: 'End-to-end browser event workflow — capture, derive, route — via WASM. Showcases tflo-cep-wasm + @tflo/events-browser.', slug: '/docs/browser-analytics', tags: ['docs', 'browser', 'wasm'], pubDate: '' },
+    { title: 'Browser analytics', description: 'End-to-end browser event workflow — capture, derive, route — via WASM. Showcases tflo-cep-wasm + @tflo/browser-events.', slug: '/docs/browser-analytics', tags: ['docs', 'browser', 'wasm'], pubDate: '' },
     { title: 'WebAssembly', description: 'Run tflo computations in the browser via wasm-bindgen.', slug: '/docs/wasm', tags: ['docs'], pubDate: '' },
     { title: 'Deployment shapes', description: 'Six concrete shapes tflo covers, with production caveats.', slug: '/docs/deployment-shapes', tags: ['docs'], pubDate: '' },
     { title: 'Contracts', description: 'The four pluggable traits: AsyncStateStore, Cursor, ShardRouter, Operator.', slug: '/docs/contracts', tags: ['docs'], pubDate: '' },

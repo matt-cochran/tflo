@@ -3,7 +3,7 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
 import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
 
-const installSnippet = `npm install @tflo/events-browser`;
+const installSnippet = `npm install @tflo/browser-events`;
 
 const initSnippet = `import {
   TFloBrowser,
@@ -12,7 +12,7 @@ const initSnippet = `import {
   EdgeSink,
   GA4Sink,
   type EventRecord,
-} from "@tflo/events-browser";
+} from "@tflo/browser-events";
 
 const tflo = new TFloBrowser({
   sinks: [
@@ -78,7 +78,7 @@ const engaged = new Pattern<EventRecord>("section_engaged")
 tflo.addPattern(abandonedCart);
 tflo.addPattern(engaged);`;
 
-const customSinkSnippet = `import type { Sink, DerivedSignal } from "@tflo/events-browser";
+const customSinkSnippet = `import type { Sink, DerivedSignal } from "@tflo/browser-events";
 
 // Segment integration — same shape as the bundled sinks.
 class SegmentSink implements Sink {
@@ -119,7 +119,7 @@ new TFloBrowser({
     </p>
     <p class="text-text-muted mb-12">
       The companion package
-      <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline"><code>@tflo/events-browser</code></a>
+      <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
       bundles the <code>tflo-cep</code> WASM engine with a capture layer, viewport
       tracker, and pluggable sink router. <code>GA4Sink</code> is one option among many
       &mdash; the engine has zero analytics-vendor knowledge.
@@ -218,7 +218,7 @@ new TFloBrowser({
     <ul class="list-disc pl-6 space-y-2 text-text-muted mb-4">
       <li>Inside a Rust service that consumes a Kafka topic.</li>
       <li>On an ARM edge gateway with a 5&ndash;10 MB binary.</li>
-      <li>In a browser tab via <code>@tflo/events-browser</code>.</li>
+      <li>In a browser tab via <code>@tflo/browser-events</code>.</li>
     </ul>
     <p class="text-text-muted mb-4">
       Detector composition that lived only on the server is now available where the
@@ -241,7 +241,7 @@ new TFloBrowser({
         <tbody class="text-text-muted">
           <tr class="border-b border-border"><td class="p-4">Optimized <code>tflo_cep_wasm_bg.wasm</code></td><td class="p-4">~41 KB</td></tr>
           <tr class="border-b border-border"><td class="p-4">Generated JS glue</td><td class="p-4">~22 KB</td></tr>
-          <tr class="border-b border-border"><td class="p-4">TypeScript runtime (<code>@tflo/events-browser</code>)</td><td class="p-4">~10 KB (minified)</td></tr>
+          <tr class="border-b border-border"><td class="p-4">TypeScript runtime (<code>@tflo/browser-events</code>)</td><td class="p-4">~10 KB (minified)</td></tr>
           <tr><td class="p-4">Total over the wire (gzip)</td><td class="p-4">~25 KB</td></tr>
         </tbody>
       </table>
@@ -254,7 +254,7 @@ new TFloBrowser({
         (Rust crate) &middot;
         <a href="https://github.com/matt-cochran/tflo/tree/main/tflo-cep-wasm" class="text-primary hover:underline"><code>tflo-cep-wasm</code></a>
         (wasm-bindgen bridge) &middot;
-        <a href="https://github.com/matt-cochran/tflo-events-browser" class="text-primary hover:underline"><code>@tflo/events-browser</code></a>
+        <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
         (TypeScript SDK).
       </p>
       <p class="text-text-muted mt-3">

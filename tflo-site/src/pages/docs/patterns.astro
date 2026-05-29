@@ -21,7 +21,7 @@ let signals: Vec<String> = events.into_iter()
     .match_pattern(abandoned_cart)
     .collect();`;
 
-const tsAbandonedCart = `import { Pattern, type EventRecord } from "@tflo/events-browser";
+const tsAbandonedCart = `import { Pattern, type EventRecord } from "@tflo/browser-events";
 
 const abandonedCart = new Pattern<EventRecord>("abandoned_cart")
   .timestamp((e) => e.ts)
@@ -132,7 +132,7 @@ const tsMatchApi = `.emit((m) => {
     </p>
     <p class="text-text-muted mb-12">
       The Rust crate, the WebAssembly bindings (<code>tflo-cep-wasm</code>), and the
-      TypeScript SDK (<code>@tflo/events-browser</code>) all drive the same
+      TypeScript SDK (<code>@tflo/browser-events</code>) all drive the same
       <code>engine::Runtime</code> &mdash; one state machine, three idiomatic surfaces.
       Examples below run end-to-end through the WASM bridge in the browser.
     </p>

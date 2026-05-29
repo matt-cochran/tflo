@@ -13,7 +13,7 @@ If you've hand-rolled it instead, you've got a directory full of `addEventListen
 
 There's a third option. **Derive the signals you care about, client-side, in code your team can read.** The same Rust engine that runs on your edge gateway and your central worker — compiled to ~40 KB of WebAssembly — runs in the browser and produces typed domain signals from raw DOM events. The signals are what you ship to your warehouse, GA4, Segment, or your own collector. The vendors only ever see the meaning, not the firehose.
 
-This is what `tflo-cep` (closure-based event-pattern matching) and the companion `@tflo/events-browser` TypeScript SDK make practical.
+This is what `tflo-cep` (closure-based event-pattern matching) and the companion `@tflo/browser-events` TypeScript SDK make practical.
 
 ## The shape of the problem
 
@@ -49,7 +49,7 @@ let abandoned_cart = Pattern::<Event>::new("abandoned_cart")
 That's the Rust API. It's the same six methods the engine exposes in the browser — `timestamp`, `when`, `then`, `notThen`, `within`, `emit` — because in the browser we wrap the *same* `engine::Runtime` with Rc-based, JS-callback-backed adapters instead of Arc-based ones:
 
 ```ts
-import { Pattern, type EventRecord } from "@tflo/events-browser";
+import { Pattern, type EventRecord } from "@tflo/browser-events";
 
 const abandonedCart = new Pattern<EventRecord>("abandoned_cart")
   .timestamp((e) => e.ts)
@@ -70,7 +70,7 @@ That last bit — *the matching engine doesn't know or care* — is the load-bea
 
 The matching engine is one layer. *Getting events into it* is a separate layer, and the SDK keeps them that way.
 
-`@tflo/events-browser` ships three first-class capture helpers:
+`@tflo/browser-events` ships three first-class capture helpers:
 
 - **`capture(...)`** — a thin wrapper around `addEventListener` that produces normalized `EventRecord` objects with `ts`, `kind`, and a user-defined `fields` payload. Optional throttling for `scroll`, `wheel`, `pointermove`.
 - **`captureViewport(...)`** — backed by `IntersectionObserver`. Emits `viewport:enter`, `viewport:exit`, and `viewport:dwell` (with `durationMs` pre-computed) for any matched element. This is the "time on section" primitive.
@@ -168,7 +168,7 @@ interface Sink {
 }
 ```
 
-`@tflo/events-browser` bundles three implementations:
+`@tflo/browser-events` bundles three implementations:
 
 | Sink | Use |
 |---|---|
@@ -201,7 +201,7 @@ Across the stack, the cost looks like this:
 
 - **`tflo_cep_wasm_bg.wasm`** (release, wasm-opt'd) — ~41 KB
 - **Generated JS glue** — ~22 KB
-- **TypeScript runtime** (`@tflo/events-browser`) — ~10 KB minified
+- **TypeScript runtime** (`@tflo/browser-events`) — ~10 KB minified
 - **Total over the wire (gzip)** — ~25 KB
 
 For comparison: a minified GA4 `gtag.js` snippet is about 60 KB. tflo ships the pattern engine in less than half of what a single analytics tag costs.
@@ -223,7 +223,7 @@ Three repos:
 
 - [`tflo-cep`](https://github.com/matt-cochran/tflo/tree/main/tflo-cep) — the Rust matching engine
 - [`tflo-cep-wasm`](https://github.com/matt-cochran/tflo/tree/main/tflo-cep-wasm) — wasm-bindgen wrapper
-- [`@tflo/events-browser`](https://github.com/matt-cochran/tflo-events-browser) — the TypeScript SDK
+- [`@tflo/browser-events`](https://github.com/matt-cochran/tflo-browser-events) — the TypeScript SDK
 
 Docs walk-through:
 [browser analytics page](/docs/browser-analytics) and

@@ -255,7 +255,7 @@ Financial indicators are intentionally a *separate* crate:
 finance is one domain plugin among many.
 
 Companion TypeScript SDK
-[`@tflo/events-browser`](https://github.com/matt-cochran/tflo-events-browser)
+[`@tflo/browser-events`](https://github.com/matt-cochran/tflo-browser-events)
 wraps `tflo-cep-wasm` with a DOM capture layer
 (`IntersectionObserver`-backed viewport tracking, throttled
 listeners), a pluggable `Sink` interface (Console, Edge, GA4, custom),
