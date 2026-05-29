@@ -212,7 +212,7 @@ async fn query_flux_until_data(base_url: &str, flux: &str, timeout: Duration) ->
 
 // ── Tests ──────────────────────────────────────────────────────────────
 
-/// 1. Push a single measurement through Batcher::push + flush; query
+/// 1. Push a single measurement through `Batcher::push` + flush; query
 ///    it back and confirm the field value survives.
 #[tokio::test(flavor = "multi_thread")]
 async fn influx_round_trip_via_batcher() {
@@ -466,7 +466,7 @@ async fn influx_bad_token_surfaces_401() {
 }
 
 /// Correct token, but write to a bucket that was never provisioned.
-/// `/api/v2/write` returns 404 for an unknown bucket on InfluxDB 2.7;
+/// `/api/v2/write` returns 404 for an unknown bucket on `InfluxDB` 2.7;
 /// the error must surface with enough information for an operator to
 /// see *which* bucket was missing.
 #[tokio::test(flavor = "multi_thread")]

@@ -155,11 +155,11 @@ pub mod polars_interop {
     ///
     /// Returns an error string when a column cannot be accessed.
     pub fn rows_as_named_values(df: &DataFrame) -> Result<Vec<Vec<(String, String)>>, String> {
-        let cols = df.get_columns();
+        let cols: Vec<&Series> = df.materialized_column_iter().collect();
         let mut rows = Vec::with_capacity(df.height());
         for row_idx in 0..df.height() {
             let mut row = Vec::with_capacity(cols.len());
-            for col in cols {
+            for col in &cols {
                 let value = col.get(row_idx).map_err(|e| format!("get: {e}"))?;
                 row.push((col.name().to_string(), format!("{value}")));
             }
@@ -291,7 +291,7 @@ mod tests {
             std::fs::create_dir_all(&dir).expect("mkdir");
             let path = dir.join("test.parquet");
             let batch = make_batch();
-            write_batches(&path, &[batch.clone()]).expect("write");
+            write_batches(&path, std::slice::from_ref(&batch)).expect("write");
             let read_back = read_batches(&path).expect("read");
             assert_eq!(read_back.len(), 1);
             assert_eq!(read_back[0].num_rows(), 3);

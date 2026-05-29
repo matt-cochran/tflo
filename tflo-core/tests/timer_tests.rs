@@ -21,8 +21,6 @@
 //! graph's `Option<i64>` output. The probe lets the assertions inspect
 //! exactly which timers fired and in what order.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
 use std::sync::{Arc, Mutex};
 
 use tflo_core::compile::{Computed, NodeOutput};

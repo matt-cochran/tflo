@@ -19,10 +19,10 @@ async = ["tflo-core/async"]
 [dependencies]
 tflo-core = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-arrow = { version = "53", optional = true, default-features = false }
-arrow-schema = { version = "53", optional = true, default-features = false }
-parquet = { version = "53", optional = true, default-features = false, features = ["arrow"] }
-polars = { version = "0.43", optional = true, default-features = false, features = ["lazy"] }
+arrow = { version = "58", optional = true, default-features = false }
+arrow-schema = { version = "58", optional = true, default-features = false }
+parquet = { version = "58", optional = true, default-features = false, features = ["arrow"] }
+polars = { version = "0.53", optional = true, default-features = false, features = ["lazy"] }
 blake3 = { version = "1", optional = true }
 
 [dev-dependencies]

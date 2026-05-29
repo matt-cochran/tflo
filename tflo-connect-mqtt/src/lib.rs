@@ -236,7 +236,7 @@ pub struct MqttPublish {
 #[cfg(feature = "async")]
 #[async_trait::async_trait]
 pub trait MqttConsumer: Send + Sync {
-    /// Subscribe to a topic filter with the given QoS. Idempotent.
+    /// Subscribe to a topic filter with the given `QoS`. Idempotent.
     ///
     /// # Errors
     ///

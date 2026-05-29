@@ -82,7 +82,7 @@
 //! - **Chaining**: Composite methods compose freely with each other and with
 //!   closure primitives. For example: `price.log_scaled().map_f64(|x| x * 2.0).spread_ratio(&baseline)`.
 //!
-//! See the full example at [`tflo-examples/examples/custom-composite`]
+//! See the full example at `tflo-examples/examples/custom-composite`
 //! (../../tflo-examples/examples/custom-composite) for a complete, runnable demo.
 //!
 //! # Custom Functional Graph Primitives
@@ -100,7 +100,7 @@
 //! | [`scan_f64`] | `(\|\| init, \|state, x\| -> f64)` | Stateful unary scan |
 //! | [`scan2_f64`] | `(&other, \|\| init, \|state, x, y\| -> f64)` | Stateful binary scan |
 //!
-//! All methods accept optional [`.named("...")`] metadata for graph-plan
+//! All methods accept optional `.named("...")` metadata for graph-plan
 //! readability.
 //!
 //! ```rust
@@ -149,11 +149,11 @@
 //! > per-record transforms. [`scan_f64`] and [`scan2_f64`] are per-record state machines —
 //! > their state advances once per input record, not once per window. For rolling
 //! > count-windowed or time-windowed behavior, compose with catalog operators from
-//! > [`tflo-ops`] (the operator catalog crate).
+//! > `tflo-ops` (the operator catalog crate).
 //!
 //! > **Note on naming**: Closure bodies are opaque to `tflo-core`; even though Rust compiles
 //! > them, `tflo-core` cannot inspect or display the formula inside. Optional
-//! > [`.named("...")`] metadata improves graph-plan and debug output. Names have no
+//! > `.named("...")` metadata improves graph-plan and debug output. Names have no
 //! > semantic effect — skip them for clear local formulas, use them when graph plans or
 //! > diagnostics need human-readable node names.
 //!

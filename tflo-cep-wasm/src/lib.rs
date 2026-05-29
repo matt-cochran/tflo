@@ -7,7 +7,7 @@
 )]
 #![allow(missing_docs)] // wasm-bindgen-exposed types document themselves via TS .d.ts emission
 
-//! WebAssembly bindings for [`tflo-cep`].
+//! WebAssembly bindings for `tflo-cep`.
 //!
 //! The bindings present three classes to JS:
 //!

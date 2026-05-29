@@ -13,7 +13,7 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::indexing_slicing,
-    clippy::string_to_string
+    clippy::implicit_clone
 )]
 
 // ── Parquet round-trip tests ───────────────────────────────────────────

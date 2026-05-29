@@ -235,7 +235,7 @@ async fn kafka_tombstone_payload_is_none() {
 }
 
 /// KAFKA-001 contract: produce 5, consume 3, commit msg3's offset, drop
-/// the consumer, open a new consumer with the same group_id, assert it
+/// the consumer, open a new consumer with the same `group_id`, assert it
 /// resumes at message 4. End-to-end test of `KafkaMessage::commit_offset`
 /// against a real broker.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

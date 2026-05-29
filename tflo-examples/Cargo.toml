@@ -29,11 +29,11 @@ tflo-sink-influx = { workspace = true, features = ["async"] }
 tflo-arrow = { workspace = true, features = ["parquet"] }
 
 # Arrow types used in the iot-portal example.
-arrow = { version = "53", default-features = false }
-arrow-schema = { version = "53", default-features = false }
+arrow = { version = "58", default-features = false }
+arrow-schema = { version = "58", default-features = false }
 
 # Scripting crate re-exports (needed to implement context traits)
-cel-interpreter = "0.8"
+cel-interpreter = "0.10"
 rhai = "1.19"
 
 # S3 mock impl requires async_trait

@@ -380,13 +380,13 @@ mod localstack_tests {
     /// Error path: writing to a bucket that does not exist must surface as
     /// `Err(..)` and not silently swallow the failure.
     ///
-    /// Verifies S3StateStore propagates the underlying SDK error. Localstack
+    /// Verifies `S3StateStore` propagates the underlying SDK error. Localstack
     /// returns `NoSuchBucket` for an absent bucket; the AWS SDK formats this
     /// as a `DispatchFailure`/`ServiceError` whose `Display` impl includes the
     /// service error code. The `LocalstackS3Client` adapter renders that as
     /// `"put_object failed: <SDK error>"` (see the adapter at the top of this
     /// file). We assert on the substrings any S3 client should expose for a
-    /// 404 NoSuchBucket so the test is robust to small SDK-formatting drifts
+    /// 404 `NoSuchBucket` so the test is robust to small SDK-formatting drifts
     /// across versions.
     #[tokio::test(flavor = "multi_thread")]
     async fn s3_missing_bucket_surfaces_error() {

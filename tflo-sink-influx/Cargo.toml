@@ -26,11 +26,10 @@ async-trait = { version = "0.1", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
-# `testcontainers-modules` 0.11 has no `influxdb` feature (confirmed
-# against the registry index); the `GenericImage` path from the base
-# `testcontainers` crate is the supported way to spin up InfluxDB 2.x
-# with the documented `DOCKER_INFLUXDB_INIT_*` env-var setup.
-testcontainers = "0.23"
+# The `GenericImage` path from the base `testcontainers` crate is the
+# supported way to spin up InfluxDB 2.x with the documented
+# `DOCKER_INFLUXDB_INIT_*` env-var setup.
+testcontainers = "0.27"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 [lints]

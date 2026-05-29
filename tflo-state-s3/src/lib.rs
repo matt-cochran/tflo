@@ -75,7 +75,7 @@ use tflo_core::keyed::StateSnapshot;
 /// Thin trait over S3-compatible object-store operations.
 ///
 /// Users supply a concrete implementation backed by their preferred S3
-/// client (`aws-sdk-s3`, `rusoto`, plain HTTP for MinIO, etc.). Keeping
+/// client (`aws-sdk-s3`, `rusoto`, plain HTTP for `MinIO`, etc.). Keeping
 /// the trait surface minimal makes it cheap to swap clients.
 #[async_trait]
 pub trait S3Client: Send + Sync {

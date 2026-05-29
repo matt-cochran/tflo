@@ -26,7 +26,7 @@
 )]
 //! Financial technical-analysis indicators for the `tflo` temporal event processing engine.
 //!
-//! `tflo-fintech` is the finance domain plugin for [`tflo-core`]. It layers
+//! `tflo-fintech` is the finance domain plugin for `tflo-core`. It layers
 //! technical-analysis indicators — MACD, Stochastic, Williams %R, ADX, ATR,
 //! KAMA, and more — onto the generic `tflo` computation graph.
 //!

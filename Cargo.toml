@@ -22,7 +22,7 @@ members = [
 [workspace.package]
 version = "0.0.2"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.91"
 authors = ["Matt Cochran"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/matt-cochran/tflo"
@@ -52,7 +52,7 @@ futures = { version = "0.3" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 serde_yaml = "0.9"
-postcard = { version = "1", features = ["use-std"] }
+postcard = { version = "1", default-features = false, features = ["use-std"] }
 
 # Utilities (used by >=2 crates)
 pin-project = "1.1"
@@ -155,6 +155,19 @@ semicolon_if_nothing_returned = "allow"
 too_long_first_doc_paragraph = "allow"
 derive_partial_eq_without_eq = "allow"
 # `match_on_vec_items` was removed in Rust 1.88 (`clippy::indexing_slicing` now covers it).
+# `collapsible_if` (new in Rust 1.91) suggests rewriting `if let Some(x) = y { if z { ... } }`
+# as `if let Some(x) = y && z { ... }` — i.e. exercising let-chains. The let-chain syntax was
+# only stabilised in Rust 1.88 and the workspace MSRV was just lifted to 1.91 for the aws-sdk
+# upgrade; sweeping all sites to let-chains is tracked as a future "Lint backlog batch" item.
+collapsible_if = "allow"
+# `manual_is_multiple_of` (new in Rust 1.91) suggests `.is_multiple_of(N)` over `% N == 0`.
+# Style preference only; the modulo form reads as math, and a few sites legitimately want the
+# remainder value rather than the boolean. Re-sweep as a future "Lint backlog batch" item.
+manual_is_multiple_of = "allow"
+# `cloned_ref_to_slice_refs` (new in Rust 1.91) suggests `std::slice::from_ref(&x)` over
+# `&[x.clone()]`. Mostly fires in integration tests where the clone is harmless. Re-sweep
+# as a future "Lint backlog batch" item.
+cloned_ref_to_slice_refs = "allow"
 many_single_char_names = "allow"       # math code uses single-char vars
 needless_pass_by_value = "allow"
 ignored_unit_patterns = "allow"
@@ -240,15 +253,15 @@ map_err_ignore = "deny"
 wildcard_enum_match_arm = "deny"
 
 # ── Lint backlog batch 12 (small mechanical, denied) ───────────────────
-# `string_to_string`: `.to_string()` on a `String` is a no-op alloc.
-# Usually the underlying call should be `.clone()` or — more often —
-# the surrounding `.map_err(|e| e.to_string())` is itself redundant
-# when the error type already IS `String` and a bare `?` suffices.
+# `implicit_clone`: catches `.to_string()` on `String`, `.to_owned()` on
+# `String`, etc. — no-op allocations that should be `.clone()` or removed.
+# Replaces the legacy `string_to_string` lint which was merged into
+# `implicit_clone` in Rust 1.91.
 # `print_stderr`: production library code should not write to stderr
 # directly. Sites that need operator-visible warnings (Batcher Drop
 # accounting, REGO throttled-error log) carry per-site `#[allow]` +
 # rationale; example crates extend their existing test-style allows.
-string_to_string = "deny"
+implicit_clone = "deny"
 print_stderr = "deny"
 
 # ── Lint backlog batch 13 (print_stdout) ───────────────────────────────

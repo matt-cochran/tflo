@@ -25,6 +25,10 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      # rdkafka-sys (via tflo-connect-kafka) bundles librdkafka and unconditionally
+      # includes curl/curl.h in rdkafka_conf.c even when WITH_CURL=0 is set, so
+      # libcurl headers must be installed even though we don't use libcurl features.
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
       # `tflo-wasm` only builds for the wasm32 target; it is exercised by the
       # dedicated `publish-wasm.yml` workflow, so host jobs exclude it.
       - run: cargo fmt --all --check
@@ -41,6 +45,7 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
       - run: cargo llvm-cov --workspace --exclude tflo-wasm --all-features --lcov --output-path lcov.info
       - uses: codecov/codecov-action@v4
         with:
@@ -95,4 +100,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
       - run: cargo doc --workspace --exclude tflo-wasm --no-deps --all-features

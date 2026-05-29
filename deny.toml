@@ -1,0 +1,57 @@
+# cargo-deny configuration.
+#
+# Runs in CI via `EmbarkStudios/cargo-deny-action@v2` (see
+# .github/workflows/ci.yml). Default checks: advisories, licenses, bans,
+# sources.
+
+[advisories]
+# `cargo-deny` 0.16+ deprecated the explicit `version = 2` schema marker
+# and now infers v2 from the absence of the legacy `vulnerability` /
+# `unmaintained` / `unsound` fields. Keeping ignore IDs in a flat list
+# (the v2 shape).
+yanked = "deny"
+ignore = [
+    # `paste` (RUSTSEC-2024-0436) — proc-macro for ident pasting; its
+    # author archived the repo with no replacement. Pulled transitively
+    # via `cel-interpreter` (tflo-cel + tflo-examples) and `parquet`
+    # (tflo-arrow). Neither has migrated, and the crate is purely a
+    # build-time proc-macro with no runtime attack surface. Re-evaluate
+    # when upstream picks a successor (candidate: `pastey`).
+    "RUSTSEC-2024-0436",
+]
+
+[licenses]
+# `cargo-deny` 0.18+ requires an explicit `allow` list (no default
+# permissive set). These cover the common Rust ecosystem.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+    "OpenSSL",
+    "BSL-1.0",
+]
+confidence-threshold = 0.85
+
+[[licenses.exceptions]]
+# `ring` ships under a compound BoringSSL/OpenSSL/ISC license that
+# cargo-deny SPDX parsing doesn't always normalize; allowed explicitly.
+allow = ["LicenseRef-ring", "OpenSSL"]
+name = "ring"
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
