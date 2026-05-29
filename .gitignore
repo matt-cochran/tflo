@@ -8,7 +8,9 @@
 /.structureos/
 
 # ── tflo-site ──────────────────────────────────────────────────────────
-/tflo-site/public/wasm/
+# Note: /tflo-site/public/wasm/ is intentionally tracked so Cloudflare
+# Pages (which has no wasm-pack) can serve the prebuilt artifact. Rebuild
+# locally via `npm run build:wasm` and commit when Rust changes.
 /tflo-site/.astro/
 /tflo-site/dist/
 /tflo-site/node_modules/

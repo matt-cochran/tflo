@@ -7,6 +7,7 @@
  */
 
 import { execSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -25,6 +26,10 @@ try {
     `wasm-pack build ../tflo-wasm --target ${target} --out-dir ${outDir} --out-name ${outName}${flags}`,
     { stdio: "inherit" },
   );
+  // wasm-pack writes a `*`-everything .gitignore into --out-dir. We track
+  // the artifact so Cloudflare Pages (no wasm-pack) can serve it, so strip
+  // the inner ignore on every build.
+  rmSync(resolve(outDir, ".gitignore"), { force: true });
   console.log("[wasm] ✅ tflo-wasm built successfully");
 } catch (err) {
   if (err && typeof err === "object" && "status" in err && err.status === 127) {

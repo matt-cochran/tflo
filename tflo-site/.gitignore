@@ -1,6 +1,3 @@
-# Wasm build output
-public/wasm/
-
 # Dependencies
 node_modules/
 
