@@ -28,7 +28,6 @@ export async function GET() {
     { title: 'Non-goals', description: 'What tflo deliberately does not do, and why.', slug: '/docs/non-goals', tags: ['docs'], pubDate: '' },
     { title: 'Interop backlog', description: 'Designed integrations with Flink, Beam, Kafka Streams (deferred).', slug: '/docs/interop-backlog', tags: ['docs'], pubDate: '' },
     { title: 'Positioning', description: 'Where tflo fits next to Flink, Esper, and Kafka Streams.', slug: '/positioning', tags: ['positioning'], pubDate: '' },
-    { title: 'Release notes', description: "What's new in tflo: hardening pass through Phase 6.", slug: '/release-notes', tags: ['release'], pubDate: '' },
     { title: 'Use Cases', description: 'Real-world use cases for streaming temporal analysis.', slug: '/use-cases', tags: ['docs'], pubDate: '' },
     { title: 'Docs Home', description: 'tflo documentation index.', slug: '/docs', tags: ['docs'], pubDate: '' },
   ];

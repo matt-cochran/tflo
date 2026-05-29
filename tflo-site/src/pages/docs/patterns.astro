@@ -1,7 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
 
 const rustAbandonedCart = `use std::time::Duration;
 use tflo_cep::prelude::*;
@@ -120,7 +119,7 @@ const tsMatchApi = `.emit((m) => {
 <DocsLayout title="Event patterns" description="Closure-based pattern matching across event streams — same API in Rust and TypeScript, compiled to WASM for the browser.">
   <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-4xl font-extrabold text-white mb-2">
-      Event patterns <NextReleaseBadge />
+      Event patterns
     </h1>
     <p class="text-lg text-text-muted mb-6">
       The <code>tflo-cep</code> crate composes typed signals into multi-event domain

@@ -1,7 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
 
 const asyncContractsCode = `use tflo_core::state::{AsyncStateStore, Checkpointer};
 
@@ -348,7 +347,7 @@ let allowed: Vec<Detection> = detections
 
     <!-- Async state contracts -->
     <h2 class="text-2xl font-bold text-white mt-12 mb-4">
-      Async state contracts <NextReleaseBadge />
+      Async state contracts
     </h2>
     <p class="text-text-muted mb-4">
       For network-backed state stores, tflo exposes <code>AsyncStateStore</code> /
@@ -369,7 +368,7 @@ let allowed: Vec<Detection> = detections
 
     <!-- Deduplication -->
     <h2 class="text-2xl font-bold text-white mt-12 mb-4">
-      Idempotent sinks via <code>Deduplicator</code> <NextReleaseBadge />
+      Idempotent sinks via <code>Deduplicator</code>
     </h2>
     <p class="text-text-muted mb-4">
       End-to-end exactly-once delivery requires either transactional sinks coordinated with
@@ -388,7 +387,7 @@ let allowed: Vec<Detection> = detections
 
     <!-- Metrics -->
     <h2 class="text-2xl font-bold text-white mt-12 mb-4">
-      Metrics integration <NextReleaseBadge />
+      Metrics integration
     </h2>
     <p class="text-text-muted mb-4">
       Observability ships as a pluggable <code>Metrics</code> trait with a no-op default.

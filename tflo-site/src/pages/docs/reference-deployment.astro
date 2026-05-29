@@ -1,7 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
 
 const flow = `<span class="text-text-muted">┌──────────────────────────────────────────────────────────────────┐</span>
 <span class="text-text-muted">│</span>                       <span class="text-accent">iot-portal reference deployment</span>            <span class="text-text-muted">│</span>
@@ -32,7 +31,7 @@ const runIt = `cargo run --example iot-portal`;
 <DocsLayout title="Reference deployment" description="End-to-end edge-to-cluster reference: MQTT → tflo → Kafka → tflo → Influx + Parquet.">
   <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-4xl font-extrabold text-white mb-2">
-      Reference deployment <NextReleaseBadge />
+      Reference deployment
     </h1>
     <p class="text-lg text-text-muted mb-12">
       The <code>iot-portal</code> example is the canonical end-to-end pipeline using every

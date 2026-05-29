@@ -4953,7 +4953,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-arrow"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -4968,7 +4968,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-cel"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "cel-interpreter",
  "proptest",
@@ -4980,7 +4980,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-cep"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -4989,7 +4989,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-cep-wasm"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -4999,7 +4999,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-connect-kafka"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "futures",
@@ -5015,7 +5015,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-connect-mqtt"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "futures",
@@ -5029,7 +5029,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-core"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "criterion",
@@ -5049,7 +5049,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-examples"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -5077,7 +5077,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-fintech"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "csv",
  "proptest",
@@ -5090,7 +5090,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-ops"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "postcard",
  "proptest",
@@ -5100,7 +5100,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-rego"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "proptest",
  "regorus",
@@ -5112,7 +5112,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-rhai"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "proptest",
  "rhai",
@@ -5123,7 +5123,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-sink-influx"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "futures",
@@ -5136,7 +5136,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-state-files"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "hex",
@@ -5149,7 +5149,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-state-s3"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -5179,7 +5179,7 @@ dependencies = [
 
 [[package]]
 name = "tflo-wasm"
-version = "0.1.0"
+version = "0.0.2"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",

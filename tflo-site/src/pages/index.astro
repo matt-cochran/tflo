@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import FeatureCard from '../components/FeatureCard.astro';
-import NextReleaseBadge from '../components/NextReleaseBadge.astro';
 
 const codeExample = `<span class="text-text-muted">use tflo_core::prelude::*;</span>
 <span class="text-text-muted">use tflo_ops::prelude::*;</span>
@@ -363,38 +362,38 @@ const batchStreamAscii = `<span class="text-text-muted">// Live</span>
         Per-key timer heap with deterministic <code>(fire_ts, seq)</code> ordering;
         snapshot-safe serialization via <code>postcard</code>. The clean way to express
         dwell timers, watchdog timeouts, and absence detection.
-        <NextReleaseBadge variant="block" />
+       
       </FeatureCard>
       <FeatureCard title="Idempotent Sinks" icon="&#x1F510;">
         <code>Deduplicator</code> primitive: process-local cache plus a durable
         per-sink window backed by <code>AsyncStateStore</code>. tflo's answer to
         exactly-once is at-least-once + idempotent, not 2PC.
-        <NextReleaseBadge variant="block" />
+       
       </FeatureCard>
       <FeatureCard title="Pluggable Metrics" icon="&#x1F4C8;">
         <code>Metrics</code> trait fires on keyed-step latency, timer fires,
         checkpoint commit and failure, late-record drops. No-op default; wire
         Prometheus / statsd / OTEL in one place.
-        <NextReleaseBadge variant="block" />
+       
       </FeatureCard>
       <FeatureCard title="Connector Ecosystem" icon="&#x1F517;">
         Kafka (<code>KafkaShardRouter</code> with rebalance fencing), MQTT
         (<code>BoundedSet</code> for QoS-2 dedup), Influx line-protocol sink, and
         Arrow / Parquet for batch replay and archive.
-        <NextReleaseBadge variant="block" />
+       
       </FeatureCard>
       <FeatureCard title="Event-Pattern Matching" icon="&#x1F9E0;">
         <code>tflo-cep</code> composes typed signals into multi-event domain signals
         &mdash; <em>abandoned_cart</em>, <em>engaged_with_product</em>,
         <em>rage_click</em>. Six-method closure API. Same engine runs in Rust and in
         the browser via <code>tflo-cep-wasm</code>.
-        <NextReleaseBadge variant="block" />
+       
       </FeatureCard>
       <FeatureCard title="Browser SDK" icon="&#x1F310;">
         <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline">@tflo/browser-events</a>:
         capture DOM events, derive typed signals via WASM, route to GA4 / first-party
         edge / your own sink. ~25 KB gzip. The engine has zero vendor knowledge.
-        <NextReleaseBadge variant="block" />
+       
       </FeatureCard>
     </div>
   </section>

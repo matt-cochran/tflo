@@ -1,7 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
 
 const architectureDiagram = `<span class="text-text-muted">┌──────────────────────────────────────────────────────────────────┐</span>
 <span class="text-text-muted">│</span>                       <span class="text-accent">Connectors &amp; sinks</span>                         <span class="text-text-muted">│</span>
@@ -47,8 +46,7 @@ cargo add tflo-core --features async`;
       How the workspace crates compose into a temporal event-processing platform &mdash; a
       generic engine plus operator catalogs, scripting, persistence, connectors, and a
       browser binding. tflo is experimental and pre-1.0 &mdash; not yet published to
-      crates.io. New-since-release crates and capabilities are flagged
-      <NextReleaseBadge label="Next release" />.
+      crates.io.
     </p>
 
     <h2 class="text-2xl font-bold text-white mt-12 mb-4">Dependency layers</h2>
@@ -76,10 +74,10 @@ cargo add tflo-core --features async`;
           <code>.with()</code> / <code>.tflo_keyed()</code> iterator adapters, property
           extraction, windowing primitives, the compiled graph runtime, the typed
           <code>Computed = Result&lt;f64, Absent&gt;</code> semantics, the
-          <code>Operator</code> trait, and (new in the next release) timers, the
-          <code>Deduplicator</code>, the <code>Metrics</code> trait, the async state /
-          checkpoint / shard-router contracts, and <code>Builder::fingerprint()</code>.
-          Async support via <code>--features async</code>.
+          <code>Operator</code> trait, timers, the <code>Deduplicator</code>, the
+          <code>Metrics</code> trait, the async state / checkpoint / shard-router contracts,
+          and <code>Builder::fingerprint()</code>. Async support via
+          <code>--features async</code>.
         </p>
         <p class="text-xs text-text-muted">
           <code>cargo add tflo-core</code>
@@ -93,7 +91,7 @@ cargo add tflo-core --features async`;
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-ops <NextReleaseBadge />
+          tflo-ops
         </h3>
         <p class="text-sm text-text-muted mb-3">
           The generic operator catalog. Owns every windowed aggregation (SMA, EMA, STD, VAR,
@@ -127,7 +125,7 @@ cargo add tflo-core --features async`;
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-cep <NextReleaseBadge />
+          tflo-cep
         </h3>
         <p class="text-sm text-text-muted mb-3">
           Closure-based event-pattern matching &mdash; "A then B within T", "A then not B
@@ -145,7 +143,7 @@ cargo add tflo-core --features async`;
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-cep-wasm <NextReleaseBadge />
+          tflo-cep-wasm
         </h3>
         <p class="text-sm text-text-muted">
           WebAssembly bindings for <code>tflo-cep</code>. Wraps <code>engine::Runtime</code>
@@ -173,7 +171,7 @@ cargo add tflo-core --features async`;
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-state-s3 <NextReleaseBadge />
+          tflo-state-s3
         </h3>
         <p class="text-sm text-text-muted">
           S3-compatible checkpoint store. Rewritten in the hardening pass as a direct
@@ -190,7 +188,7 @@ cargo add tflo-core --features async`;
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-connect-kafka <NextReleaseBadge />
+          tflo-connect-kafka
         </h3>
         <p class="text-sm text-text-muted">
           Kafka integration. <code>KafkaShardRouter</code> requires an
@@ -202,7 +200,7 @@ cargo add tflo-core --features async`;
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-connect-mqtt <NextReleaseBadge />
+          tflo-connect-mqtt
         </h3>
         <p class="text-sm text-text-muted">
           MQTT adapter for the edge. <code>MqttCursor</code> enforces a bounded QoS-2 dedup
@@ -212,7 +210,7 @@ cargo add tflo-core --features async`;
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-sink-influx <NextReleaseBadge />
+          tflo-sink-influx
         </h3>
         <p class="text-sm text-text-muted">
           InfluxDB write sink. <code>LineProtocol</code> builder plus a
@@ -223,7 +221,7 @@ cargo add tflo-core --features async`;
       </div>
       <div class="card">
         <h3 class="text-lg font-semibold text-white mb-2">
-          tflo-arrow <NextReleaseBadge />
+          tflo-arrow
         </h3>
         <p class="text-sm text-text-muted">
           Arrow / Parquet / Polars interop. <code>schema_fingerprint()</code> stamps a hash

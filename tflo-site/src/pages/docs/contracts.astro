@@ -1,7 +1,6 @@
 ---
 import DocsLayout from '../../layouts/DocsLayout.astro';
 import CodeBlock from '../../components/CodeBlock.astro';
-import NextReleaseBadge from '../../components/NextReleaseBadge.astro';
 
 const asyncStateStore = `#[async_trait]
 pub trait AsyncStateStore: Send + Sync {
@@ -38,7 +37,7 @@ pub trait StatelessOperator: Operator {}    // marker for declared intent`;
 <DocsLayout title="Contracts" description="The four pluggable traits in tflo-core: state store, cursor, shard router, operator.">
   <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-4xl font-extrabold text-white mb-2">
-      Contracts <NextReleaseBadge />
+      Contracts
     </h1>
     <p class="text-lg text-text-muted mb-12">
       <code>tflo-core</code> is contract-only above the engine: the integrations that matter
