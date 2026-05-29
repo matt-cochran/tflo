@@ -22,7 +22,8 @@ ignore = [
 
 [licenses]
 # `cargo-deny` 0.18+ requires an explicit `allow` list (no default
-# permissive set). These cover the common Rust ecosystem.
+# permissive set). These cover the licenses actually encountered in the
+# current dep graph (per the v2 license check output).
 allow = [
     "MIT",
     "MIT-0",
@@ -32,20 +33,20 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "Zlib",
     "CC0-1.0",
     "MPL-2.0",
-    "OpenSSL",
     "BSL-1.0",
 ]
 confidence-threshold = 0.85
 
-[[licenses.exceptions]]
-# `ring` ships under a compound BoringSSL/OpenSSL/ISC license that
-# cargo-deny SPDX parsing doesn't always normalize; allowed explicitly.
-allow = ["LicenseRef-ring", "OpenSSL"]
-name = "ring"
+# `regorus` (0.2.x) ships without a `license` field in its Cargo.toml,
+# which cargo-deny otherwise rejects. The repo's LICENSE file is
+# Apache-2.0; clarify that to satisfy the licenses check.
+[[licenses.clarify]]
+name = "regorus"
+expression = "Apache-2.0"
+license-files = []
 
 [bans]
 multiple-versions = "allow"
