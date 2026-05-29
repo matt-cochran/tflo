@@ -51,7 +51,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v1
+      # v1 ships krates 0.16.x which panics on rustls 0.21 (`aws-lc-rs`
+      # feature resolution); v2 ships a newer krates that handles it.
+      - uses: EmbarkStudios/cargo-deny-action@v2
 
   # Per-PR WASM gate. tflo's value proposition includes the WASM
   # deployment shape; if tflo-core or tflo-ops stops compiling for
