@@ -1,0 +1,370 @@
+[workspace]
+resolver = "2"
+members = [
+    "tflo-core",
+    "tflo-ops",
+    "tflo-fintech",
+    "tflo-cel",
+    "tflo-rego",
+    "tflo-rhai",
+    "tflo-state-files",
+    "tflo-state-s3",
+    "tflo-connect-kafka",
+    "tflo-connect-mqtt",
+    "tflo-sink-influx",
+    "tflo-arrow",
+    "tflo-cep",
+    "tflo-cep-wasm",
+    "tflo-examples",
+    "tflo-wasm",
+]
+
+[workspace.package]
+version = "0.0.2"
+edition = "2024"
+rust-version = "1.91"
+authors = ["Matt Cochran"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/matt-cochran/tflo"
+
+[workspace.dependencies]
+# Internal crates
+tflo-core = { path = "tflo-core", version = "0.0.2" }
+tflo-ops = { path = "tflo-ops", version = "0.0.2" }
+tflo-fintech = { path = "tflo-fintech", version = "0.0.2" }
+tflo-cel = { path = "tflo-cel", version = "0.0.2" }
+tflo-rhai = { path = "tflo-rhai", version = "0.0.2" }
+tflo-rego = { path = "tflo-rego", version = "0.0.2" }
+tflo-state-files = { path = "tflo-state-files", version = "0.0.2" }
+tflo-state-s3 = { path = "tflo-state-s3", version = "0.0.2" }
+tflo-connect-kafka = { path = "tflo-connect-kafka", version = "0.0.2" }
+tflo-connect-mqtt = { path = "tflo-connect-mqtt", version = "0.0.2" }
+tflo-sink-influx = { path = "tflo-sink-influx", version = "0.0.2" }
+tflo-arrow = { path = "tflo-arrow", version = "0.0.2" }
+tflo-cep = { path = "tflo-cep", version = "0.0.2" }
+
+# Async runtime
+tokio = { version = "1.41", default-features = false }
+tokio-stream = { version = "0.1" }
+futures = { version = "0.3" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+serde_yaml = "0.9"
+postcard = { version = "1", default-features = false, features = ["use-std"] }
+
+# Utilities (used by >=2 crates)
+pin-project = "1.1"
+hex = "0.4"
+thiserror = "1.0"
+
+# Dev-only (used by >=2 crates as dev-dependency)
+proptest = "1.4"
+criterion = "0.5"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# `pedantic` and `nursery` are **re-enabled** at warn level. The handful
+# of intentional violations (numeric casts in the streaming engine,
+# float compares in detector contracts, `mul_add` rewriting that would
+# break the `tflo-fintech` golden-fixture bit-equality test) are pushed
+# down to per-crate `#![allow]` directives with rationale comments. See
+# `docs/lint-backlog.md` for the per-batch history.
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+# `type_complexity` fires pervasively on the engine's boxed-closure node
+# types (`Arc<dyn Fn(...)>`). Factoring each into a type alias is
+# tracked as future work in `docs/lint-backlog.md`.
+type_complexity = "allow"
+
+# ── Lint backlog batch 1 (denied) ──────────────────────────────────────
+# Specific-lint `deny` entries take priority over the group `warn` above.
+uninlined_format_args = "deny"
+redundant_closure_for_method_calls = "deny"
+explicit_iter_loop = "deny"
+
+# ── Lint backlog batch 2 (denied) ──────────────────────────────────────
+doc_markdown = "deny"
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+
+# ── Lint backlog batch 3 (denied) ──────────────────────────────────────
+use_self = "deny"
+missing_const_for_fn = "deny"
+
+# ── Lint backlog batches 4–5 (intent-allows, scoped per crate) ─────────
+# Workspace-wide `allow` reserved for cases that are *universally*
+# acceptable across every crate. Crate-specific intentional violations
+# (numeric casts in tflo-core / tflo-ops / tflo-fintech, exact-float
+# compare in detectors, mul_add bit-equality in tflo-fintech) live in
+# each crate's `lib.rs` as `#![allow(...)]` with rationale. This is the
+# Phase 5 "annotate, don't rewrite" decision applied at the correct
+# scope.
+#
+# These are stylistic preferences with no correctness impact — universal
+# allow keeps the diff readable.
+similar_names = "allow"             # short, related variable names are common in math code
+items_after_statements = "allow"    # test fixtures often inline helpers after setup
+option_if_let_else = "allow"        # style; both forms read fine
+map_unwrap_or = "allow"             # style; .map().unwrap_or() is often clearer
+too_many_lines = "allow"            # we have a handful of legitimately-long match arms
+if_not_else = "allow"               # style preference
+wildcard_imports = "allow"          # widespread in tests and preludes
+single_match_else = "allow"         # style; one-arm match keeps intent visible
+return_self_not_must_use = "allow"  # builders that don't always chain
+struct_excessive_bools = "allow"    # one-off in tflo-rego config
+significant_drop_tightening = "allow"  # nursery; false positives common
+redundant_pub_crate = "allow"       # nursery; cosmetic
+unnecessary_literal_bound = "allow" # nursery; not always a clear win
+
+# Numeric streaming-engine intent — promoted to workspace so test
+# binaries (which are separate compilation units that ignore crate-
+# level `#![allow]`) inherit the same intent. Universal allow is
+# justified because the whole workspace is a numeric engine: even the
+# scripting / connector crates handle timestamps and counts.
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+cast_lossless = "allow"
+float_cmp = "allow"
+suboptimal_flops = "allow"
+
+# Style/cleanup lints — kept `allow` so the workspace passes
+# `-D warnings`. They are tracked as case-by-case cleanup opportunities
+# in `docs/lint-backlog.md`; future PRs can land mechanical fixes.
+needless_collect = "allow"             # mostly intentional in tests
+match_same_arms = "allow"              # arms often kept apart for clarity
+trivially_copy_pass_by_ref = "allow"   # API-shape, evaluate per-impl
+redundant_clone = "allow"              # clone() is often defensively kept
+missing_fields_in_debug = "allow"      # graph types Debug-skip closures
+must_use_candidate = "allow"           # would add #[must_use] everywhere
+needless_raw_string_hashes = "allow"   # cosmetic
+manual_let_else = "allow"              # style preference
+implicit_hasher = "allow"              # rare; case-by-case
+unused_self = "allow"                  # trait-shape reasons
+unnested_or_patterns = "allow"
+unnecessary_wraps = "allow"
+tuple_array_conversions = "allow"
+suspicious_operation_groupings = "allow"
+semicolon_if_nothing_returned = "allow"
+too_long_first_doc_paragraph = "allow"
+derive_partial_eq_without_eq = "allow"
+# `match_on_vec_items` was removed in Rust 1.88 (`clippy::indexing_slicing` now covers it).
+# `collapsible_if` (new in Rust 1.91) suggests rewriting `if let Some(x) = y { if z { ... } }`
+# as `if let Some(x) = y && z { ... }` — i.e. exercising let-chains. The let-chain syntax was
+# only stabilised in Rust 1.88 and the workspace MSRV was just lifted to 1.91 for the aws-sdk
+# upgrade; sweeping all sites to let-chains is tracked as a future "Lint backlog batch" item.
+collapsible_if = "allow"
+# `manual_is_multiple_of` (new in Rust 1.91) suggests `.is_multiple_of(N)` over `% N == 0`.
+# Style preference only; the modulo form reads as math, and a few sites legitimately want the
+# remainder value rather than the boolean. Re-sweep as a future "Lint backlog batch" item.
+manual_is_multiple_of = "allow"
+# `cloned_ref_to_slice_refs` (new in Rust 1.91) suggests `std::slice::from_ref(&x)` over
+# `&[x.clone()]`. Mostly fires in integration tests where the clone is harmless. Re-sweep
+# as a future "Lint backlog batch" item.
+cloned_ref_to_slice_refs = "allow"
+many_single_char_names = "allow"       # math code uses single-char vars
+needless_pass_by_value = "allow"
+ignored_unit_patterns = "allow"
+debug_assert_with_mut_call = "allow"
+
+# ── Panic-freedom (hardening pass) ─────────────────────────────────────
+# Production code must not panic. These `restriction` lints are denied
+# workspace-wide; test code is exempted with a per-crate
+# `#![cfg_attr(test, allow(...))]`.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unreachable = "deny"
+todo = "deny"
+
+# ── Lint backlog batch 6 (panic-adjacent, denied) ──────────────────────
+# Integer division panics on divide-by-zero. Sites in production code
+# carry per-site `#[allow(clippy::integer_division)]` + a `// SAFETY:`
+# comment explaining why the divisor cannot be zero (constructor guard,
+# bound at top of fn, compile-time constant, etc.).
+integer_division = "deny"
+
+# ── Lint backlog batch 7 (panic-adjacent, denied) ──────────────────────
+# Integer arithmetic that can panic on overflow (debug builds) or wrap
+# silently (release). Sites in production code follow one of three
+# patterns, established in this batch's sweep:
+#   - Real overflow risk → converted to `saturating_*` or `checked_*`
+#     (e.g. timestamp cutoffs, watermark math, long-running counters).
+#   - Safe-by-invariant (loop indices, bounded counters, period math
+#     guarded at top of fn) → per-site `#[allow(...)]` + `// SAFETY:`
+#     comment naming the invariant.
+#   - Test code (in `#[cfg(test)] mod` or `tests/*.rs`) → file-level
+#     `#![allow]` extension (test exception convention).
+arithmetic_side_effects = "deny"
+
+# ── Lint backlog batch 8 (panic-adjacent, denied) ──────────────────────
+# Out-of-bounds indexing/slicing panics. Sites in production code carry
+# per-site `#[allow(clippy::indexing_slicing)]` + a `// SAFETY:` comment
+# naming the invariant (typically a length guard at the top of the
+# function, an enumerate index, or a numerically-clamped position).
+# Test code uses file-level `#![allow]` (test exception).
+indexing_slicing = "deny"
+
+# ── Lint backlog batch 9 (free-win lock-in, denied) ────────────────────
+# These had zero hits at sweep time — denying them keeps the codebase
+# clean of these footguns forever:
+#   - debug macros left in production (`dbg!`)
+#   - direct process exit from library code (`std::process::exit`)
+#   - silent leak of resources (`std::mem::forget`)
+#   - `Mutex<bool>` / `Mutex<u64>` / `RwLock<bool>` that should be
+#     atomics
+#   - unfinished implementations escaping past code review
+#     (`unimplemented!()`, `string_slice` panic on non-char-boundary,
+#     `1.5_f32` precision-loss literals)
+dbg_macro = "deny"
+exit = "deny"
+mem_forget = "deny"
+mutex_atomic = "deny"
+mutex_integer = "deny"
+unimplemented = "deny"
+string_slice = "deny"
+lossy_float_literal = "deny"
+
+# ── Lint backlog batch 10 (error-quality, denied) ──────────────────────
+# Surface silently-dropped `Result`s and lost error context. Real bugs:
+#   - `let _ = result_returning_fn()` either propagates via `?` or uses
+#     `drop(...)` for an intentional fire-and-forget. (NB: clippy fires
+#     on the *pattern* — `let _: Result<_, _> = ...` does NOT silence
+#     it; only `drop()` or proper handling do.)
+#   - `.map_err(|_| MyError::X)` loses `e`'s debug info; embed it as
+#     `MyError::X { source: e.to_string() }` (or an explicit variant).
+let_underscore_must_use = "deny"
+map_err_ignore = "deny"
+
+# ── Lint backlog batch 11 (enum exhaustiveness, denied) ────────────────
+# Forbid `_ =>` arms on enum matches so a newly-added enum variant
+# triggers a build failure instead of being silently routed to the
+# fallback arm. Production code lists each variant explicitly; for
+# external `#[non_exhaustive]`-style enums (`cel_interpreter::Value`,
+# `serde_json::Value`) we enumerate the known variants as the next
+# best thing — variant additions upstream will then surface on the
+# next compile, not in a silent no-op at runtime.
+wildcard_enum_match_arm = "deny"
+
+# ── Lint backlog batch 12 (small mechanical, denied) ───────────────────
+# `implicit_clone`: catches `.to_string()` on `String`, `.to_owned()` on
+# `String`, etc. — no-op allocations that should be `.clone()` or removed.
+# Replaces the legacy `string_to_string` lint which was merged into
+# `implicit_clone` in Rust 1.91.
+# `print_stderr`: production library code should not write to stderr
+# directly. Sites that need operator-visible warnings (Batcher Drop
+# accounting, REGO throttled-error log) carry per-site `#[allow]` +
+# rationale; example crates extend their existing test-style allows.
+implicit_clone = "deny"
+print_stderr = "deny"
+
+# ── Lint backlog batch 13 (print_stdout) ───────────────────────────────
+# Production library code should not write to stdout — output belongs
+# in `Result`s or a tracing layer. Cargo's `[lints]` table does not
+# support inheritance plus per-crate override, so we use the inverted
+# strategy: `allow` at the workspace level, and each library crate's
+# `lib.rs` adds `#![deny(clippy::print_stdout)]` as a crate-level
+# inner attribute. `tflo-examples` (which legitimately uses `println!`
+# for demo output) doesn't add the deny, so its examples build clean.
+print_stdout = "allow"
+
+# ── Lint backlog batch 14 (domain-inappropriate, allowed) ──────────────
+# These two lints were surveyed and intentionally allowed workspace-wide
+# because they fire pervasively on code that is correct-by-domain:
+#   - `float_arithmetic` (434 sites): every line of indicator math is
+#     `f64 + f64`, `f64 * f64`, etc. For a numeric streaming engine
+#     this lint is domain-inappropriate; allowing it workspace-wide
+#     is more honest than 434 per-site allows. NaN/inf propagation is
+#     by design, routed through the typed `Absent` model in
+#     `tflo-core`.
+#   - `str_to_string` (91 sites): `.to_string()` on a `&str` is a
+#     style preference (vs `.to_owned()` or `.into()`), not a bug
+#     class. Allowing keeps the diff readable.
+float_arithmetic = "allow"
+str_to_string = "allow"
+
+# ── Build Profiles ─────────────────────────────────────────────────────
+#
+# Philosophy:
+#   dev:    Fast iteration. Full debug info for workspace crates,
+#           minimal debug info for dependencies.
+#   release: Conservative optimizations. Thin LTO for runtime perf
+#            without excessive compile times. Line tables for backtraces.
+#   ci:     Like dev but disables incremental (sccache caches better).
+#           Use in CI: cargo build --profile ci
+
+[profile.dev]
+opt-level = 0
+debug = 1                       # line tables for dependencies (baseline)
+incremental = true
+codegen-units = 256             # max parallelism, fastest recompilation
+lto = false
+overflow-checks = true
+
+# Dependencies: minimal debug info (line tables only)
+[profile.dev.package."*"]
+debug = "line-tables-only"
+
+# Local workspace crates: full debug symbols for LLDB/GDB usability
+[profile.dev.package.tflo-core]
+debug = 2
+
+[profile.dev.package.tflo-ops]
+debug = 2
+
+[profile.dev.package.tflo-fintech]
+debug = 2
+
+[profile.dev.package.tflo-cel]
+debug = 2
+
+[profile.dev.package.tflo-rego]
+debug = 2
+
+[profile.dev.package.tflo-rhai]
+debug = 2
+
+[profile.dev.package.tflo-state-files]
+debug = 2
+
+[profile.dev.package.tflo-state-s3]
+debug = 2
+
+[profile.dev.package.tflo-connect-kafka]
+debug = 2
+
+[profile.release]
+opt-level = 3
+debug = "line-tables-only"      # backtraces without full debuginfo bloat
+incremental = false
+codegen-units = 16              # moderate parallelism for decent optimization
+lto = "thin"                    # cross-crate inlining, acceptable compile time
+overflow-checks = true          # arithmetic overflow must trap, not silently wrap
+strip = "none"                  # keep symbols for profiling; use "symbols" in CI
+
+# Size-optimized profile for browser wasm, usable via a direct
+# `cargo build --target wasm32-unknown-unknown --profile release-wasm`.
+# NOTE: tflo-react/scripts/build-wasm.sh drives wasm-pack with `--release`
+# (not this profile) because wasm-pack ignores per-(custom-)profile wasm-opt
+# config and would run a broken default `-O` pass; the script disables
+# wasm-pack's wasm-opt (via the `profile.release` metadata) and runs
+# `wasm-opt -Oz` itself, which captures the bulk of the size win regardless.
+[profile.release-wasm]
+inherits = "release"
+opt-level = "z"                 # optimize for size, not speed
+lto = "fat"                     # maximal cross-crate dead-code elimination
+codegen-units = 1               # smallest binary (slower compile, fine for a release artifact)
+panic = "abort"                 # no unwinding tables — a panic aborts the wasm instance
+strip = "symbols"               # drop the names section from the shipped .wasm
+# overflow-checks inherited (=true): arithmetic overflow still traps (→ abort).
+
+[profile.ci]
+inherits = "dev"
+incremental = false             # sccache caches better without incremental artifacts
+codegen-units = 256

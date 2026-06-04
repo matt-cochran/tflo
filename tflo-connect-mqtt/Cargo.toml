@@ -1,0 +1,48 @@
+[package]
+name = "tflo-connect-mqtt"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "MQTT adapter for tflo — edge-friendly Source/Sink + bounded QoS-2 dedup cursor"
+license.workspace = true
+repository.workspace = true
+keywords = ["mqtt", "iot", "streaming", "edge"]
+categories = ["data-structures", "asynchronous"]
+
+[features]
+default = []
+# Contracts only (MqttConsumer / MqttProducer / MqttCursor) — gated so the
+# crate stays embedded-friendly when feature is off.
+async = ["tflo-core/async", "dep:tokio", "dep:futures"]
+# Concrete backend using `rumqttc` (pure-Rust MQTT v3/v5). Cross-compiles
+# cleanly to ARM/WASM without C deps — required for edge gateway story.
+rumqttc-backend = ["async", "dep:rumqttc"]
+# Adapter-level integration tests that spin up a mosquitto container via
+# `testcontainers`. Requires Docker on the host. Off by default so the
+# fast `cargo test` path stays hermetic.
+integration-tests = ["rumqttc-backend"]
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+async-trait = "0.1"
+tokio = { workspace = true, optional = true, features = ["rt", "sync", "macros"] }
+futures = { workspace = true, optional = true }
+# `default-features = false` drops `use-rustls`, which transitively pulls
+# rustls 0.23 → rustls-webpki 0.102 (vulnerable per RUSTSEC-2026-0098/-0099
+# /-0104/-0049). The integration tests run against a plain-TCP mosquitto
+# container; production deployments that need TLS can re-enable the
+# `use-rustls` (or `use-native-tls`) feature once rumqttc adopts rustls 0.24+.
+rumqttc = { version = "0.25", optional = true, default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+# Adapter-level integration tests — gated by the `integration-tests`
+# feature so the default `cargo test` run does not require Docker.
+# testcontainers-modules 0.11 does NOT publish a mosquitto module, so we
+# drive a generic `eclipse-mosquitto` image via `testcontainers` directly.
+testcontainers = "0.27"
+
+[lints]
+workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "tflo-fintech"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Financial technical-analysis indicators for the tflo CEP engine"
+license.workspace = true
+repository.workspace = true
+keywords = ["technical-analysis", "indicators", "finance", "streaming"]
+categories = ["finance"]
+
+[dependencies]
+tflo-core = { workspace = true }
+tflo-ops = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+csv = "1"
+thiserror = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

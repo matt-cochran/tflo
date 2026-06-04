@@ -1,0 +1,61 @@
+{
+  "_comment": "Cross-tier parity golden vectors. Consumed by BOTH the native Rust test (tflo-cep/tests/parity_vectors.rs) and the browser test (tflo-react/tests/parity.test.ts). Each case compiles `spec` (a serializable CelPatternSpec), feeds `events`, and the emitted signal is reduced to the last matched event's `ts`. `expected` is the ordered list of those timestamps. If both tiers produce `expected`, they agree byte-for-byte. Single source of truth — do not duplicate.",
+  "cases": [
+    {
+      "name": "abandoned_cart_fires_on_deadline",
+      "spec": {
+        "name": "abandoned_cart",
+        "when": "kind == \"add_to_cart\"",
+        "notThen": "kind == \"purchase\"",
+        "within": 5000
+      },
+      "events": [
+        { "ts": 0, "kind": "add_to_cart", "card": "c1" },
+        { "ts": 1000, "kind": "view", "card": "c1" },
+        { "ts": 6500, "kind": "view", "card": "c1" }
+      ],
+      "expected": [0]
+    },
+    {
+      "name": "abandoned_cart_suppressed_by_purchase",
+      "spec": {
+        "name": "abandoned_cart",
+        "when": "kind == \"add_to_cart\"",
+        "notThen": "kind == \"purchase\"",
+        "within": 5000
+      },
+      "events": [
+        { "ts": 0, "kind": "add_to_cart", "card": "c1" },
+        { "ts": 2000, "kind": "purchase", "card": "c1" }
+      ],
+      "expected": []
+    },
+    {
+      "name": "card_testing_cross_step_correlation",
+      "spec": {
+        "name": "same_card_retry",
+        "when": "kind == \"auth_attempt\"",
+        "then": ["kind == \"auth_attempt\" && card == first_card"],
+        "within": 60000
+      },
+      "events": [
+        { "ts": 0, "kind": "auth_attempt", "card": "VISA-1", "amount": 1 },
+        { "ts": 1000, "kind": "auth_attempt", "card": "OTHER", "amount": 1 },
+        { "ts": 2000, "kind": "auth_attempt", "card": "VISA-1", "amount": 1 }
+      ],
+      "expected": [2000]
+    },
+    {
+      "name": "numeric_predicate_when_only",
+      "spec": {
+        "name": "small_charge",
+        "when": "kind == \"auth_attempt\" && amount < 200"
+      },
+      "events": [
+        { "ts": 0, "kind": "auth_attempt", "card": "c1", "amount": 50 },
+        { "ts": 1, "kind": "auth_attempt", "card": "c2", "amount": 999 }
+      ],
+      "expected": [0]
+    }
+  ]
+}

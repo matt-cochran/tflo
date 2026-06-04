@@ -1,0 +1,28 @@
+# ── Build artifacts ────────────────────────────────────────────────────
+/target/
+/tflo-wasm/pkg/
+
+# ── IDE / editor ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
+
+# ── Python (fixture generators in tflo-fintech/tests/golden/scripts/) ─
+__pycache__/
+*.pyc
+
+# ── Local agent/tool scratch (machine-local, not part of the project) ──
+/.frontrails/
+/.structureos/
+.mcp.json
+
+# ── Misc ───────────────────────────────────────────────────────────────
+*.log
+*.bak

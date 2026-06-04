@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  # rust-cache@v2 auto-enables sccache when it finds it (or restores a
+  # config from cache that requested it). The runners don't ship sccache,
+  # so the wrapper invocation fails with `No such file or directory`.
+  # Explicitly clear the wrapper so cargo runs rustc directly.
+  RUSTC_WRAPPER: ""
+  SCCACHE_GHA_ENABLED: "false"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # rdkafka-sys (via tflo-connect-kafka) bundles librdkafka and unconditionally
+      # includes curl/curl.h in rdkafka_conf.c even when WITH_CURL=0 is set, so
+      # libcurl headers must be installed even though we don't use libcurl features.
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
+      # `tflo-wasm` only builds for the wasm32 target; it is exercised by the
+      # dedicated `publish-wasm.yml` workflow, so host jobs exclude it.
+      - run: cargo fmt --all --check
+      - run: cargo check --workspace --exclude tflo-wasm --all-features
+      - run: cargo clippy --workspace --exclude tflo-wasm --all-features --all-targets -- -D warnings
+      - run: cargo test --workspace --exclude tflo-wasm --all-features
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
+      - run: cargo llvm-cov --workspace --exclude tflo-wasm --all-features --lcov --output-path lcov.info
+      - uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # v1 ships krates 0.16.x which panics on rustls 0.21 (`aws-lc-rs`
+      # feature resolution); v2 ships a newer krates that handles it.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  # Per-PR WASM gate. tflo's value proposition includes the WASM
+  # deployment shape; if tflo-core or tflo-ops stops compiling for
+  # wasm32-unknown-unknown, the closure-plan fence (see
+  # docs/non-goals.md and docs/deployment-shapes.md) is broken.
+  # Releases of tflo-wasm itself are handled by publish-wasm.yml.
+  wasm32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --target wasm32-unknown-unknown -p tflo-core -p tflo-ops
+
+  # Default-features (i.e. no `async` / no `tracing`) build gate.
+  # Catches accidental promotion of an optional feature to a hard
+  # dependency. As Phase 3 lands the `tracing` feature, this gate
+  # is what keeps it opt-in.
+  no-default-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --no-default-features -p tflo-core
+      - run: cargo check --no-default-features -p tflo-core -p tflo-ops
+
+  # Documentation must build clean. Stale doc links or missing
+  # cross-references in `semantics.rs`, README, and crate-level docs
+  # become CI errors rather than slowly rotting. Workspace rustdoc
+  # warnings were cleaned up in the Phase 0 closure pass.
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
+      - run: cargo doc --workspace --exclude tflo-wasm --no-deps --all-features

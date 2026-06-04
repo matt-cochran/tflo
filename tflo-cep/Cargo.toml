@@ -1,0 +1,31 @@
+[package]
+name = "tflo-cep"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Closure-based event-pattern matching for the tflo temporal event processing engine"
+license.workspace = true
+repository.workspace = true
+keywords = ["streaming", "cep", "pattern-matching", "events", "temporal"]
+categories = ["data-structures", "algorithms"]
+
+[features]
+default = []
+# CEL-string predicates in the native Pattern builder (`when_cel`/`then_cel`/
+# `not_then_cel`). These compile to the same `cel-interpreter` programs the
+# browser (`tflo-cep-wasm --features cel`) and `tflo-cel` evaluate — the basis
+# for cross-tier predicate parity. default-features off drops chrono+regex.
+cel = ["dep:cel-interpreter", "dep:serde_json", "serde/derive"]
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true }
+cel-interpreter = { version = "0.10", default-features = false, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

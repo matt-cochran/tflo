@@ -1,0 +1,23 @@
+{
+  "name": "tflo-wasm",
+  "version": "0.1.0",
+  "description": "Streaming technical analysis in the browser — SMA, RSI, Bollinger Bands, cross detection, and CEL rules via WebAssembly",
+  "keywords": [
+    "wasm", "webassembly", "technical-analysis", "trading", "indicators",
+    "sma", "rsi", "bollinger", "streaming", "tflo"
+  ],
+  "homepage": "https://tflo.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matt-cochran/tflo"
+  },
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "tflo_wasm.js",
+  "types": "tflo_wasm.d.ts",
+  "files": [
+    "tflo_wasm_bg.wasm",
+    "tflo_wasm.js",
+    "tflo_wasm.d.ts"
+  ]
+}
