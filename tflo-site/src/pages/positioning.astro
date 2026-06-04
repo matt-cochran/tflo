@@ -1,0 +1,420 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+
+const abandonedFlowSnippet = `// Abandoned flow — A started, not completed within 5 s of event-time.
+// React / Signals / RxJS / XState reach the same output only by
+// hand-writing the event-time logic themselves.
+Pattern::new("abandoned_flow")
+  .when(|e| e.kind == "flow_started")
+  .not_then(|e| e.kind == "flow_completed")
+  .within(Duration::from_millis(5_000))`;
+
+const temporalJoinSnippet = `// Temporal join — payment lands in the engine;
+// if an order with the same key arrived in the last 3 s (event-time), emit.
+// RxJS can zip two streams, but event-time key-alignment is hand-rolled.
+window_join_keyed(
+  payment_stream,
+  order_stream,
+  |p, o| p.order_id == o.id,
+  Duration::from_secs(3),
+)`;
+
+const oooWindowSnippet = `// Out-of-order windows — late event still lands in its correct bucket.
+// XState tracks "which state am I in," not "which event-time bucket owns this."
+tumbling_window(
+  stream,
+  Duration::from_secs(60),
+  AllowedLateness::from_millis(2_000), // late events re-open the correct bucket
+)`;
+
+const batchAndLiveSnippet = `// Live (Tokio stream)
+let signals: impl Stream<Item = Signal<_, _>> = live_stream.tflo(|t| { /* ... */ });
+
+// Backfill (Vec) — same closure, same detectors, deterministic output
+let signals: Vec<Signal<_, _>> = historical_events.into_iter()
+    .tflo(|t| { /* ... */ })
+    .collect();`;
+
+const edgeToCenterAscii = `<span class="text-text-muted">[sensor gateways]    [browser dashboards]    [embedded services]</span>
+       │                     │                       │
+       └── <span class="text-accent">tflo signal emission (typed Signal events)</span> ──┐
+                                                        │
+                                            <span class="text-primary">[Kafka / NATS / MQTT]</span>
+                                                        │
+                                                 <span class="text-primary">[Flink / Esper /
+                                                  Kafka Streams]</span>
+                                                        │
+                                                 [warehouse, alerts,
+                                                  user-facing apps]`;
+
+const insideHostAscii = `                    <span class="text-primary">[Flink job]</span>
+                        │
+                ┌───────┴────────┐
+                │  KeyedProcess  │
+                │  Function      │  ← Flink owns watermarks,
+                │                │     exactly-once, scaling
+                │   <span class="text-accent">┌────────┐</span>   │
+                │   <span class="text-accent">│ tflo   │</span>   │  ← tflo owns signal logic,
+                │   <span class="text-accent">│ graph  │</span>   │     typed Absent, detector
+                │   <span class="text-accent">└────────┘</span>   │     composition
+                └────────────────┘`;
+---
+
+<BaseLayout title="Positioning" description="Where tflo fits next to Flink, Esper, and Kafka Streams — plus a React WASM binding example.">
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
+    <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-4 leading-tight">
+      Where <span class="gradient-text">tflo</span> fits
+    </h1>
+    <p class="text-lg text-text-muted mb-6 leading-relaxed">
+      tflo is an <strong class="text-white">embeddable temporal event-processing engine</strong>.
+      It runs alone where JVM CEP engines can't reach, and it composes with the engines you
+      already operate where they do. The framing is win-win composition, not substitution.
+    </p>
+
+    <!-- Example-application callout -->
+    <div class="card border border-primary/30 bg-primary/5 px-6 py-5 mb-10 rounded-xl">
+      <p class="text-text-muted leading-relaxed">
+        <strong class="text-white">This page also serves as an example application</strong> of the
+        tflo engine via its <strong class="text-white">WASM binding</strong> — specifically the
+        React integration built on top of it. That integration is
+        <em>an example application, not the product</em>; the product is the engine.
+        See the <a href="/docs/bindings" class="text-primary hover:underline">bindings docs</a> for
+        the full WASM / JS surface, and the
+        <a href="/docs/examples" class="text-primary hover:underline">examples index</a> for all
+        available example applications (including the framework-agnostic
+        <a href="/docs/browser-analytics" class="text-primary hover:underline">browser-events</a> example).
+      </p>
+    </div>
+
+    <!-- React spotlight framing -->
+    <div class="space-y-6 mb-12">
+      <div class="card border border-accent/20 px-6 py-5 rounded-xl">
+        <h2 class="text-xl font-bold text-white mb-2">Declare it, don't manage it.</h2>
+        <p class="text-text-muted leading-relaxed">
+          No <code>useEffect</code>, no <code>useRef</code>, no timers to wire up and
+          remember to clear. You write a pattern — <em>when A, followed by B, unless C
+          within T</em> — and the engine owns the rest. Your React component stays a pure
+          function of what the engine tells it.
+        </p>
+      </div>
+      <div class="card border border-accent/20 px-6 py-5 rounded-xl">
+        <h2 class="text-xl font-bold text-white mb-2">Stateless components, stateful (replayable) engine.</h2>
+        <p class="text-text-muted leading-relaxed">
+          Your components hold no temporal state — not "did A arrive before B within 5 s?"
+          The engine owns that, in an explicit, typed projection. And because the engine is
+          deterministic and event-driven, that state is always just a replay away: pipe the
+          same event sequence through and you get exactly the same signals back.
+        </p>
+      </div>
+    </div>
+
+    <!-- Proven scenarios (real runnable demos in tflo-react/validation/) -->
+    <h2 class="text-3xl font-bold text-white mt-16 mb-6">Eleven proven scenarios — real, runnable, green</h2>
+    <p class="text-text-muted mb-8 leading-relaxed">
+      Each scenario below is a live demo in
+      <code>tflo-react/validation/scenario-*</code>.
+      React, Signals, RxJS, and XState can each reach the same <em>output</em>; the
+      difference is that they get there only by hand-writing the event-time logic
+      themselves. tflo expresses it once, declaratively.
+      All eleven are self-asserting — every variant (tflo, React, Signals, RxJS, XState) passes the same expectations.
+    </p>
+
+    <div class="space-y-10 mb-14">
+      <!-- Scenario 1 -->
+      <div class="card px-6 py-5 rounded-xl">
+        <h3 class="text-lg font-bold text-white mb-1">Abandoned flow</h3>
+        <p class="text-text-muted mb-3 text-sm">
+          Requirement: A started, not completed within 5 s of <em>event-time</em>.
+        </p>
+        <CodeBlock code={abandonedFlowSnippet} lang="rust" />
+      </div>
+
+      <!-- Scenario 2 -->
+      <div class="card px-6 py-5 rounded-xl">
+        <h3 class="text-lg font-bold text-white mb-1">Temporal join</h3>
+        <p class="text-text-muted mb-3 text-sm">
+          Requirement: join payment to order within a 3 s event-time window.
+        </p>
+        <CodeBlock code={temporalJoinSnippet} lang="rust" />
+      </div>
+
+      <!-- Scenario 3 -->
+      <div class="card px-6 py-5 rounded-xl">
+        <h3 class="text-lg font-bold text-white mb-1">Out-of-order windows</h3>
+        <p class="text-text-muted mb-3 text-sm">
+          Requirement: a late event still lands in its correct event-time window.
+        </p>
+        <CodeBlock code={oooWindowSnippet} lang="rust" />
+      </div>
+    </div>
+
+    <!-- Scenarios 4–11 compact table -->
+    <h3 class="text-xl font-bold text-white mt-10 mb-4">Scenarios 4–11 — new, all green</h3>
+    <p class="text-text-muted mb-5 leading-relaxed text-sm">
+      Eight additional demos validate more advanced tflo shapes. Each lives in
+      <code>tflo-react/validation/scenario-{'{4..11}'}-*</code> with all four framework
+      variants plus the tflo reference. One-liner requirement and the tflo shape used:
+    </p>
+    <div class="overflow-x-auto rounded-xl border border-border mb-14">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Scenario</th>
+            <th class="text-left p-4 font-semibold text-white">Requirement (one-liner)</th>
+            <th class="text-left p-4 font-semibold text-white">tflo shape</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">4 — Rage click</td>
+            <td class="p-4">≥5 clicks within 2 s (repeat-window)</td>
+            <td class="p-4 font-mono text-xs">.when().then().times().within()</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">5 — Card-testing</td>
+            <td class="p-4">2 payment fails with no success between (interior negation)</td>
+            <td class="p-4 font-mono text-xs">.when().notBetween().then().within()</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">6 — Hesitation</td>
+            <td class="p-4">≥3 field edits within 5 s of focus (repeat-window)</td>
+            <td class="p-4 font-mono text-xs">.when().then().times().within()</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">7 — Beaconed analytics</td>
+            <td class="p-4">Out-of-order tumbling window over batched beacons</td>
+            <td class="p-4 font-mono text-xs">tumbling_window + AllowedLateness</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">8 — Multi-device</td>
+            <td class="p-4">Keyed event-time join across devices</td>
+            <td class="p-4 font-mono text-xs">window_join_keyed</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">9 — Undo grace</td>
+            <td class="p-4">Action committed unless undo arrives within 10 s (negation window)</td>
+            <td class="p-4 font-mono text-xs">.when().notThen().within()</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">10 — Progressive disclosure</td>
+            <td class="p-4">Repeated fails with no success between (interior negation)</td>
+            <td class="p-4 font-mono text-xs">.when().notBetween().then().within()</td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium whitespace-nowrap">11 — SLA / friction</td>
+            <td class="p-4">No next step within 8 s of trigger (negation window)</td>
+            <td class="p-4 font-mono text-xs">.when().notThen().within()</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Ergonomics boundary -->
+    <h2 class="text-3xl font-bold text-white mt-16 mb-6">Tool boundaries — alternatives, not a ranking</h2>
+    <p class="text-text-muted mb-6 leading-relaxed">
+      Each tool has a native vocabulary. Using the right one means your code reads like the
+      problem, not like a workaround:
+    </p>
+    <div class="overflow-x-auto rounded-xl border border-border mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Tool</th>
+            <th class="text-left p-4 font-semibold text-white">Native vocabulary</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border">
+            <td class="p-4 font-mono text-white">tflo</td>
+            <td class="p-4"><em>"when X, followed by Y, unless Z within T"</em> — event-time pattern detection across an ordered sequence of events.</td>
+          </tr>
+          <tr class="border-b border-border">
+            <td class="p-4 font-mono text-white">RxJS</td>
+            <td class="p-4"><em>"transform / combine / cancel async streams"</em> — reactive operators over observables.</td>
+          </tr>
+          <tr class="border-b border-border">
+            <td class="p-4 font-mono text-white">XState</td>
+            <td class="p-4"><em>"the UI is in one of these states; events transition between them"</em> — finite-state machines and statecharts.</td>
+          </tr>
+          <tr>
+            <td class="p-4 font-mono text-white">React state / Signals</td>
+            <td class="p-4"><em>"render the current value"</em> — reactive rendering from a snapshot of application state.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-text-muted mb-12 leading-relaxed">
+      These are <strong class="text-white">alternatives and composable layers</strong>, not a
+      head-to-head ranking. RxJS and XState are excellent at what they do; tflo fills the
+      specific gap of declarative event-time temporal logic that none of them model natively.
+      You can use tflo inside an RxJS pipeline or feed its signals into an XState machine.
+    </p>
+
+    <!-- Standalone -->
+    <h2 class="text-3xl font-bold text-white mt-16 mb-6">What tflo is good at, standalone</h2>
+    <p class="text-text-muted mb-6 leading-relaxed">
+      tflo's primary story is the one no JVM CEP engine can tell. If your need matches one of
+      these, tflo runs alone:
+    </p>
+    <ul class="space-y-4 text-text-muted leading-relaxed">
+      <li>
+        <strong class="text-white">Edge gateways under 1 GB RAM.</strong> A 5&ndash;10 MB Rust
+        binary in tens of MB of resident memory. ARM, x86_64, musl, glibc &mdash; all
+        first-class. No JVM warmup, no GC pauses.
+      </li>
+      <li>
+        <strong class="text-white">Browser / WASM.</strong> <code>tflo-core</code> and
+        <code>tflo-ops</code> compile clean for <code>wasm32-unknown-unknown</code>. Run
+        signal detection live inside a dashboard, an extension, or a service worker.
+      </li>
+      <li>
+        <strong class="text-white">Embedded in a Rust service.</strong> If your service is
+        already tonic, axum, or actix, tflo composes via <code>Iterator::tflo(...)</code>
+        inside the process you have. No sidecar, no IPC, no separate cluster.
+      </li>
+      <li>
+        <strong class="text-white">Same code for batch and streaming.</strong>
+        <code>Iterator::tflo(...)</code> runs identically on <code>Vec&lt;Event&gt;</code>
+        for historical backfill and on <code>Stream&lt;Event&gt;</code> for live. The
+        detectors don't know or care which it is.
+      </li>
+      <li>
+        <strong class="text-white">Typed missing values.</strong> tflo replaces
+        <code>NaN</code>-as-sentinel with <code>Computed = Result&lt;f64, Absent&gt;</code>
+        &mdash; explicit reasons like <code>WarmingUp</code>, <code>DivideByZero</code>,
+        <code>FilteredOut</code>, <code>DomainError</code>. Downstream code branches on the
+        <em>reason</em>, not on a single poisoned float.
+      </li>
+      <li>
+        <strong class="text-white">Typed signals.</strong> Detectors emit
+        <code>Signal&lt;Mode, Payload&gt;</code>, cleanly factored: the <em>mode</em> says
+        what happened (<code>Rising</code>, <code>Entered</code>, <code>Runt</code>,
+        <code>TooLong</code>), the <em>payload</em> carries the data.
+      </li>
+      <li>
+        <strong class="text-white">No deployment infrastructure.</strong> For single-process
+        and Kafka-sharded shapes, you operate nothing beyond your existing service. No
+        JobManager, no checkpoint cluster, no separate state backend.
+      </li>
+    </ul>
+
+    <!-- Composition -->
+    <h2 class="text-3xl font-bold text-white mt-20 mb-6">
+      How tflo composes with Flink, Esper, and Kafka Streams
+    </h2>
+    <p class="text-text-muted mb-10 leading-relaxed">
+      Where users already operate a mature CEP or streaming engine, tflo fills the layers
+      the host can't reach. Three concrete patterns:
+    </p>
+
+    <!-- Pattern 1 -->
+    <h3 class="text-2xl font-bold text-white mt-12 mb-3">
+      1. tflo at the edge, mature engine in the center
+    </h3>
+    <p class="text-text-muted mb-4 leading-relaxed">
+      A common shape: tflo runs on sensor gateways and in browsers, emitting typed
+      <code>Signal</code> events with already-conditioned data. Those signals flow into
+      Flink, Esper, or Kafka Streams for cross-source aggregation, enrichment, and storage.
+    </p>
+    <div class="card mb-4 overflow-x-auto">
+      <pre class="text-xs sm:text-sm leading-relaxed font-mono whitespace-pre" set:html={edgeToCenterAscii} />
+    </div>
+    <p class="text-text-muted mb-4 leading-relaxed">
+      What tflo contributes that the host engine cannot: typed <code>Absent</code>, typed
+      <code>Signal</code>, deployment in shapes the host can't reach (browsers, ARM
+      gateways, embedded services).
+    </p>
+
+    <!-- Pattern 2 -->
+    <h3 class="text-2xl font-bold text-white mt-12 mb-3">
+      2. tflo as the per-key detector inside a host engine
+    </h3>
+    <p class="text-text-muted mb-4 leading-relaxed">
+      The host engine owns watermarks, exactly-once, scaling, savepoints. tflo runs
+      <em>inside</em> a per-key processing slot (Flink <code>KeyedProcessFunction</code>,
+      Beam <code>DoFn</code>, Kafka Streams <code>Processor</code>) and provides the signal
+      logic plus typed-absence semantics that the host doesn't model natively.
+    </p>
+    <div class="card mb-4 overflow-x-auto">
+      <pre class="text-xs sm:text-sm leading-relaxed font-mono whitespace-pre" set:html={insideHostAscii} />
+    </div>
+    <p class="text-text-muted mb-4 leading-relaxed">
+      The integration crates (<code>tflo-flink</code>, <code>tflo-beam</code>,
+      <code>tflo-kstreams</code>) are designed and deferred until concrete user demand
+      surfaces &mdash; see <a href="/docs/interop-backlog" class="text-primary hover:underline">interop backlog</a>.
+    </p>
+
+    <!-- Pattern 3 -->
+    <h3 class="text-2xl font-bold text-white mt-12 mb-3">
+      3. tflo as backfill / replay over historical data
+    </h3>
+    <p class="text-text-muted mb-4 leading-relaxed">
+      The same detectors that run in production also run against archived events.
+      <code>Iterator::tflo(...)</code> works identically on <code>Vec&lt;Event&gt;</code> and
+      <code>Stream&lt;Event&gt;</code>, so a regression test, a what-if simulation, or a
+      historical re-emit uses the same code as live.
+    </p>
+    <CodeBlock code={batchAndLiveSnippet} lang="rust" />
+
+    <!-- Picking -->
+    <h2 class="text-3xl font-bold text-white mt-20 mb-6">Picking tflo</h2>
+
+    <h3 class="text-xl font-bold text-white mt-8 mb-3">tflo is the right tool when</h3>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted leading-relaxed">
+      <li>Your deployment shape includes browsers, edge gateways, or embedded Rust services where a JVM is not an option.</li>
+      <li>You want detector composition and signal emission in-process, not behind a network call.</li>
+      <li>You need typed-<code>Absent</code> correctness for the difference between "warming up" and "math domain error" &mdash; distinct cases that <code>NaN</code> cannot represent.</li>
+      <li>You want batch and streaming with literally the same code.</li>
+      <li>Your throughput doesn't justify the operational cost of a Flink / Beam / Esper cluster.</li>
+    </ul>
+
+    <h3 class="text-xl font-bold text-white mt-10 mb-3">It probably isn't the right standalone tool when</h3>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted leading-relaxed">
+      <li>You need streaming SQL for analyst self-service.</li>
+      <li>Your problem requires cross-region distributed semantics or multi-shard event-time joins. Host tflo inside Flink or Beam instead.</li>
+      <li>You need a mature catalog of pre-built connectors (Debezium CDC, dozens of cloud sources). tflo provides Kafka, MQTT, Arrow / Parquet today; rich connector catalogs live in the host engines.</li>
+      <li>Your team is Java-shop and standardizing on JVM tooling is more valuable than the deployment-shape benefits.</li>
+    </ul>
+
+    <p class="text-text-muted mt-8 leading-relaxed">
+      In both cases, the composition patterns above usually apply: tflo can still emit
+      typed signals into your existing stack, or run inside it.
+    </p>
+
+    <!-- Non-goals + Interop backlog -->
+    <h2 class="text-3xl font-bold text-white mt-20 mb-6">Boundaries</h2>
+    <p class="text-text-muted mb-6 leading-relaxed">
+      tflo deliberately doesn't do everything. The full list, with reasoning, is on the
+      <a href="/docs/non-goals" class="text-primary hover:underline">non-goals</a> page
+      &mdash; short version: streaming SQL, a JobManager, exactly-once via 2PC, a global
+      watermark, savepoints, and processing-time mode are out. Each is a deliberate trade
+      for the embeddable / WASM / edge primary story. Pattern composition itself isn't a
+      non-goal &mdash; the closure DSL, custom nodes, timers, and CEL / Rhai / Rego let
+      you compose multi-event patterns from primitives today.
+    </p>
+    <p class="text-text-muted mb-12 leading-relaxed">
+      Designed-but-deferred integrations live in the
+      <a href="/docs/interop-backlog" class="text-primary hover:underline">interop backlog</a>:
+      <code>tflo-flink</code>, <code>tflo-beam</code>, and <code>tflo-kstreams</code> for
+      hosting tflo inside a JVM streaming runtime. Promoted on concrete user demand.
+    </p>
+
+    <!-- CTA -->
+    <div class="mt-12 card text-center py-12 relative overflow-hidden">
+      <div class="absolute inset-0 bg-linear-to-br from-primary/5 to-accent/5" />
+      <div class="relative">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Try it where the JVM can't reach</h2>
+        <p class="mt-4 text-base text-text-muted max-w-lg mx-auto">
+          Quick Start runs on iterators and streams in five lines. The reference deployment
+          glues MQTT, Kafka, Influx, and Parquet together.
+        </p>
+        <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a href="/docs/quick-start" class="btn-primary text-base px-8 py-3">Quick Start</a>
+          <a href="/docs/reference-deployment" class="btn-secondary text-base px-8 py-3">Reference deployment</a>
+          <a href="/docs/architecture" class="btn-secondary text-base px-8 py-3">Architecture</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

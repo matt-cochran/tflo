@@ -1,0 +1,79 @@
+---
+title: Welcome to the tflo blog
+description: Why this blog exists, what you'll find here, and how tflo approaches temporal event processing differently.
+pubDate: 2025-03-10
+tags: ["announcement", "tflo", "temporal event processing"]
+---
+
+A sensor fires a thousand noisy detections a second. Somewhere in that flood, a real *thing* appeared, persisted for a while, drifted, and then dropped out. Your code needs to know about the *thing* — not the thousand floats.
+
+That gap is why I built tflo.
+
+tflo ("temporal flow") is a temporal event processing engine for domain-driven applications, available as a Rust crate that also compiles to WebAssembly for the browser and Node — the *same* engine, surfaced to JS/TS via `@tflo/react`, not a reimplemented port. You model your domain events, then layer streaming temporal analysis on top. Noisy domain events go in; clean lifecycle events come out — *appeared*, *persisted*, *changed*, *dropped-out*, *crossed-threshold*. RF spectrum monitoring, intrusion detection, observability alerting, fraud detection, IoT telemetry — they all share that shape.
+
+This blog is for engineers who work with streaming event data and need to compute over it on the fly. No batching. No "dump everything into a Vec and run your analysis after." Real-time, sample by sample.
+
+It's pre-1.0 and experimental — the API still moves. Here's what you'll find here.
+
+## What this blog covers
+
+Every post revolves around the system itself — how the computation graph works, how operators are implemented, how signals get detected, and the design decisions behind each piece. The content falls into a few natural categories:
+
+1. **Architecture deep dives** — How the graph orders execution, how data flows between nodes, why we made certain trade-offs. If it happens inside tflo's core, it's fair game.
+
+2. **Operator implementations** — SMA, EMA, RSI, streaming variance, and the rest. The math, the edge cases, the benchmarking. What works, what doesn't, and why.
+
+3. **Signal detection patterns** — Crossings, threshold alerts, glitch and pulse-width filtering. The logic that turns a noisy detection stream into clean lifecycle events.
+
+4. **Extension mechanisms** — CEL for simple rules, Rego for policy, Rhai for scripting. When to use each one, and more importantly, when not to.
+
+5. **Real-world usage** — Wiring tflo into Kafka, writing custom nodes, running it in a real system. The stuff that only shows up when you actually deploy this.
+
+That's the scope. No marketing fluff. No thought leadership. Just how the system works and why it works that way.
+
+## How tflo is different
+
+Most analysis libraries work like this: you dump your data into a `Vec<f64>`, call a function, get a result. Fine for an offline batch. Useless for a live stream.
+
+tflo is a computation graph. You declare the data flow — *a domain field flows into SMA, SMA flows alongside the raw value* — and the graph handles the rest. One sample at a time. The same graph works against recorded data *and* a live Kafka topic. Zero code changes. Every operator is a node you chain together inside a [`.tflo()` closure](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/iter_ext.rs).
+
+```rust
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+#[derive(Clone)]
+struct Detection { ts: i64, snr: f64 }
+
+let detections = vec![
+    Detection { ts: 1000, snr: 100.0 },
+    Detection { ts: 2000, snr: 101.0 },
+    Detection { ts: 3000, snr: 102.0 },
+];
+
+// A value tracked alongside its own SMA — the building block of a "rising" signal
+let results: Vec<(f64, f64)> = detections.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let snr = t.prop(|x| x.snr);
+        let sma = snr.sma(3usize);
+        (snr, sma)  // streaming SMA alongside the raw value
+    })
+    .collect();
+// results[2] == (102.0, 101.0)
+```
+
+That's the real `tflo` API — the [`.tflo()` iterator adapter](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/iter_ext.rs) compiles a streaming computation graph from a closure. Each output is one sample at a time. Finance is just one domain among many: the technical-analysis indicators live in a separate plugin crate, `tflo-fintech`.
+
+## What you won't find here
+
+No AI-generated content. No recycled takes on industry trends. This blog is about a specific temporal event processing engine — its design, its internals, and how to use it effectively. The engine ships as a Rust crate and compiles to WebAssembly for JS/TS runtimes (the same engine, surfaced via `@tflo/react`) — there is no separate reimplementation.
+
+If you want generic tech commentary, there's a million other blogs for that.
+
+## One request
+
+If there's a topic you want covered, open an issue on [GitHub](https://github.com/matt-cochran/tflo). If you're stuck on something — an indicator behavior you don't understand, a performance question, a design pattern — tell me. I'll dig into it and write it up.
+
+Now let's build something.
+
+*— Matt*

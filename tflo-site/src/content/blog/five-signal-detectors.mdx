@@ -1,0 +1,218 @@
+---
+title: "Five signal detectors — pulse processing in tflo"
+description: "Crossovers, glitch filters, runt detectors, pulse width validators, and window detectors. How each one works, when to use it, and why you need more than a crossover."
+pubDate: 2025-04-01
+tags: ["signals", "deep-dive", "detectors"]
+---
+
+import DemoChart from '../../components/DemoChart.tsx';
+
+A crossover detector fires when a signal crosses its moving average. But what if the spike was a transient that lasted 2 milliseconds? You need more than a crossover.
+
+Real-world event streams are messy. Sensor noise, network jitter, RF interference, transient spikes — they all look like valid events to a naive threshold checker. tflo gives you five detectors, each designed for a different kind of noise rejection. Turning a noisy domain stream into clean lifecycle events is exactly what a temporal event processing engine is for. Here's when to use each one.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="cross"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## CrossDetector — the baseline
+
+The simplest of the bunch. It remembers the previous value and previous threshold, and fires when the relationship changes.
+
+```rust
+use tflo_ops::primitives::CrossDetector;
+
+let mut det = CrossDetector::new();
+
+// First call initializes — no event yet
+det.update(100.0, 90.0); // None
+
+// Value is still above 90.0 — no cross yet
+det.update(95.0, 90.0);  // None
+
+// Value crosses below threshold
+det.update(85.0, 90.0);  // Falling
+```
+
+It has two convenience methods — `update_above` and `update_below` — that eat the opposite event. Use them when you only care about one direction. And `reset()` wipes both `prev_value` and `prev_threshold` so the next sample starts fresh.
+
+## HysteresisCrossDetector — stop the chatter
+
+The problem with a plain crossover: if price sits right on the threshold, you get a Rising event one tick and Falling the next. Back and forth, back and forth.
+
+Hysteresis fixes this. You pass a margin, and the detector needs to cross *above* `threshold + hysteresis` to go Rising, or *below* `threshold - hysteresis` to go Falling. Inside the band, it returns `None`.
+
+```rust
+use tflo_ops::primitives::HysteresisCrossDetector;
+
+let mut det = HysteresisCrossDetector::new(2.0);
+
+det.update(100.0, 90.0);  // None — initializing, state goes to Above
+det.update(89.0, 90.0);   // None — still above threshold - hysteresis (88.0)
+det.update(87.0, 90.0);   // Falling — crossed below 90 - 2 = 88.0
+```
+
+The three internal states are `Unknown`, `Above`, and `Below`. You can query them with `is_above()` and `is_below()`.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="hysteresis"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## GlitchFilter — kill the transient
+
+A spike in a sensor reading that lasts 5 milliseconds. A flash crash that reverses in a millisecond. These are glitches — pulses that cross your threshold but don't last long enough to be meaningful.
+
+The `GlitchFilter` takes a `threshold` and a `min_duration_ms`. It tracks the rising edge. When the signal falls back, it checks how long the pulse lasted. Short pulse? Rejected.
+
+```rust
+use tflo_ops::primitives::GlitchFilter;
+
+let mut filter = GlitchFilter::new(100.0, 50); // threshold, min_duration_ms
+
+filter.update(150.0, 1000);  // None — rising edge detected
+filter.update(50.0, 1020);   // Some(false) — only 20ms, less than 50ms (glitch)
+
+filter.update(150.0, 2000);  // None — rising edge
+filter.update(50.0, 2100);   // Some(true) — 100ms, passes (valid pulse)
+```
+
+The return type is `Option<bool>`: `None` means no transition (no pulse completed), `Some(false)` means a glitch (pulse was too short), `Some(true)` means a valid pulse. Chain `.to_threshold_cross()` to convert valid pulses to `ThresholdCrossEventMode` if you need to merge it into a unified signal flow.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="glitch"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## RuntDetector — pulses that never reach full amplitude
+
+A runt pulse crosses your low threshold but never reaches the high threshold. Think of a voltage signal that starts to rise, stalls halfway, and falls back. It looks like a pulse starting, but it never becomes a real pulse.
+
+```rust
+use tflo_ops::primitives::RuntDetector;
+
+let mut det = RuntDetector::new(50.0, 100.0); // low, high
+
+det.update(30.0);   // None — below low threshold
+det.update(70.0);   // None — in transition between low and high
+det.update(40.0);   // Some(RuntResult::Runt { peak: 70.0 }) — fell back without reaching high
+```
+
+States are `BelowLow`, `InTransition`, `AboveHigh`. The detector returns `Some(RuntResult::Runt { peak })` if the pulse never crossed the high threshold, and `Some(RuntResult::ValidPulse { peak })` if it did.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="runt"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## PulseWidthDetector — too short, too long, just right
+
+Some pulses are valid only if they last within a specific window. Debounced buttons. Communication protocols. Heartbeats. This detector measures pulse width and classifies it.
+
+```rust
+use tflo_ops::primitives::PulseWidthDetector;
+
+let mut det = PulseWidthDetector::new(100.0, 50, 200); // threshold, min, max
+
+det.update(150.0, 1000);   // None — rising edge
+det.update(50.0, 1020);    // Some(PulseWidthResult::TooShort { width_ms: 20 })
+
+det.update(150.0, 2000);   // None — rising edge
+det.update(50.0, 2200);    // Some(PulseWidthResult::Valid { width_ms: 200 })
+
+det.update(150.0, 3000);   // None — rising edge
+det.update(50.0, 3500);    // Some(PulseWidthResult::TooLong { width_ms: 500 })
+```
+
+Three results: `TooShort`, `Valid`, `TooLong`. Each carries the `width_ms` so you know exactly how long the pulse was.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="pulse-width"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## WindowDetector — amplitude zones
+
+Sometimes you don't care about crossing a single threshold. You care about entering or exiting a range. The `WindowDetector` tracks whether a signal is inside `[low, high]` and fires events on transitions.
+
+```rust
+use tflo_ops::primitives::WindowDetector;
+
+let mut det = WindowDetector::new(50.0, 100.0); // low, high
+
+det.update(30.0);   // None — first sample, initializes
+det.update(75.0);   // Some(WindowEvent::EnteredWindow) — crossed into the zone
+det.update(40.0);   // Some(WindowEvent::ExitedLow) — dropped out the bottom
+det.update(110.0);  // Some(WindowEvent::ExitedHigh) — jumped out the top
+```
+
+Note: only transitions that involve being inside the window generate events. If the signal starts and stays below the window, successive updates below the window return `None`. Similarly, if the signal starts above the window and stays above it, only the eventual entry into the window generates an event.
+
+States track `Unknown`, `BelowWindow`, `InsideWindow`, `AboveWindow`. Events are `EnteredWindow`, `ExitedLow`, `ExitedHigh` — so you know which direction the signal left.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="window"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## Wiring them into a graph
+
+These detectors work standalone or embedded in custom nodes. Compose them by chaining the result of one into the input of another.
+
+```rust
+use tflo_ops::primitives::{GlitchFilter, PulseWidthDetector};
+
+let mut filter = GlitchFilter::new(100.0, 50);
+let mut width = PulseWidthDetector::new(100.0, 50, 500);
+
+// Feed the glitch filter first, then the pulse width detector
+// This way, only valid pulses get measured for width
+for sample in samples {
+    if filter.update(sample.value, sample.ts) == Some(true) {
+        // Rising edge is clean — now start width measurement
+        // (In practice you'd pipe signals through the graph)
+    }
+}
+```
+
+All five detectors are `Send + Sync`, so they work inside an `Operator` implementation too. Import them from `tflo_ops::primitives` and wire them into your operator logic. The graph API also exposes cross detection through `Comp<R, f64>` methods — `cross()`, `cross_above()`, `cross_under()`, and `cross_hysteresis()` — and the compiled graph has `to_threshold_cross()`, `to_f64_valid()`, and `only_valid()` helpers for each detector type.
+
+Five detectors. One common pattern. Pick the one that matches your noise profile.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/five-signal-detectors`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/five-signal-detectors)
+
+*— Matt*

@@ -1,0 +1,109 @@
+---
+title: The computation graph — why tflo doesn't treat data like a spreadsheet
+description: Most analysis libraries work on fixed arrays. tflo, a temporal event processing engine, uses a declarative computation graph instead. Here's why that matters when your events never stop flowing.
+pubDate: 2025-03-14
+updatedDate: 2025-03-15
+tags: ["architecture", "deep-dive", "computation-graph"]
+---
+
+You dump your data into a `Vec<f64>`. Call `sma(prices, 20)`. Get a result. Clean and simple.
+
+Now try running that same code against a Kafka stream where a new event arrives every second. Your `Vec` is growing. Your function expects the full array. You start writing glue code — ring buffers, state management, manual windowing. Before you know it, your "simple" analysis is tangled up in infrastructure.
+
+There's a better way. It's called a computation graph.
+
+## Spreadsheets vs. streaming
+
+Here's the mental model most analysis libraries force on you: a spreadsheet. You have columns of data, you write formulas, you drag them down the column. Every cell depends on the cells above it.
+
+Spreadsheets work great when the data is finite. They break when the data never stops.
+
+tflo takes a different approach. Instead of being a collection of functions you call on arrays, it's a **computation graph runtime**. You declare how events flow through your operators, and the runtime handles the streaming — one sample at a time.
+
+## What a computation graph actually is
+
+Think of it like a factory assembly line.
+
+- **Source nodes** are the loading dock — events enter here. A sensor reading, an RF spectrum sample, a log event, a Kafka topic.
+- **Operator nodes** are the machines on the line. They take data in, transform it, pass it downstream. An SMA calculator. An EMA filter. A crossover detector.
+- **Sink nodes** are the packaging bay — results leave the system here. A lifecycle event emitter, a database write, an alert.
+
+Each node processes exactly one timestamp. Then the next. Then the next. The graph guarantees the order — upstream nodes always run before downstream nodes. You don't think about ordering. The graph handles it.
+
+## Let's make it concrete
+
+Here's a simple crossover detector — a fast SMA crosses above a slow SMA, a generic way to spot a regime shift in any noisy signal. The `.tflo()` iterator adapter turns any Rust iterator into a streaming computation graph:
+
+```rust
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+#[derive(Clone)]
+struct Reading {
+    ts: i64,
+    value: f64,
+}
+
+let readings = vec![
+    Reading { ts: 1000, value: 100.0 },
+    Reading { ts: 2000, value: 102.0 },
+    Reading { ts: 3000, value: 101.0 },
+];
+
+let results: Vec<(f64, f64)> = readings.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let value = t.prop(|x| x.value);
+        let fast_sma = value.sma(10usize);
+        let slow_sma = value.sma(30usize);
+        (fast_sma, slow_sma)
+    })
+    .collect();
+```
+
+The factory assembly line metaphor maps directly to this code. `t.prop(|x| x.value)` creates a **source node** — the loading dock where the raw signal enters. `value.sma(10usize)` chains an **operator node** — a machine on the line that transforms the data. The returned tuple `(fast_sma, slow_sma)` acts as the **sink node** — the packaging bay where results leave the graph.
+
+No loops, no state management, no manual ring buffers. The same code works against a `Vec` of historical data *and* a live Kafka stream. The graph doesn't care. It processes one sample at a time either way.
+
+## Why this matters when your data never stops
+
+Streaming changes the constraints. Here's what the graph buys you:
+
+**You process data as it arrives.** No waiting for a batch to fill up. No "well, we'll run our analysis after the market closes." Each sample enters the graph and exits as a signal in microseconds.
+
+**Indicators remember where they left off.** SMA maintains its sliding window. EMA keeps its exponential decay state. RSI tracks its gain/loss accumulators. Between samples, the graph preserves state automatically. You don't serialize and deserialize between ticks.
+
+**You compose without glue.** Want to add a deviation band to your crossover detector? Add two more nodes. The graph wires them in. No refactoring, no adapter functions, no "let me rewrite my entire pipeline."
+
+**You test locally, deploy to Kafka.** Develop against a CSV file. When it works, point the same graph at a Kafka topic. The graph doesn't know the difference. Neither does your detector.
+
+## The catch
+
+Computation graphs aren't magic. They have trade-offs.
+
+- **Graph construction takes thought.** You can't just write `sma(prices, 20)` inline. You have to declare the topology first. For simple scripts, that's overhead.
+- **Debugging is different.** When something goes wrong inside the graph, you can't just throw a `dbg!()` in the middle of a loop. You need graph-aware tooling.
+- **Dynamic reconfiguration is hard.** Adding or removing nodes at runtime — while data is flowing — is an open problem. The current graph is static once built.
+
+I'm honest about these because they matter. If your use case is "run SMA on a CSV file once," you don't need a computation graph. Use `tflo-core` directly — `CountWindow::new(20)` processes samples without the graph overhead. But if you're building a pipeline that processes unbounded data, the graph pays for itself in the first hour of saved glue code.
+
+## Where to go from here
+
+If you want to try it yourself, the [quick start guide](/docs/quick-start) walks through building your first graph.
+
+If you're curious about what indicators are available, the [indicator docs](/docs/indicators) have the full list.
+
+If you're wondering how the graph handles performance — zero-copy data flows, topological ordering, and why we chose Rust — that's a post for another day. I'll write it.
+
+## Source files
+
+- [`TFlowBuilder`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/builder.rs) — the `.tflo()` iterator adapter
+- [`Comp`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp.rs) — computation node with operator methods like `.sma()` and `.cross_above()`
+- [`CompiledGraph`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/compile.rs) — the compiled graph that executes topologically
+
+## Run this example
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/computation-graph-architecture`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/computation-graph-architecture)
+
+*— Matt*

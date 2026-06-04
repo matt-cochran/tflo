@@ -1,0 +1,367 @@
+---
+import fs from 'node:fs';
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import DemoChart from '../../components/DemoChart.tsx';
+
+const BASE = 'src/pages/docs/snippets';
+
+const crossCode = fs.readFileSync(`${BASE}/cross-example.txt`, 'utf-8');
+const twoLineCode = fs.readFileSync(`${BASE}/macd-cross-example.txt`, 'utf-8');
+
+const crossApiCode = fs.readFileSync(`${BASE}/api-cross.txt`, 'utf-8');
+const crossAboveApiCode = fs.readFileSync(`${BASE}/api-cross-above.txt`, 'utf-8');
+const crossUnderApiCode = fs.readFileSync(`${BASE}/api-cross-under.txt`, 'utf-8');
+const crossHystApiCode = fs.readFileSync(`${BASE}/api-cross-hyst.txt`, 'utf-8');
+const crossDetApiCode = fs.readFileSync(`${BASE}/api-cross-det.txt`, 'utf-8');
+const hystDetApiCode = fs.readFileSync(`${BASE}/api-hyst-det.txt`, 'utf-8');
+const glitchApiCode = fs.readFileSync(`${BASE}/api-glitch.txt`, 'utf-8');
+const pulseApiCode = fs.readFileSync(`${BASE}/api-pulse.txt`, 'utf-8');
+const runtApiCode = fs.readFileSync(`${BASE}/api-runt.txt`, 'utf-8');
+const windowApiCode = fs.readFileSync(`${BASE}/api-window.txt`, 'utf-8');
+---
+
+<DocsLayout title="Signals" description="Streaming signal detection primitives in tflo.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Signal Detection</h1>
+    <p class="text-lg text-text-muted mb-12">Composable primitives for turning noisy domain events into clean lifecycle events: thresholds crossed, transients rejected, zones entered and exited.</p>
+
+    <p class="text-text-muted mb-4">
+      Detectors split into two families: <strong>chainable <code>Comp</code> methods</strong> (<code>.cross()</code>, <code>.cross_above()</code>,
+      <code>.cross_under()</code>, <code>.cross_hysteresis()</code>) that work inside <code>.tflo()</code> closures, and
+      <strong>standalone structs</strong> (<code>CrossDetector</code>, <code>GlitchFilter</code>, <code>PulseWidthDetector</code>, etc.)
+      from <code>tflo_ops::primitives</code> that you call imperatively. They ship in <code>tflo-ops</code> — import with <code>use tflo_ops::prelude::*;</code>.
+    </p>
+
+    <!-- Usage Examples -->
+
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Usage Examples</h2>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Threshold Cross Detection (Comp chainable)</h3>
+    <p class="text-text-muted mb-4">
+      Detect when a smoothed signal crosses above an upper threshold or below a lower one
+      &mdash; an overbought/oversold pattern that generalizes to any bounded metric.
+      Uses <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp.rs"><code>.cross_above()</code> / <code>.cross_under()</code></a>:
+    </p>
+    <CodeBlock code={crossCode} class="mb-8" src="tflo-examples/examples/docs-signals/main.rs" />
+
+    <div class="card mb-12">
+      <h4 class="text-lg font-semibold text-white mb-3">Cross Detection Demo</h4>
+      <p class="text-text-muted mb-4">A step function crossing threshold at 55 on a step-function feed.</p>
+      <DemoChart
+        dataKey="cross"
+        loop={true}
+        autoplay={true}
+        height={300}
+        client:load
+      />
+    </div>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Two-Line Cross (MACD Signal)</h3>
+    <p class="text-text-muted mb-4">
+      Cross detection works between any two computed series. Here, the MACD line crosses
+      above/below its signal line via <code>.cross_above(&amp;signal)</code> &mdash; <code>macd_n</code>
+      comes from the <code>tflo-fintech</code> plugin (<code>use tflo_fintech::prelude::*;</code>):
+    </p>
+    <CodeBlock code={twoLineCode} class="mb-8" src="tflo-examples/examples/docs-signals/main.rs" />
+
+    <div class="card mb-12">
+      <h4 class="text-lg font-semibold text-white mb-3">MACD Cross Demo</h4>
+      <p class="text-text-muted mb-4">
+        The MACD(12, 26) line crossing its 9-period signal line on a sine-wave feed.
+        Green dots mark bullish crosses, red dots bearish; the histogram plots MACD &minus; signal.
+      </p>
+      <DemoChart
+        dataKey="macd"
+        loop={true}
+        autoplay={true}
+        height={300}
+        client:load
+      />
+    </div>
+
+    <!-- Comp Chainable Methods -->
+
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Comp Chainable Methods (inside <code>.tflo()</code> closures)</h2>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>.cross()</code> — Bidirectional threshold crossing</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> When <code>self</code> crosses the <code>other</code> value in <em>either</em> direction (rising <em>or</em> falling).</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>self: &amp;Comp&lt;f64&gt;</code>, <code>other: &amp;Comp&lt;R&gt;</code></li>
+          <li><strong class="text-white">Output:</strong> <code>ThresholdCrossEventMode</code> — <code>Rising</code> | <code>Falling</code> | <code>None</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={crossApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={crossApiCode} class="mb-2" lang="rust" />
+        <p><a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/cross.rs" class="text-primary hover:underline">View source →</a></p>
+      </div>
+    </details>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>.cross_above()</code> — Rising crossing</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> When <code>self</code> crosses <em>above</em> the <code>other</code> value. Returns <code>Rising</code> on an upward cross and <code>Falling</code> when it crosses back below.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>self: &amp;Comp&lt;f64&gt;</code>, <code>other: &amp;Comp&lt;R&gt;</code></li>
+          <li><strong class="text-white">Output:</strong> <code>ThresholdCrossEventMode</code> — <code>Rising</code> (crossed above), <code>Falling</code> (crossed below), <code>None</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={crossAboveApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={crossAboveApiCode} class="mb-2" lang="rust" />
+        <p><a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/cross.rs" class="text-primary hover:underline">View source →</a></p>
+      </div>
+    </details>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>.cross_under()</code> — Falling crossing</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> When <code>self</code> crosses <em>below</em> the <code>other</code> value. Returns <code>Falling</code> on a downward cross and <code>Rising</code> when it crosses back above.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>self: &amp;Comp&lt;f64&gt;</code>, <code>other: &amp;Comp&lt;R&gt;</code></li>
+          <li><strong class="text-white">Output:</strong> <code>ThresholdCrossEventMode</code> — <code>Falling</code> (crossed below), <code>Rising</code> (crossed above), <code>None</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={crossUnderApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={crossUnderApiCode} class="mb-2" lang="rust" />
+        <p><a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/cross.rs" class="text-primary hover:underline">View source →</a></p>
+      </div>
+    </details>
+
+    <details class="group mb-8 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>.cross_hysteresis()</code> — Crossing with dead-band</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> Crossing with a configurable dead-band (<code>margin</code>) to prevent chatter when the signal hovers near the threshold. A rising edge must exceed <code>threshold + margin</code>; a falling edge must drop below <code>threshold - margin</code>.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>self: &amp;Comp&lt;f64&gt;</code>, <code>threshold: f64</code>, <code>margin: f64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>ThresholdCrossEventMode</code> — <code>Rising</code> | <code>Falling</code> | <code>None</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={crossHystApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={crossHystApiCode} class="mb-2" lang="rust" />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/comp/cross.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <!-- Standalone Structs -->
+
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Standalone Structs (imperative API)</h2>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>CrossDetector</code> — Imperative threshold crossing</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> When a value crosses above or below a threshold. Remembers the previous value and previous threshold internally, firing only on relationship changes.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>value: f64</code>, <code>threshold: f64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>Option&lt;ThresholdCrossEventMode&gt;</code> — <code>None</code> (no cross), <code>Some(Rising)</code> (crossed above), <code>Some(Falling)</code> (crossed below)</li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={crossDetApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Helper methods:</strong> <code>update_above(value, threshold)</code> (expects rising cross), <code>update_below(value, threshold)</code> (expects falling cross).</p>
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={crossDetApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Live demo:</strong></p>
+        <DemoChart dataKey="cross" loop={true} autoplay={true} height={280} client:load />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/primitives/cross.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>HysteresisCrossDetector</code> — Imperative hysteresis crossing</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> Crossing with a configurable dead-band. Must exceed <code>threshold + margin</code> for <code>Rising</code> and drop below <code>threshold - margin</code> for <code>Falling</code>. Prevents chatter near the threshold.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>value: f64</code>, <code>threshold: f64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>Option&lt;ThresholdCrossEventMode&gt;</code> — <code>None</code> (inside dead-band), <code>Some(Rising)</code>, <code>Some(Falling)</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={hystDetApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={hystDetApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Live demo:</strong></p>
+        <DemoChart dataKey="hysteresis" loop={true} autoplay={true} height={280} client:load />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/primitives/detectors.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>GlitchFilter</code> — Reject short transients</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> Rejects pulses shorter than a minimum duration. A value must cross above the threshold and remain there for at least <code>min_duration_ms</code> to register as a valid pulse.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>value: f64</code>, <code>timestamp_ms: u64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>Option&lt;bool&gt;</code> — <code>None</code> (no transition), <code>Some(true)</code> (valid pulse), <code>Some(false)</code> (glitch — too short)</li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={glitchApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={glitchApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Live demo:</strong></p>
+        <DemoChart dataKey="glitch" loop={true} autoplay={true} height={280} client:load />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/primitives/glitch_pulse.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>PulseWidthDetector</code> — Validate pulse duration</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> Validates that a pulse stays above the threshold for a duration within <code>[min_width_ms, max_width_ms]</code>. Returns the measured width and a classification.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>value: f64</code>, <code>timestamp_ms: u64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>Option&lt;PulseWidthResult&gt;</code> — <code>None</code> (no transition), <code>Some(TooShort&#123;width_ms&#125;)</code>, <code>Some(Valid&#123;width_ms&#125;)</code>, <code>Some(TooLong&#123;width_ms&#125;)</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={pulseApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={pulseApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Live demo:</strong></p>
+        <DemoChart dataKey="pulse-width" loop={true} autoplay={true} height={280} client:load />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/primitives/glitch_pulse.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <details class="group mb-4 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>RuntDetector</code> — Incomplete pulse detection</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> Pulses that begin rising above the <code>low_threshold</code> but never reach the <code>high_threshold</code>. Useful for catching incomplete or aborted excursions in any signal.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>value: f64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>Option&lt;RuntResult&gt;</code> — <code>None</code> (no transition), <code>Some(Runt&#123;peak&#125;)</code> (incomplete), <code>Some(ValidPulse&#123;peak&#125;)</code> (completed)</li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={runtApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={runtApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Live demo:</strong></p>
+        <DemoChart dataKey="runt" loop={true} autoplay={true} height={280} client:load />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/primitives/runt_window.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <details class="group mb-8 rounded-xl border border-border bg-bg-card">
+      <summary class="flex cursor-pointer items-center justify-between p-4 text-white font-semibold hover:bg-bg-muted transition-colors [&::-webkit-details-marker]:hidden">
+        <span><code>WindowDetector</code> — Zone entry / exit tracking</span>
+        <svg class="w-5 h-5 text-text-muted group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+        </svg>
+      </summary>
+      <div class="px-4 pb-4 space-y-3 text-text-muted">
+        <p><strong class="text-white">What it detects:</strong> When a signal enters or exits a zone defined by <code>[low, high]</code>. Tracks the state of the signal relative to the window boundaries.</p>
+        <p><strong class="text-white">Inputs / Outputs:</strong></p>
+        <ul class="list-disc list-inside space-y-1">
+          <li><strong class="text-white">Input:</strong> <code>value: f64</code></li>
+          <li><strong class="text-white">Output:</strong> <code>Option&lt;WindowEvent&gt;</code> — <code>None</code> (no zone transition), <code>Some(EnteredWindow)</code>, <code>Some(ExitedLow)</code>, <code>Some(ExitedHigh)</code></li>
+        </ul>
+        <p><strong class="text-white">API:</strong></p>
+        <CodeBlock code={windowApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Example:</strong></p>
+        <CodeBlock code={windowApiCode} class="mb-2" lang="rust" />
+        <p><strong class="text-white">Live demo:</strong></p>
+        <DemoChart dataKey="window" loop={true} autoplay={true} height={280} client:load />
+        <p>
+          <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/primitives/runt_window.rs" class="text-primary hover:underline">View source →</a>
+          &nbsp;|&nbsp;
+          <a href="https://blog.tflo.dev/five-signal-detectors" class="text-primary hover:underline">Blog: "Five signal detectors" →</a>
+        </p>
+      </div>
+    </details>
+
+    <!-- Next -->
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Next:</strong> Understand how the crates fit together in <a href="/docs/architecture" class="text-primary hover:underline">Crate Architecture</a>.
+      </p>
+    </div>
+
+    <!-- CTA -->
+    <div class="mt-8 text-center">
+      <a href="/playground?detector=cross&threshold=70" class="inline-block px-8 py-3.5 bg-accent text-white rounded-lg font-semibold hover:opacity-90 transition-opacity">
+        Try Cross Detection Live in the Playground
+        <svg class="inline ml-1" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 4l4 4-4 4"/></svg>
+      </a>
+    </div>
+  </div>
+</DocsLayout>

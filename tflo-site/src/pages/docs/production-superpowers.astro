@@ -1,0 +1,197 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const puritySnippet = `// The engine is a pure function. One operation, three levers.
+output = f(event_log, rule, clock)
+
+// What-if:    swap rule
+output_b = f(event_log, rule_b, clock)
+
+// Roll back:  truncate the log
+state_as_of_t = f(event_log.up_to(t), rule, clock)
+
+// Roll forward: extend the log (e.g. apply a correction event)
+state_corrected = f([...event_log, correction_event], rule, clock)
+
+// Simulation: swap the clock
+simulated = f(event_log, rule, synthetic_clock)`;
+---
+
+<DocsLayout title="Production superpowers" description="What purity enables: crash recovery, deterministic regression replay, what-if backtesting, and operational portability — and which are shipped vs roadmap.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Production superpowers</h1>
+    <p class="text-lg text-text-muted mb-12">Purity is the product.</p>
+
+    <!-- The spine -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">The spine: purity unlocks everything</h2>
+    <p class="text-text-muted mb-4">
+      tflo's engine is 100% functional. <code>output&nbsp;=&nbsp;f(event_log,&nbsp;rule,&nbsp;clock)</code>
+      is a pure function: same inputs, same output, always. The clock is an injected input, not
+      a runtime call to the wall. State is never mutated behind a reference.
+    </p>
+    <p class="text-text-muted mb-4">
+      What-if, roll-back, roll-forward, and simulation are not separate features. They are the same
+      operation &mdash; re-running the function with one input changed. There is no special API to
+      build, no forked code path to maintain. The capability is structural.
+    </p>
+    <CodeBlock code={puritySnippet} lang="typescript" />
+
+    <!-- Status table -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-6">Capability status</h2>
+    <div class="overflow-x-auto rounded-xl border border-border mb-8">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Superpower</th>
+            <th class="text-left p-4 font-semibold text-white">Basis</th>
+            <th class="text-left p-4 font-semibold text-white">Status</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Crash recovery / checkpoint-resume</td>
+            <td class="p-4">Checkpointer (async store, circuit breaker); topology fingerprint guards against loading mismatched state</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Deterministic regression vs recorded sessions</td>
+            <td class="p-4">Record an event log → <code>replay()</code> re-derives identical signals; the output is byte-for-byte reproducible</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Audit / "why did it fire"</td>
+            <td class="p-4">Provenance + <code>rule_version</code> stamped on every emit; every signal carries the evidence that produced it</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">State-as-of-T / roll back</td>
+            <td class="p-4">Replay events where <code>ts&nbsp;≤&nbsp;T</code> via <code>useRecorder().replayUntil(t)</code>; <code>GraphSnapshot</code> store-and-restore. Runnable proof in <code>tflo-react/validation/primitive-recorder/</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">What-if / backtest (vary the rule)</td>
+            <td class="p-4"><code>useBacktest(log, specs)</code> &mdash; run a recorded log against multiple specs and diff the outputs. Runnable proof in <code>tflo-react/validation/primitive-backtest/</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Shadow / canary rule rollout</td>
+            <td class="p-4"><code>useShadowSpec(active, candidate)</code> &mdash; run a candidate rule alongside the current rule in production, diff output, promote when confident. Runnable proof in <code>tflo-react/validation/primitive-shadow/</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Bitemporal corrections</td>
+            <td class="p-4">Event-time + reorder buffer accept late corrections; full bitemporal versioning not yet formalized</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-orange-500/20 text-orange-400">PARTIAL</span></td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Operational portability (edge ↔ browser ↔ server)</td>
+            <td class="p-4">One compiled engine; parity guaranteed by the cross-tier demo; cross-language portability is next</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">SHIPS</span>; cross-language <span class="px-2 py-0.5 rounded text-xs font-semibold bg-violet-500/20 text-violet-400">ROADMAP</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Honesty caveats -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Honesty caveats</h2>
+    <p class="text-text-muted mb-4">
+      The table above uses "LATENT" to mean the primitive capability exists and is correct, but
+      there is no convenience API built on top of it yet. Using it today requires assembling the
+      pieces by hand. A few specifics worth being precise about:
+    </p>
+    <ul class="list-disc pl-6 space-y-3 text-text-muted mb-6">
+      <li>
+        <strong class="text-white">GraphSnapshot</strong> now covers <code>Scan</code> and
+        <code>Scan2</code> nodes via opt-in <code>scan_f64_checkpointed</code>. The earlier
+        "partial" caveat is resolved for serde-able accumulators. Graphs using custom
+        non-serde accumulators still require manual snapshot support.
+      </li>
+      <li>
+        <strong class="text-white">useRecorder</strong> replays from the start of the recorded log,
+        not from an arbitrary seek point. "Roll back to T" today means replaying the prefix of the
+        log, which is correct but not interactive-scrubber fast for large logs.
+      </li>
+      <li>
+        <strong class="text-white">"Time-travel"</strong> in the current implementation means
+        deterministic re-derivation: feed the same events again and get the same signals. A
+        scrubber UI that lets you drag to a point in time is roadmap, not shipped.
+      </li>
+    </ul>
+
+    <!-- Roadmap -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Roadmap</h2>
+    <div class="overflow-x-auto rounded-xl border border-border mb-8">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Priority</th>
+            <th class="text-left p-4 font-semibold text-white">Item</th>
+            <th class="text-left p-4 font-semibold text-white">Status</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">P1</td>
+            <td class="p-4"><code>useBacktest(log, specs)</code> &mdash; run a log against multiple specs and diff; runnable proof in <code>tflo-react/validation/primitive-backtest/</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">DONE</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">P2</td>
+            <td class="p-4"><code>useRecorder().replayUntil(t)</code> &mdash; state-as-of-T via log prefix replay; runnable proof in <code>tflo-react/validation/primitive-recorder/</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">DONE</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">P3</td>
+            <td class="p-4"><code>useShadowSpec(active, candidate)</code> &mdash; run a candidate rule alongside the current rule, diff output, promote when confident; runnable proof in <code>tflo-react/validation/primitive-shadow/</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">DONE</span></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">P4</td>
+            <td class="p-4">Full bitemporal versioning &mdash; formalize the correction model; track both event-time and record-time for late-arriving corrections</td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-violet-500/20 text-violet-400">ROADMAP</span></td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">P5</td>
+            <td class="p-4"><code>GraphSnapshot</code> for <code>Scan</code> / <code>Scan2</code> via opt-in <code>scan_f64_checkpointed</code></td>
+            <td class="p-4"><span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-400">DONE</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Why incumbents can't -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Why incumbents structurally can't</h2>
+    <p class="text-text-muted mb-4">
+      The capabilities above are not features that could be bolted onto an existing
+      processing-time tool. They require that logic, state, time, and side-effects be
+      <em>separated</em> at the architectural level. When time is entangled with the wall clock
+      inside the operator, you cannot swap it. When state is mutated by a closure that captures
+      the scheduler, you cannot replay without re-running the scheduler in exactly the same order.
+    </p>
+    <p class="text-text-muted mb-4">
+      React, RxJS, and most signal libraries entangle these concerns by design: the programming
+      model is imperative mutation driven by events, and the wall clock is assumed. That model
+      is excellent for its target use case (rendering the current UI state) and structurally
+      unable to support deterministic replay or event-time correctness.
+    </p>
+    <p class="text-text-muted mb-4">
+      One fair credit: <strong class="text-white">XState</strong> does support persisted-snapshot
+      resume for a single actor. You can serialize a machine's current state and restore it later.
+      This is genuine crash recovery at the state-machine level. It does not extend to event-time
+      replay (the restored machine still uses the wall clock going forward), but it is real and
+      useful.
+    </p>
+
+    <!-- Further reading -->
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Related:</strong>{' '}
+        <a href="/docs/provable-temporal-logic" class="text-primary hover:underline">Provable temporal logic</a>
+        {' '}&mdash; how purity makes the late-event case a first-class test &mdash; and{' '}
+        <a href="/docs/event-time" class="text-primary hover:underline">event-time vs processing-time</a>
+        {' '}for the foundation these capabilities are built on.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

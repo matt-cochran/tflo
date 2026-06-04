@@ -1,0 +1,41 @@
+[package]
+name = "tflo-cep-wasm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "WebAssembly bindings for tflo-cep — closure-based event-pattern matching in the browser"
+license.workspace = true
+repository.workspace = true
+keywords = ["wasm", "webassembly", "cep", "event-pattern-matching", "browser"]
+categories = ["wasm"]
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Enables CEL-string predicates (serializable patterns + cross-tier predicate
+# parity). Off by default so the standard CEP bundle stays lean; `tflo-react`
+# builds with `--features cel`.
+cel = ["dep:cel-interpreter", "dep:serde_json"]
+
+[dependencies]
+tflo-cep = { path = "../tflo-cep" }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+# default-features off: predicates are scalar-only (no timestamp()/matches()),
+# so chrono + regex would only bloat the wasm bundle. See tflo-cel/Cargo.toml.
+cel-interpreter = { version = "0.10", optional = true, default-features = false }
+serde_json = { version = "1", optional = true }
+
+[lints]
+workspace = true
+
+# Disable wasm-pack's built-in wasm-opt pass: it ignores per-profile flags,
+# defaults to `-O`, and `-O` without `--enable-bulk-memory` rejects the
+# memory.copy ops rustc emits. build-wasm.sh runs `wasm-opt -Oz
+# --enable-bulk-memory` manually instead.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

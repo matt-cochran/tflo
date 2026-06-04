@@ -1,0 +1,5 @@
+//! API: PulseWidthDetector::new(threshold: f64, min_width_ms: u64, max_width_ms: u64) -> Self
+//! det.update(value: f64, timestamp_ms: u64) -> Option<PulseWidthResult>
+let mut pulse = PulseWidthDetector::new(100.0, 50, 200);
+let result = pulse.update(price, now_ms);
+// match result { Some(Valid{width_ms}) => ..., _ => ... }

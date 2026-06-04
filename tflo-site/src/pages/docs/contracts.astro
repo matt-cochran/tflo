@@ -1,0 +1,166 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const asyncStateStore = `#[async_trait]
+pub trait AsyncStateStore: Send + Sync {
+    async fn save(&self, key: &[u8], snapshot: &StateSnapshot) -> Result<(), String>;
+    async fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String>;
+    async fn list_keys(&self) -> Result<Vec<Vec<u8>>, String>;
+    async fn save_batch(&self, items: &[(Vec<u8>, StateSnapshot)]) -> Result<(), String>;
+    async fn delete(&self, key: &[u8]) -> Result<(), String>;
+}`;
+
+const cursor = `pub trait Cursor: Clone + Send + Sync + Debug + 'static {
+    fn to_bytes(&self) -> Vec<u8>;
+    fn from_bytes(data: &[u8]) -> Result<Self, String>;
+    fn display(&self) -> String;
+}`;
+
+const shardRouter = `pub trait ShardRouter<K>: Send + Sync {
+    fn owns(&self, key: &K) -> bool;
+    fn assignment_epoch(&self) -> u64;
+}`;
+
+const operator = `pub trait Operator: Send + Sync + 'static {
+    fn eval(&mut self, inputs: &[Computed], ts: i64) -> NodeOutput;
+    fn reset(&mut self) {}
+    fn name(&self) -> &str { "operator" }
+    fn save(&self) -> Option<Vec<u8>> { None }
+    fn load(&mut self, _bytes: &[u8]) -> Result<(), OperatorLoadError> { /* ... */ Ok(()) }
+    fn type_id_version(&self) -> u32 { 0 }   // Phase 1 — opt-in versioning
+}
+
+pub trait StatelessOperator: Operator {}    // marker for declared intent`;
+---
+
+<DocsLayout title="Contracts" description="The four pluggable traits in tflo-core: state store, cursor, shard router, operator.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">
+      Contracts
+    </h1>
+    <p class="text-lg text-text-muted mb-12">
+      <code>tflo-core</code> is contract-only above the engine: the integrations that matter
+      &mdash; state stores, cursors, shard routers, sources, sinks &mdash; live in separate
+      crates so users can plug in their preferred clients without taking direct deps on
+      <code>aws-sdk-s3</code>, <code>rdkafka</code>, <code>rumqttc</code>, or
+      <code>reqwest</code>. This page is the contributor-facing inventory.
+    </p>
+
+    <!-- AsyncStateStore -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-3">1. <code>AsyncStateStore</code></h2>
+      <p class="text-text-muted mb-4">
+        Durable per-key state. Reference impls: <code>tflo-state-files</code>
+        (<code>async</code> feature; runs sync I/O on <code>spawn_blocking</code>) and
+        <code>tflo-state-s3</code> (direct async impl over the
+        <code>S3Client</code> trait).
+      </p>
+      <CodeBlock code={asyncStateStore} lang="rust" />
+      <p class="text-text-muted mt-3">
+        <code>save_batch</code> has a sequential-loop default. Cost-sensitive backends (S3,
+        GCS) <strong class="text-white">must</strong> override to use multi-object batched
+        APIs &mdash; per-key <code>PUT</code> is the most common production cost
+        amplification. The <code>Arc&lt;dyn AsyncStateStore&gt;</code> blanket impl already
+        exists in core.
+      </p>
+    </section>
+
+    <!-- Cursor -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-3">2. <code>Cursor</code></h2>
+      <p class="text-text-muted mb-4">
+        Durable stream position. Pairs with an <code>AsyncCursorStore&lt;C&gt;</code> impl;
+        the pairing is what <code>Checkpointer</code> orchestrates.
+      </p>
+      <CodeBlock code={cursor} lang="rust" />
+      <p class="text-text-muted mt-3">
+        Existing impls: <code>KafkaOffset</code> (<code>(topic, partition, offset)</code>) and
+        <code>MqttCursor</code> (last packet id + bounded QoS-2 dedup window + retained-topic
+        sequence map).
+      </p>
+    </section>
+
+    <!-- ShardRouter -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-3">3. <code>ShardRouter&lt;K&gt;</code></h2>
+      <p class="text-text-muted mb-4">
+        Pluggable key &rarr; shard ownership. <code>LocalShard</code> owns every key
+        (single-process default). <code>KafkaShardRouter</code> is driven by
+        consumer-group rebalance callbacks.
+      </p>
+      <CodeBlock code={shardRouter} lang="rust" />
+      <p class="text-text-muted mt-3">
+        Lifecycle hooks (<code>on_assign</code> / <code>on_revoke</code>) are intentionally
+        <em>outside</em> the trait &mdash; they're runtime-coupled and live in connector
+        crates. <code>assignment_epoch</code> must be
+        <strong class="text-white">strictly monotonic</strong> and bump after ownership
+        changes; that is what fences out events that arrive in the rebalance window for keys
+        you no longer own.
+      </p>
+    </section>
+
+    <!-- Operator -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-white mb-3">4. <code>Operator</code></h2>
+      <p class="text-text-muted mb-4">
+        Custom node plugin. <code>tflo-ops</code> and <code>tflo-fintech</code> are both pure
+        <code>Operator</code> plugins &mdash; the canonical templates for your own catalog
+        crate.
+      </p>
+      <CodeBlock code={operator} lang="rust" />
+    </section>
+
+    <!-- Auxiliary contracts -->
+    <section class="mt-12">
+      <h2 class="text-2xl font-bold text-white mb-3">Auxiliary contracts</h2>
+      <p class="text-text-muted mb-4">
+        Connector-side traits that live in their crates, not in <code>tflo-core</code>:
+      </p>
+      <div class="overflow-x-auto rounded-xl border border-border">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-border bg-bg-card">
+              <th class="text-left p-4 font-semibold text-white">Trait</th>
+              <th class="text-left p-4 font-semibold text-white">Crate</th>
+              <th class="text-left p-4 font-semibold text-white">Purpose</th>
+            </tr>
+          </thead>
+          <tbody class="text-text-muted">
+            <tr class="border-b border-border"><td class="p-4"><code>KafkaConsumer</code> / <code>KafkaProducer</code></td><td class="p-4"><code>tflo-connect-kafka</code></td><td class="p-4">Wrap any Kafka client; rdkafka backend optional</td></tr>
+            <tr class="border-b border-border"><td class="p-4"><code>MqttConsumer</code> / <code>MqttProducer</code></td><td class="p-4"><code>tflo-connect-mqtt</code></td><td class="p-4">Wrap any MQTT client; rumqttc backend optional</td></tr>
+            <tr class="border-b border-border"><td class="p-4"><code>S3Client</code></td><td class="p-4"><code>tflo-state-s3</code></td><td class="p-4">Wrap any S3 HTTP / SDK</td></tr>
+            <tr><td class="p-4"><code>InfluxHttpClient</code></td><td class="p-4"><code>tflo-sink-influx</code></td><td class="p-4">Wrap any HTTP client for Influx writes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Checkpointer -->
+    <section class="mt-12">
+      <h2 class="text-2xl font-bold text-white mb-3">Crash-safe orchestration: <code>Checkpointer</code></h2>
+      <p class="text-text-muted">
+        <code>tflo_core::state::Checkpointer</code> is the single place that sequences the
+        snapshot &rarr; state-store-save &rarr; cursor-store-save writes in the correct order.
+        If you're building a new connector that needs checkpointing, use it rather than
+        re-implementing the ordering &mdash; getting the snapshot / cursor write order wrong
+        is the most common cause of duplicate processing on restart.
+      </p>
+    </section>
+
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Canonical source:</strong>
+        <a href="https://github.com/matt-cochran/tflo/blob/main/docs/contracts.md" class="text-primary hover:underline">docs/contracts.md</a>.
+      </p>
+      <p class="text-text-muted mt-3">
+        <strong class="text-white">Related:</strong>
+        <a href="/docs/deployment-shapes" class="text-primary hover:underline">Deployment shapes</a>
+        &middot;
+        <a href="/docs/architecture" class="text-primary hover:underline">Crate architecture</a>
+        &middot;
+        <a href="/docs/advanced" class="text-primary hover:underline">Advanced</a>
+      </p>
+    </div>
+  </div>
+</DocsLayout>

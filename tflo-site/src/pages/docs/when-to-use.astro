@@ -1,0 +1,135 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="When to use tflo" description="A decision table for when tflo is the right tool — and when RxJS, XState, or JS Signals are.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">When to use tflo</h1>
+    <p class="text-lg text-text-muted mb-12">tflo is not for every app. Here is how to decide.</p>
+
+    <!-- Decision table -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Decision table</h2>
+    <p class="text-text-muted mb-6">
+      Start with the requirement, not the tool:
+    </p>
+
+    <div class="overflow-x-auto rounded-xl border border-border mb-8">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">If the requirement is&hellip;</th>
+            <th class="text-left p-4 font-semibold text-white">Reach for</th>
+            <th class="text-left p-4 font-semibold text-white">Reason</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Stream plumbing, async transport, combining observables</td>
+            <td class="p-4 text-white font-medium">RxJS</td>
+            <td class="p-4">RxJS is the standard for async composition over arrival-ordered values. It does this well.</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">The UI is in one of N states; events drive transitions between them</td>
+            <td class="p-4 text-white font-medium">XState</td>
+            <td class="p-4">Finite-state machines are the right model for lifecycle orchestration and screen-state management.</td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4">Reactivity over current values; derived state; fine-grained re-render</td>
+            <td class="p-4 text-white font-medium">JS Signals (Preact / Angular / Solid / TC39)</td>
+            <td class="p-4">Signals standardize the current-value layer. They are not designed for history or time.</td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4">Correctness depends on event-time, absence of an event, windows, lateness, out-of-order arrival, replay, or client/server agreement on the same temporal rule</td>
+            <td class="p-4 text-white font-medium">tflo</td>
+            <td class="p-4">This is tflo's specific domain. The others model "now"; tflo models "what happened and when, provably."</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- The honest wedge -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">The honest wedge</h2>
+    <p class="text-text-muted mb-4">
+      tflo is for apps where events are <strong class="text-white">timestamped</strong> and can be
+      <strong class="text-white">delayed, reordered, batched, replayed, or verified server-side</strong>.
+      It is not for every React app. Most UI state does not need event-time correctness, and adding
+      tflo where plain state or signals would do is unnecessary complexity.
+    </p>
+    <p class="text-text-muted mb-4">
+      The question to ask is: does the correctness of your logic depend on <em>when</em> an event
+      happened (by the event's own clock), or on the <em>absence</em> of an event within a window?
+      If yes, event-time semantics matter. If no, they do not.
+    </p>
+    <p class="text-text-muted mb-4">
+      Examples where event-time matters:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted mb-6">
+      <li>A sensor heartbeat that may arrive late &mdash; "was there <em>really</em> no reading for 30 s, or did the packet just arrive late?"</li>
+      <li>A multi-step user action that must complete within a deadline measured from the first event, not from when the server noticed.</li>
+      <li>Client-side fraud signals that must agree with the server after the fact, even if the client was offline.</li>
+      <li>Backtesting a rule against historical data &mdash; the rule must produce the same output as it would have live.</li>
+    </ul>
+
+    <!-- Compose, don't replace -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Compose, don't replace</h2>
+    <p class="text-text-muted mb-4">
+      These tools are not competitors. A well-structured app may use all four:
+    </p>
+    <ul class="space-y-4 mb-8">
+      <li class="flex gap-4">
+        <span class="flex-shrink-0 font-semibold text-white w-44">RxJS</span>
+        <span class="text-text-muted">Transport and stream composition &mdash; get the events from source to consumer.</span>
+      </li>
+      <li class="flex gap-4">
+        <span class="flex-shrink-0 font-semibold text-white w-44">XState</span>
+        <span class="text-text-muted">Screen lifecycle &mdash; "loading", "idle", "error", transitions on user events.</span>
+      </li>
+      <li class="flex gap-4">
+        <span class="flex-shrink-0 font-semibold text-white w-44">JS Signals</span>
+        <span class="text-text-muted">Reactivity &mdash; hold the latest tflo verdict for rendering; propagate changes without re-render.</span>
+      </li>
+      <li class="flex gap-4">
+        <span class="flex-shrink-0 font-semibold text-white w-44">tflo</span>
+        <span class="text-text-muted">Event-time correctness &mdash; evaluate the temporal rule over the timestamped event log; emit a typed verdict.</span>
+      </li>
+    </ul>
+    <p class="text-text-muted mb-4">
+      Each does what it is good at. tflo produces a verdict; a Signal holds it for rendering; XState
+      transitions the screen on it; RxJS delivered the raw events in the first place.
+    </p>
+
+    <!-- Audience note -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Comparison set by audience</h2>
+    <p class="text-text-muted mb-4">
+      The relevant comparison set shifts with the reader's context. This is expected and correct.
+    </p>
+    <p class="text-text-muted mb-4">
+      <strong class="text-white">Frontend / React readers</strong> naturally compare tflo to RxJS,
+      XState, and JS Signals &mdash; the tools they reach for when state or events get complex. The
+      table above addresses that comparison directly.
+    </p>
+    <p class="text-text-muted mb-4">
+      <strong class="text-white">Streaming / backend readers</strong> will reach for Apache Flink,
+      Esper, Kafka Streams, or timely-dataflow as reference points. tflo is a composable alternative
+      in that space &mdash; a pure, embeddable engine rather than a distributed system or a
+      JVM-based runtime. It does not replace a Kafka cluster; it can run as a processing stage
+      inside one.
+    </p>
+    <p class="text-text-muted mb-4">
+      Position tflo in either context as an <strong class="text-white">alternative and a
+      composable layer</strong>, not as a head-to-head feature winner. Every tool in the
+      comparison set exists because it solved a real problem well.
+    </p>
+
+    <!-- Next -->
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Next:</strong>{' '}
+        <a href="/docs/mental-model" class="text-primary hover:underline">Mental model</a>
+        {' '}&mdash; a precise side-by-side of how each tool models time &mdash; or{' '}
+        <a href="/docs/event-time" class="text-primary hover:underline">Event-time vs processing-time</a>
+        {' '}for the foundational distinction that drives tflo's design.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

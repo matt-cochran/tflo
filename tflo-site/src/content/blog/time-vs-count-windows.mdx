@@ -1,0 +1,135 @@
+---
+title: Time windows vs count windows — the gap problem
+description: Five-minute SMA and 20-sample SMA look interchangeable in examples. They behave completely differently when your data stream has a hiccup.
+pubDate: 2025-03-21
+tags: ["windows", "time", "count", "gaps", "tradeoffs"]
+---
+
+5-minute SMA and 20-sample SMA look interchangeable in examples. They behave completely differently when your data stream has a hiccup.
+
+The difference is the `Window` type you use. Everything downstream — how memory grows, how eviction works, what happens during a data gap — depends on this choice.
+
+## The two window types
+
+tflo defines windows as an enum:
+
+```rust
+pub enum Window {
+    Time(Duration),
+    Count(usize),
+}
+```
+
+Time-based windows evict by timestamp. Count-based windows hold a fixed number of samples and evict by FIFO.
+
+You construct them explicitly or via `From`:
+
+```rust
+use std::time::Duration;
+
+// Time-based: 5 minutes
+let w1: Window = Duration::from_secs(300).into();
+// Equivalent: Window::Time(Duration::from_secs(300))
+
+// Count-based: 20 samples
+let w2: Window = 20usize.into();
+// Equivalent: Window::Count(20)
+```
+
+And you can inspect which kind you have at runtime:
+
+```rust
+w1.is_time_based();   // true
+w1.is_count_based();  // false
+w1.as_duration();     // Some(Duration::from_secs(300))
+w1.as_count();        // None
+
+w2.is_count_based();  // true
+w2.as_count();        // Some(20)
+```
+
+## How you apply them to indicators
+
+All windowed operators accept `impl Into<Window>`, so you can pass either a `Duration` (time-based) or a `usize` (count-based):
+
+```rust
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+// Time-based (Duration argument)
+let sma_5min = value.sma(300_u64.secs());
+let ema_5min = value.ema(300_u64.secs());
+
+// Count-based (usize argument)
+let sma_20 = value.sma(20usize);
+let ema_20 = value.ema(20usize);
+```
+
+This pattern applies to every windowed operator — std, max, min, sum, count, median, wma, rsi:
+
+```rust
+value.std(5_u64.mins());              // time-based standard deviation
+value.std(20usize);                   // count-based
+value.max(5_u64.mins());              // time-based max
+value.max(20usize);                   // count-based
+value.rsi(14_u64.mins());             // time-based RSI
+value.rsi(14usize);                   // count-based RSI
+```
+
+Time-based methods take a `Duration`. Count-based methods take a `usize`. Both use the same method name — the `impl Into<Window>` parameter dispatches correctly.
+
+## The gap scenario
+
+Here's where the difference matters. Your Kafka consumer pauses for 30 seconds. No data flows. Then it reconnects.
+
+A 5-minute time window doesn't stop working during the gap — it keeps evicting data as wall clock advances. Those 30 seconds of silence? The window drops whatever data falls outside the 5-minute boundary. When data resumes, your SMA computes from fewer samples. Results are more volatile.
+
+A 20-sample count window doesn't know time passed. It holds exactly 20 samples — the last 20 you fed it before the gap. When data resumes, your SMA computes from those same 20 samples. They're stale — some may be 30+ seconds old — but the count window doesn't care. It holds N, always N.
+
+You get different answers from the same data. Not because of a bug. Because of the window type.
+
+## The burst scenario
+
+Now flip it. Your Kafka buffer drains and 100 records arrive in one second.
+
+The 5-minute time window includes all 100 — they're all within the last 5 minutes. Your SMA reflects the full burst.
+
+The 20-sample count window evicts 80 of them. It only keeps 20. Most of your burst data got dropped.
+
+Same data, different window, dramatically different behavior.
+
+## Memory implications
+
+Time windows grow with data density. High-frequency ticks (1000/sec) over a 5-minute window mean you're holding 300,000 samples. Memory grows proportionally.
+
+Count windows are bounded. 20 samples. Always. Regardless of frequency.
+
+If memory is constrained — embedded device, high-throughput feed — count windows give you a guarantee time windows can't.
+
+## Decision tree
+
+**Use time windows when:**
+
+- Your data has irregular gaps and you want automatic eviction of old data
+- Recency matters more than sample count — you want to know what happened in the last N minutes, not the last N ticks
+- You want automatic cleanup — old data falls out of the window without manual management
+
+**Use count windows when:**
+
+- Memory is constrained and you need a fixed upper bound
+- Data arrives at regular intervals — count and time are roughly correlated
+- You need deterministic sample counts — every SMA(20) is computed from exactly 20 values, no matter how much time passed
+- You're replaying recorded data — count windows behave the same regardless of replay speed
+
+## The bottom line
+
+The right window type depends on your data's rhythm, not your indicator. An SMA is an SMA, but the window determines when data enters and leaves the calculation. Choose based on how your stream behaves — gaps, bursts, frequency — not based on what looks cleaner in code.
+
+When in doubt, start with a time window. It's harder to get wrong under real-world streaming conditions. But measure, compare, and switch if the trade-offs favor count-based.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/time-vs-count-windows`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/time-vs-count-windows)
+
+*— Matt*

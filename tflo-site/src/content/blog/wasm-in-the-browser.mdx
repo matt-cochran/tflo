@@ -1,0 +1,148 @@
+---
+title: tflo in the browser — streaming temporal event processing via WebAssembly
+description: "How we compiled tflo's temporal event processing engine to WebAssembly and built an interactive playground with live charts, CEL rules, and real-time signal detection."
+pubDate: 2025-07-09
+tags: ["wasm", "browser", "playground", "temporal event processing"]
+---
+
+tflo was designed for real-time streaming pipelines — SMA on a 50,000-event-per-second RF stream, RSI on millisecond-resolution telemetry, cross detection on sensor feeds. But one question kept coming up: *"Can I use this in the browser?"*
+
+Until recently, the answer was "not really." The Rust crate depends on `std::time::SystemTime` for snapshot timestamps, and `tflo-cel` reads files from disk. Neither works on `wasm32-unknown-unknown`.
+
+After some targeted work, the answer is now **yes** — and the results are fast enough to compute SMA(20) on 10,000 ticks in ~2ms.
+
+## What we built
+
+Three layers:
+
+1. **wasm-compatible Rust bridges** — JSON-in/JSON-out modules in `tflo-core` and `tflo-cel` that compile cleanly on `wasm32-unknown-unknown`
+2. **A standalone npm package (`tflo-wasm`)** — thin `#[wasm_bindgen]` wrappers that export typed functions
+3. **An interactive playground** — live chart, indicator controls, CEL rule editor, all running client-side
+
+All of this ships as a publishable npm package ready for any web project.
+
+## The Rust side
+
+Two changes made it work:
+
+### 1. `SystemTime::now()` in snapshot checkpointing
+
+The `snapshot()` method on `CompiledGraph` uses `SystemTime::now()` for metadata timestamps. On wasm, this panics. The fix:
+
+```rust
+let timestamp_ms = {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        0  // placeholder — snapshots work, timestamp is zeroed
+    }
+};
+```
+
+### 2. File I/O in tflo-cel
+
+`RuleEngine::from_file()` and `reload()` both call `std::fs::read_to_string`, which doesn't exist on wasm. The fix:
+
+- Wrapped them in `#[cfg(not(target_arch = "wasm32"))]`
+- Added `from_str(content, format)` — works everywhere, takes a string + `"yaml"` or `"json"`
+
+### 3. Bridge modules
+
+Each crate now has a `wasm.rs` module (gated behind `#[cfg(target_arch = "wasm32")]`) that provides JSON-in/JSON-out functions. The pattern is always the same:
+
+```rust
+// In tflo_core::wasm
+pub fn compute_sma(input_json: &str, config_json: &str) -> String {
+    // parse JSON → Vec<Tick>
+    // build TFlowBuilder → Comp::sma()
+    // iterate → serialize back to JSON
+}
+```
+
+## The npm package
+
+`tflo-wasm` is a workspace crate that depends on `tflo-core` (with the `wasm` feature) and `tflo-cel`. Its `lib.rs` contains only `#[wasm_bindgen]` exports that delegate to the bridge modules:
+
+```rust
+#[wasm_bindgen]
+pub fn compute_sma(input_json: &str, config_json: &str) -> String {
+    tflo_core::wasm::compute_sma(input_json, config_json)
+}
+```
+
+Built with `wasm-pack build --target web`, this produces:
+- `tflo_wasm_bg.wasm` — the compiled binary
+- `tflo_wasm.js` — JS glue (init + exports)
+- `tflo_wasm.d.ts` — TypeScript declarations
+
+Usage from TypeScript:
+
+```typescript
+import init, { computeSma } from "tflo-wasm";
+
+await init();
+
+const ticks = [
+  { ts: 0, value: 10 },
+  { ts: 1, value: 20 },
+  { ts: 2, value: 30 },
+];
+
+const sma = computeSma(ticks, { period: 3 });
+// → [null, null, 20]
+```
+
+## The playground
+
+The interactive playground at [/playground](/playground) lets you:
+
+- **Choose a signal type**: sine wave, step function, noisy trend, or sawtooth
+- **Add operators**: SMA, RSI, deviation bands with configurable parameters
+- **Detect crossings**: set thresholds and see live event logs
+- **Evaluate CEL rules**: write rules in JSON, apply them to sample data
+- **Control playback**: play/pause, reset, speed slider (1x–100x)
+
+Everything runs in your browser. No server, no network requests, no API keys.
+
+## Performance
+
+| Operator | 1,000 events | 10,000 events |
+|-----------|-------------|--------------|
+| SMA(20)   | ~0.2ms      | ~2ms         |
+| RSI(14)   | ~0.3ms      | ~3ms         |
+| deviation_band(20, 2) | ~0.4ms | ~4ms    |
+
+These aren't toy numbers — they're exactly the same `CompiledGraph` engine that runs in a natively compiled Rust binary. The wasm target generates the same optimized code, minus the system calls that don't apply in a browser context.
+
+## What's next
+
+- **More operators**: more detectors and statistics from `tflo-ops`, plus the `tflo-fintech` indicator set
+- **Real data sources**: WebSocket feeds, WebAudio API for signal processing
+- **Better charting**: the current SVG-based chart works but recharts would give us zoom/pan/tooltip
+
+> **Update.** Since this post was written, two things have landed:
+> the [`tflo-cep`](https://github.com/matt-cochran/tflo/tree/main/tflo-cep)
+> Rust crate (closure-based event-pattern matching — "A then B within
+> T", bounded sequences) and its WASM bridge
+> [`tflo-cep-wasm`](https://github.com/matt-cochran/tflo/tree/main/tflo-cep-wasm).
+> Together with the companion TypeScript SDK
+> [`@tflo/browser-events`](https://github.com/matt-cochran/tflo-browser-events),
+> tflo can now derive typed domain signals — `abandoned_cart`,
+> `engaged_with_product`, `time_on_section` — directly from DOM events
+> in the browser. See the
+> [browser interaction-data post](/blog/browser-interaction-signals)
+> for the full workflow.
+
+## Try it
+
+Head to the [interactive playground](/playground) or install the package:
+
+```bash
+npm install tflo-wasm
+```

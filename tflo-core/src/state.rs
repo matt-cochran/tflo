@@ -1,0 +1,407 @@
+//! Async-first state store + crash-safe checkpoint orchestrator.
+//!
+//! This module is the **Phase 1** addition to `tflo-core`. It exists alongside
+//! the legacy synchronous [`StateStore`](crate::keyed::StateStore) trait,
+//! which remains supported for embedded / file-backed use. New backends
+//! (S3, Redis, network-bound stores) should implement
+//! [`AsyncStateStore`] directly instead of fighting the sync/async boundary
+//! with `block_on`.
+//!
+//! # The checkpoint ordering rule
+//!
+//! On every crash-safe checkpoint, the [`Checkpointer`] writes in this order:
+//!
+//! 1. The state snapshot.
+//! 2. The cursor.
+//!
+//! Crash between (1) and (2) is recoverable: on restart the missing cursor
+//! signals "the snapshot is orphaned, replay from the previous cursor." The
+//! reverse order would let the cursor advance ahead of durable state, which
+//! is unrecoverable.
+//!
+//! # Mandatory deadlines
+//!
+//! [`Checkpointer::new`] requires a `deadline: Duration`. Every async store
+//! call is wrapped in a per-op timeout; on timeout the checkpoint fails
+//! fast with [`CheckpointError::Timeout`] rather than blocking the caller
+//! indefinitely. This is the poka-yoke for the most common production
+//! failure (network-backed store wedge).
+
+use crate::adapter::{CheckpointPolicy, Cursor};
+use crate::keyed::StateSnapshot;
+use std::time::Duration;
+
+// ── Arc forwarding blanket impls ─────────────────────────────────────
+//
+// `Arc<dyn Trait>` does not automatically implement `Trait`; provide
+// blanket forwarding impls so callers can pass `Arc<dyn AsyncStateStore>`
+// (and the cursor companion) into generic constructors without manual
+// wrapper types. This is a small ergonomic add that downstream crates
+// (`tflo-connect-kafka`, the IoT portal example) lean on.
+
+/// Async, runtime-agnostic state-store interface.
+///
+/// This is the Phase 1 replacement for the sync [`StateStore`](crate::keyed::StateStore).
+/// New backends should implement it directly. Existing sync backends keep
+/// their `StateStore` impl; an explicit blanket adapter is not provided
+/// because the right strategy varies per backend (file I/O on a thread
+/// pool, in-memory wrappers, etc.).
+#[async_trait::async_trait]
+pub trait AsyncStateStore: Send + Sync {
+    /// Save a single snapshot for a key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying backend cannot persist
+    /// the snapshot (I/O failure, network timeout, permission denied,
+    /// quota exceeded, etc.).
+    async fn save(&self, key: &[u8], snapshot: &StateSnapshot) -> Result<(), String>;
+
+    /// Load the most recent snapshot for a key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying backend cannot be
+    /// queried. A missing snapshot is `Ok(None)`, not an error.
+    async fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String>;
+
+    /// List every key with a saved snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the underlying backend cannot be
+    /// enumerated.
+    async fn list_keys(&self) -> Result<Vec<Vec<u8>>, String>;
+
+    /// Save a batch of `(key, snapshot)` pairs.
+    ///
+    /// Default impl is a sequential loop. Backends like S3 should override
+    /// to use multi-object batched APIs — per-key PUTs are the most common
+    /// source of cost amplification in distributed deployments.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error encountered. Implementations may choose
+    /// best-effort semantics, but the default is fail-fast.
+    async fn save_batch(&self, items: &[(Vec<u8>, StateSnapshot)]) -> Result<(), String> {
+        for (key, snap) in items {
+            self.save(key, snap).await?;
+        }
+        Ok(())
+    }
+
+    /// Delete the snapshot for a key. Default: no-op.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the backend cannot service the delete.
+    async fn delete(&self, _key: &[u8]) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl<T: AsyncStateStore + ?Sized> AsyncStateStore for std::sync::Arc<T> {
+    async fn save(&self, key: &[u8], snapshot: &StateSnapshot) -> Result<(), String> {
+        (**self).save(key, snapshot).await
+    }
+    async fn load(&self, key: &[u8]) -> Result<Option<StateSnapshot>, String> {
+        (**self).load(key).await
+    }
+    async fn list_keys(&self) -> Result<Vec<Vec<u8>>, String> {
+        (**self).list_keys().await
+    }
+    async fn save_batch(&self, items: &[(Vec<u8>, StateSnapshot)]) -> Result<(), String> {
+        (**self).save_batch(items).await
+    }
+    async fn delete(&self, key: &[u8]) -> Result<(), String> {
+        (**self).delete(key).await
+    }
+}
+
+/// Async cursor store — the cursor-side companion to [`AsyncStateStore`].
+///
+/// Cursors are the second half of the checkpoint protocol: state-snapshot
+/// gets the "what" durable, the cursor gets the "where in the stream"
+/// durable. Per the checkpoint ordering rule, the cursor write is the
+/// commit point.
+#[async_trait::async_trait]
+pub trait AsyncCursorStore<C: Cursor>: Send + Sync {
+    /// Save a cursor for a key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the backend cannot persist the cursor.
+    async fn save_cursor(&self, key: &[u8], cursor: &C) -> Result<(), String>;
+
+    /// Load the most recent cursor for a key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string when the backend cannot be queried. A
+    /// missing cursor is `Ok(None)`.
+    async fn load_cursor(&self, key: &[u8]) -> Result<Option<C>, String>;
+}
+
+#[async_trait::async_trait]
+impl<C: Cursor, T: AsyncCursorStore<C> + ?Sized> AsyncCursorStore<C> for std::sync::Arc<T> {
+    async fn save_cursor(&self, key: &[u8], cursor: &C) -> Result<(), String> {
+        (**self).save_cursor(key, cursor).await
+    }
+    async fn load_cursor(&self, key: &[u8]) -> Result<Option<C>, String> {
+        (**self).load_cursor(key).await
+    }
+}
+
+/// Why a checkpoint failed.
+#[derive(Debug)]
+pub enum CheckpointError {
+    /// The state-store call exceeded the per-op deadline.
+    Timeout {
+        /// Which leg of the checkpoint timed out.
+        stage: &'static str,
+        /// The deadline that was exceeded.
+        deadline: Duration,
+    },
+    /// The state-store rejected the snapshot write.
+    StateStore(String),
+    /// The cursor-store rejected the cursor write.
+    CursorStore(String),
+    /// Snapshot capture from the graph failed before any I/O.
+    SnapshotCapture(String),
+    /// `N` consecutive checkpoints have failed; the circuit breaker is open
+    /// to prevent unbounded retry loops.
+    CircuitOpen {
+        /// Number of consecutive failures that tripped the breaker.
+        consecutive_failures: u32,
+    },
+}
+
+impl std::fmt::Display for CheckpointError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Timeout { stage, deadline } => write!(
+                f,
+                "checkpoint {stage} stage exceeded deadline of {deadline:?}"
+            ),
+            Self::StateStore(msg) => write!(f, "state store write failed: {msg}"),
+            Self::CursorStore(msg) => write!(f, "cursor store write failed: {msg}"),
+            Self::SnapshotCapture(msg) => write!(f, "snapshot capture failed: {msg}"),
+            Self::CircuitOpen {
+                consecutive_failures,
+            } => write!(
+                f,
+                "checkpoint circuit breaker open after {consecutive_failures} consecutive failures"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CheckpointError {}
+
+/// Crash-safe checkpoint orchestrator.
+///
+/// One per keyed-execution "shard" (in practice, one per Kafka partition or
+/// equivalent). Encapsulates the snapshot→state→cursor write ordering, the
+/// per-op deadline, and a simple consecutive-failure circuit breaker.
+///
+/// Counters intentionally use plain `u64`/`u32` — observability backends
+/// scrape these directly; no metrics crate dependency is taken at this
+/// layer.
+pub struct Checkpointer<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> {
+    state: S,
+    cursor: X,
+    policy: CheckpointPolicy,
+    /// Per-op deadline applied to *each* of `save`+`save_cursor`.
+    deadline: Duration,
+    /// Open the breaker after this many consecutive failures.
+    circuit_threshold: u32,
+    consecutive_failures: std::sync::atomic::AtomicU32,
+    /// Total successful checkpoints. Observable.
+    pub commits_total: std::sync::atomic::AtomicU64,
+    /// Total failed checkpoints. Observable.
+    pub failures_total: std::sync::atomic::AtomicU64,
+    /// Total timeouts (subset of failures). Observable.
+    pub timeouts_total: std::sync::atomic::AtomicU64,
+    _cursor_type: std::marker::PhantomData<C>,
+}
+
+impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> std::fmt::Debug
+    for Checkpointer<C, S, X>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Checkpointer")
+            .field("policy", &self.policy)
+            .field("deadline", &self.deadline)
+            .field("circuit_threshold", &self.circuit_threshold)
+            .field(
+                "commits_total",
+                &self
+                    .commits_total
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )
+            .field(
+                "failures_total",
+                &self
+                    .failures_total
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )
+            .field(
+                "timeouts_total",
+                &self
+                    .timeouts_total
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )
+            .finish()
+    }
+}
+
+impl<C: Cursor, S: AsyncStateStore, X: AsyncCursorStore<C>> Checkpointer<C, S, X> {
+    /// Construct a checkpointer.
+    ///
+    /// `deadline` is applied **per stage** (state save, cursor save), not
+    /// across the whole checkpoint. Choose it shorter than the upstream
+    /// caller's overall budget.
+    ///
+    /// `circuit_threshold` opens the circuit breaker after that many
+    /// consecutive failed checkpoints. Subsequent calls return
+    /// [`CheckpointError::CircuitOpen`] until [`Self::reset_circuit`] is called.
+    /// Pass `u32::MAX` to disable.
+    pub const fn new(
+        state: S,
+        cursor: X,
+        policy: CheckpointPolicy,
+        deadline: Duration,
+        circuit_threshold: u32,
+    ) -> Self {
+        Self {
+            state,
+            cursor,
+            policy,
+            deadline,
+            circuit_threshold,
+            consecutive_failures: std::sync::atomic::AtomicU32::new(0),
+            commits_total: std::sync::atomic::AtomicU64::new(0),
+            failures_total: std::sync::atomic::AtomicU64::new(0),
+            timeouts_total: std::sync::atomic::AtomicU64::new(0),
+            _cursor_type: std::marker::PhantomData,
+        }
+    }
+
+    /// Access the configured policy (e.g. for caller-side `should_checkpoint`).
+    #[must_use]
+    pub const fn policy(&self) -> &CheckpointPolicy {
+        &self.policy
+    }
+
+    /// Reset the circuit breaker after operator intervention.
+    pub fn reset_circuit(&self) {
+        self.consecutive_failures
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Commit one checkpoint: snapshot → `state.save` → `cursor.save_cursor`.
+    ///
+    /// The caller has already produced the snapshot (typically by calling
+    /// `CompiledGraph::snapshot()`); the checkpointer just sequences the
+    /// durable writes in the correct order with per-stage deadlines.
+    ///
+    /// On any error: the consecutive-failure counter increments and, if it
+    /// hits `circuit_threshold`, the circuit breaker opens. Successful
+    /// commits zero the counter.
+    ///
+    /// # Errors
+    ///
+    /// - [`CheckpointError::CircuitOpen`] when the breaker is open.
+    /// - [`CheckpointError::Timeout`] when either stage exceeds `deadline`.
+    /// - [`CheckpointError::StateStore`] / [`CheckpointError::CursorStore`]
+    ///   on backend rejection.
+    pub async fn commit(
+        &self,
+        key: &[u8],
+        snapshot: &StateSnapshot,
+        cursor: &C,
+    ) -> Result<(), CheckpointError> {
+        let consecutive = self
+            .consecutive_failures
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if consecutive >= self.circuit_threshold {
+            return Err(CheckpointError::CircuitOpen {
+                consecutive_failures: consecutive,
+            });
+        }
+
+        // Stage 1 — state snapshot. Crash here = orphan snapshot, will be
+        // ignored on restart because the cursor is still old.
+        if let Err(e) = self
+            .with_deadline("state.save", self.state.save(key, snapshot))
+            .await?
+        {
+            self.record_failure();
+            return Err(CheckpointError::StateStore(e));
+        }
+
+        // Stage 2 — cursor. This is the commit point. Crash before this =
+        // recoverable. Crash after = also recoverable (we just won't process
+        // the events again).
+        if let Err(e) = self
+            .with_deadline("cursor.save", self.cursor.save_cursor(key, cursor))
+            .await?
+        {
+            self.record_failure();
+            return Err(CheckpointError::CursorStore(e));
+        }
+
+        self.consecutive_failures
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.commits_total
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    }
+
+    /// Wrap an async operation in the configured deadline. The outer
+    /// `Result` reports `Timeout`; the inner `Result<T, E>` reports the
+    /// operation's own success/failure.
+    ///
+    /// The deadline is enforced via `futures_timer::Delay`, which is
+    /// runtime-agnostic (works under tokio, async-std, smol). This
+    /// avoids locking the engine to a specific async runtime.
+    ///
+    /// Note: the entire `state` module is gated `#[cfg(feature = "async")]`
+    /// at `lib.rs`, so this code only compiles when the `async` feature
+    /// is enabled — `futures` and `futures-timer` are guaranteed
+    /// available. If a future sync `Checkpointer` is ever needed for
+    /// no-tokio embedded use cases, it should be added as a separate
+    /// type (e.g. `SyncCheckpointer` with a `SyncStateStore` trait),
+    /// not by feature-gating the async one.
+    async fn with_deadline<F, T, E>(
+        &self,
+        stage: &'static str,
+        fut: F,
+    ) -> Result<Result<T, E>, CheckpointError>
+    where
+        F: std::future::Future<Output = Result<T, E>>,
+    {
+        use futures::FutureExt;
+        let timer = futures_timer::Delay::new(self.deadline);
+        futures::select! {
+            res = std::pin::pin!(fut.fuse()) => Ok(res),
+            _ = std::pin::pin!(timer.fuse()) => {
+                self.timeouts_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.record_failure();
+                Err(CheckpointError::Timeout { stage, deadline: self.deadline })
+            }
+        }
+    }
+
+    fn record_failure(&self) {
+        self.consecutive_failures
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.failures_total
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+#[path = "state_tests.rs"]
+mod tests;

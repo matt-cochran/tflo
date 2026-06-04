@@ -1,0 +1,310 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const absentSnippet = `// Computed is the engine-side output type for every node.
+pub type Computed = Result<f64, Absent>;
+
+pub enum Absent {
+    WarmingUp,      // window has not yet collected enough samples
+    DivideByZero,   // a division would have produced an infinity
+    FilteredOut,    // a CEL / Rhai / Rego policy excluded this record
+    DomainError,    // operator rejected the input (e.g. log of negative)
+}
+
+// Downstream code branches on the reason, not on a single poisoned float.
+match value {
+    Ok(v) => publish(v),
+    Err(Absent::WarmingUp)   => skip_until_warm(),
+    Err(Absent::DivideByZero) => alert(),
+    Err(reason) => log_with_context(reason),
+}`;
+
+const timerSnippet = `// Per-key, event-time, snapshot-safe. Heap ordering is (fire_ts, seq)
+// for deterministic firing on ties.
+use tflo_core::timer::TimerService;
+
+// Inside a per-key operator: schedule a fire 10 s into the future.
+timers.schedule(fire_ts = ts + 10_000, payload = MyTimer::DwellOver);
+
+// Engine drains due timers in order and feeds them back through the graph
+// alongside the regular event stream.`;
+
+const sessionWindowSnippet = `// Session-tumbling window: gap-based session boundaries, with a
+// max-length tumble so very long sessions still emit.
+use tflo_ops::prelude::*;
+
+events.into_iter()
+    .tflo(|t| {
+        t.timestamp(|e| e.ts);
+        let value = t.prop(|e| e.value);
+        value.session_tumbling(
+            inactivity_gap = 30_u64.secs(),
+            max_session    = 5_u64.mins(),
+        )
+    })
+    .collect::<Vec<_>>();`;
+
+const fingerprintSnippet = `// Topology hash stamped into every snapshot.
+let fp = builder.fingerprint();   // [u8; 32]
+
+// On restore, fingerprint mismatch is rejected — no silently loading state
+// that was produced by a different topology.
+graph.restore(&loaded)?;          // returns Err if fingerprints differ`;
+
+const timestampSnippet = `t.timestamp(|tick| tick.ts)`;
+
+const propSnippet = `let price = t.prop(|tick| tick.price)`;
+
+const keyedExecutionSnippet = `use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+events.into_iter()
+    .tflo_keyed(
+        |e| e.source.clone(),              // partition by event source
+        OutOfOrderPolicy::Error,            // out-of-order handling policy
+        |t| {                               // computation per key
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.ema(20_u64.secs())
+        },
+    )
+// See tflo-core/src/keyed.rs for the full keyed execution API.`;
+
+const iteratorSnippet = `let results = my_data.into_iter()
+    .tflo(|t| { ... })
+    .collect::<Vec<_>>();`;
+
+const streamSnippet = `// Requires tflo-core with "async" feature: cargo add tflo-core --features async
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+let results: Vec<f64> = my_stream
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let price = t.prop(|x| x.price);
+        price.sma(5_u64.secs())
+    })
+    .collect()
+    .await;
+// See tflo_core::r#async for the TFloStreamExt trait.`;
+---
+
+<DocsLayout title="Core Concepts" description="Understand the computation graph model behind tflo.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Core Concepts</h1>
+    <p class="text-lg text-text-muted mb-12">Understanding the computation graph model that powers tflo.</p>
+
+    <!-- Computation Graph -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">The Computation Graph</h2>
+    <p class="text-text-muted mb-4">
+      At the heart of tflo is a <strong class="text-white">declarative computation graph</strong>. Instead of
+      imperatively looping over data and manually tracking window state, you describe <em>what</em> to compute,
+      and tflo handles <em>how</em>.
+    </p>
+    <p class="text-text-muted mb-4">
+      The graph is built at runtime and compiled into an optimized execution plan. It manages:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted">
+      <li><strong class="text-white">Window state</strong> &mdash; ring buffers, running sums, etc.</li>
+      <li><strong class="text-white">Timestamp handling</strong> &mdash; duration-based windows vs. count-based.</li>
+      <li><strong class="text-white">Lazy evaluation</strong> &mdash; only compute what&rsquo;s needed for output.</li>
+    </ul>
+
+    <!-- Properties -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Properties &amp; Timestamps</h2>
+    <p class="text-text-muted mb-4">
+      Every computation graph starts with two fundamental declarations:
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Timestamp</h3>
+    <CodeBlock code={timestampSnippet} />
+    <p class="text-text-muted mb-4">
+      Timestamps are <code>i64</code> and must be monotonically non-decreasing for correct window behavior.
+      They&rsquo;re used to determine which values fall within a duration window.
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Properties</h3>
+    <CodeBlock code={propSnippet} />
+    <p class="text-text-muted mb-4">
+      Properties extract <code>f64</code> values from your input type. You can define as many properties as
+      you need, and each property has its own independent window state.
+    </p>
+
+    <!-- Window Kinds -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Window Kinds</h2>
+    <p class="text-text-muted mb-4">
+      tflo supports two windowing strategies:
+    </p>
+
+    <div class="overflow-x-auto rounded-xl border border-border mb-8">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Kind</th>
+            <th class="text-left p-4 font-semibold text-white">Syntax</th>
+            <th class="text-left p-4 font-semibold text-white">Behavior</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Duration</td>
+            <td class="p-4"><code class="text-primary">3_u64.secs()</code></td>
+            <td class="p-4">Keeps values within the last N seconds (by timestamp).</td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Count</td>
+            <td class="p-4"><code class="text-primary">3usize</code></td>
+            <td class="p-4">Keeps the last N data points (by position).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="text-text-muted mb-4">
+      Duration windows are ideal for time-series data where intervals may be irregular.
+      Count windows are simpler and faster when you just want "last N elements."
+    </p>
+
+    <!-- Keyed Execution -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Keyed Execution</h2>
+    <p class="text-text-muted mb-4">
+      When events arrive from many emitters &mdash; sensors, hosts, instruments, or any other
+      partition &mdash; tflo can split execution by key. Each key gets its own independent window state:
+    </p>
+    <CodeBlock code={keyedExecutionSnippet} src="tflo-examples/examples/docs-quick-start/main.rs" />
+    <p class="text-text-muted mb-4">
+      <strong>Full runnable example:</strong> <code>tflo-examples/examples/docs-quick-start</code>
+    </p>
+    <p class="text-text-muted mb-4">
+      Internally, tflo maintains a <code>HashMap&lt;Key, KeyedGraphState&gt;</code> and routes each
+      input record to the correct partition before computing.
+    </p>
+
+    <!-- Iterator vs Stream -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Iterator vs Stream</h2>
+    <p class="text-text-muted mb-4">
+      tflo works with both <code>Iterator</code> and <code>Stream</code> (via tflo-core's <code>async</code> feature):
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Iterator (synchronous)</h3>
+    <CodeBlock code={iteratorSnippet} src="tflo-examples/examples/docs-quick-start/main.rs" />
+    <p class="text-text-muted mb-4">
+      <strong>Full runnable example:</strong> <code>tflo-examples/examples/docs-quick-start</code>
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Stream (async)</h3>
+    <CodeBlock code={streamSnippet} src="tflo-examples/examples/docs-advanced/main.rs" />
+    <p class="text-text-muted mb-4">
+      <strong>Full runnable example (async):</strong> <code>tflo-examples/examples/docs-advanced</code>
+    </p>
+
+    <p class="text-text-muted mb-4">
+      The async adapter integrates with Tokio and supports backpressure. It&rsquo;s the backbone
+      for integrations like Kafka.
+    </p>
+
+    <!-- Typed Absent -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Typed <code>Absent</code>
+    </h2>
+    <p class="text-text-muted mb-4">
+      tflo replaces <code>NaN</code>-as-sentinel with an explicit
+      <code>Result&lt;f64, Absent&gt;</code>. Every reason a value can be missing is named:
+      the window hasn't warmed up, a division would have produced infinity, a policy filter
+      excluded the record, an operator rejected the domain. Downstream code branches on the
+      <em>reason</em>, not on a single poisoned float.
+    </p>
+    <CodeBlock code={absentSnippet} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      This is the typed-absence model the engine is built around &mdash; it's why processing-time
+      mode is intentionally not supported (see
+      <a href="/docs/non-goals" class="text-primary hover:underline">non-goals</a>): the
+      typed semantics depend on deterministic, event-time-driven evaluation.
+    </p>
+
+    <!-- Timers -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Timers
+    </h2>
+    <p class="text-text-muted mb-4">
+      Event-time timers with per-key heap ordering. Schedule a fire at an arbitrary future
+      timestamp; the engine drains due timers in <code>(fire_ts, seq)</code> order so ties
+      fire deterministically. State is serialized via <code>postcard</code> alongside the
+      rest of the snapshot, so timers survive checkpoint and restore.
+    </p>
+    <CodeBlock code={timerSnippet} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      Timers are the substrate the existing detectors use for "within T" semantics &mdash;
+      pulse-width registers a <code>TooLong</code> timer on the rising edge and cancels it on
+      the falling edge. They're the cleanest way to express dwell timers, watchdog timeouts,
+      and absence detection in a snapshot-safe way, and the natural substrate for any
+      sequence-pattern detector you compose from primitives.
+    </p>
+
+    <!-- Session-tumbling windows -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Session-tumbling windows
+    </h2>
+    <p class="text-text-muted mb-4">
+      A third window kind alongside duration and count: gap-based session boundaries with a
+      max-length tumble. The session closes either when the inactivity gap is exceeded or
+      when the session has run for <code>max_session</code> &mdash; useful for sensor
+      bursts, user sessions, or any "things that arrive together" partitioning where you
+      need a fallback bound.
+    </p>
+    <CodeBlock code={sessionWindowSnippet} lang="rust" />
+
+    <!-- Keyed execution and ShardRouter -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Keyed execution and <code>ShardRouter</code>
+    </h2>
+    <p class="text-text-muted mb-4">
+      Keyed execution stays the same surface you saw above &mdash;
+      <code>.tflo_keyed(key_fn, policy, builder)</code>. What's new is that the engine now
+      knows which keys it owns via a pluggable <code>ShardRouter&lt;K&gt;</code> trait. The
+      default is <code>LocalShard</code> (owns every key); in a sharded cluster
+      <code>KafkaShardRouter</code> bridges this to consumer-group rebalance.
+    </p>
+    <p class="text-text-muted mb-4">
+      Snapshots are stamped with a topology fingerprint via
+      <code>Builder::fingerprint()</code>. On restore, a fingerprint mismatch is rejected
+      &mdash; you can't accidentally hydrate state produced by a different topology.
+    </p>
+    <CodeBlock code={fingerprintSnippet} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      See <a href="/docs/contracts" class="text-primary hover:underline">Contracts</a> for
+      the trait sketches, and the
+      <a href="/docs/reference-deployment" class="text-primary hover:underline">reference deployment</a>
+      for end-to-end use.
+    </p>
+
+    <!-- Pattern matching -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Pattern matching
+    </h2>
+    <p class="text-text-muted mb-4">
+      Single-condition detectors (cross, hysteresis, glitch, runt, pulse-width) compose
+      readily for "this event meets this condition" shapes. For multi-event sequences
+      &mdash; "A then B within T", "A then no B within T", "three identical events within
+      T" &mdash; the <code>tflo-cep</code> crate provides a closure-based builder over the
+      same engine substrate (timers, snapshot-safe state, typed signals). The
+      <code>tflo-cep-wasm</code> sibling exposes the same engine to JavaScript through
+      WebAssembly &mdash; one state machine, two idiomatic surfaces.
+    </p>
+    <p class="text-text-muted mb-4">
+      See <a href="/docs/patterns" class="text-primary hover:underline">event patterns</a>
+      for the API and worked examples in both Rust and TypeScript, and
+      <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+      for the end-to-end browser workflow.
+    </p>
+
+    <!-- Next -->
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Next:</strong> Explore the available <a href="/docs/indicators" class="text-primary hover:underline">operations &amp; indicators</a> or
+        learn about <a href="/docs/signals" class="text-primary hover:underline">signal detection</a>.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

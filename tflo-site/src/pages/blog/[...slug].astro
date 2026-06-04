@@ -1,0 +1,28 @@
+---
+import type { GetStaticPathsResult } from 'astro';
+import { getCollection, type CollectionEntry } from 'astro:content';
+import BlogLayout from '../../layouts/BlogLayout.astro';
+
+export async function getStaticPaths(): Promise<GetStaticPathsResult> {
+  const blogPosts = await getCollection('blog', ({ data }) => !data.draft);
+  return blogPosts.map((post) => ({
+    params: { slug: post.slug },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props as { post: CollectionEntry<'blog'> };
+const { Content } = await post.render();
+const readingTime = Math.max(1, Math.ceil(post.body.length / 1000));
+---
+
+<BlogLayout
+  title={post.data.title}
+  description={post.data.description}
+  pubDate={post.data.pubDate}
+  updatedDate={post.data.updatedDate}
+  readingTime={readingTime}
+  tags={post.data.tags}
+>
+  <Content />
+</BlogLayout>

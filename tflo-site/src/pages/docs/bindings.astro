@@ -1,0 +1,123 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Bindings — how you embed the engine" description="The three layers of tflo: core engine, language bindings, and the applications built on top. What ships today and what is on the roadmap.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Bindings</h1>
+    <p class="text-lg text-text-muted mb-12">How you embed the engine in a host environment.</p>
+
+    <!-- Three layers -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Three distinct layers</h2>
+    <p class="text-text-muted mb-4">
+      These layers are separate concerns. Do not conflate them.
+    </p>
+
+    <div class="overflow-x-auto rounded-xl border border-border mb-8">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border bg-bg-card">
+            <th class="text-left p-4 font-semibold text-white">Layer</th>
+            <th class="text-left p-4 font-semibold text-white">What it is</th>
+            <th class="text-left p-4 font-semibold text-white">Crates</th>
+          </tr>
+        </thead>
+        <tbody class="text-text-muted">
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Core engine</td>
+            <td class="p-4">The pure temporal engine &mdash; computation graph, windowing, timers, typed absence, event-time semantics, CEP pattern matching, and the operator catalog. No I/O, no host assumptions.</td>
+            <td class="p-4"><code class="text-primary">tflo-core</code>, <code class="text-primary">tflo-cep</code>, <code class="text-primary">tflo-ops</code></td>
+          </tr>
+          <tr class="border-b border-border hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Bindings / runtimes</td>
+            <td class="p-4">How you embed the engine in a specific host: native Rust crate, WebAssembly module, or (on the roadmap) a foreign-language binding. Each binding exposes the engine's semantics in idiomatic form for its target.</td>
+            <td class="p-4"><code class="text-primary">tflo-wasm</code>, <code class="text-primary">tflo-cep-wasm</code>, (native: direct)</td>
+          </tr>
+          <tr class="hover:bg-bg-card transition-colors">
+            <td class="p-4 text-white font-medium">Examples / applications</td>
+            <td class="p-4">Concrete things built on a binding: a React temporal UX, a browser analytics library, an edge gateway, a backtesting harness. They are built <em>on top of</em> a binding; they do not define it.</td>
+            <td class="p-4"><a href="/positioning" class="text-primary hover:underline">React UX</a>, <a href="/docs/browser-analytics" class="text-primary hover:underline">browser-events</a>, …</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Native Rust -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Native Rust binding</h2>
+    <p class="text-text-muted mb-4">
+      Embed <code>tflo-core</code> directly as a Rust dependency. There is no separate binding crate
+      for native Rust &mdash; the core <em>is</em> the binding. You get the full
+      <code>Iterator::tflo</code> and <code>Stream::tflo</code> surface, keyed execution,
+      snapshot/restore, and the complete operator catalog from <code>tflo-ops</code>.
+    </p>
+    <p class="text-text-muted mb-4">
+      Suitable for: edge gateways, server-side services (tonic / axum / actix), batch pipelines,
+      and backtesting harnesses. Compiles to ARM and musl targets; heap footprint is proportional
+      to window state, not to a runtime. Ships today.
+    </p>
+
+    <!-- WASM -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">WebAssembly binding</h2>
+    <p class="text-text-muted mb-4">
+      The engine compiled to WebAssembly for JavaScript and TypeScript hosts. Two crates cover
+      the two engine surfaces:
+    </p>
+    <ul class="list-disc pl-6 space-y-2 text-text-muted mb-6">
+      <li>
+        <strong class="text-white">tflo-wasm</strong> &mdash; the windowing and operator layer
+        (<code>tflo-core</code> + <code>tflo-ops</code>), exposed as a JS module.
+      </li>
+      <li>
+        <strong class="text-white">tflo-cep-wasm</strong> &mdash; the complex-event pattern engine
+        (<code>tflo-cep</code>), exposed for JS/TS consumers.
+      </li>
+    </ul>
+    <p class="text-text-muted mb-4">
+      This WASM layer is the substrate under <em>both</em> browser examples &mdash; the
+      <a href="/positioning" class="text-primary hover:underline">React temporal UX</a> and the
+      <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+      library. The engine is not married to React, to any framework, or to any particular JS
+      packaging. The two examples are independent applications that happen to share the same WASM
+      binding. Ships today.
+    </p>
+    <p class="text-text-muted mb-4">
+      Cross-tier parity follows directly: because the server runs native Rust and the browser runs
+      the same engine compiled to WASM, both evaluate the same rule against the same event log and
+      produce the same output. This is not "same algorithm reimplemented twice" &mdash; it is the
+      same compiled artifact, different ABI.
+    </p>
+
+    <!-- Roadmap -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Other languages &mdash; roadmap</h2>
+    <div class="p-5 rounded-xl border border-amber-500/40 bg-amber-500/5 mb-6">
+      <p class="text-text-muted">
+        <strong class="text-white">Roadmap, not shipped.</strong> C#, Go, and Python bindings do
+        not exist today. Native Rust and WASM are what ship.
+      </p>
+    </div>
+    <p class="text-text-muted mb-4">
+      A pure, deterministic engine with no runtime assumptions ports cleanly across language
+      runtimes. The same property that makes cross-tier parity tractable for Rust/WASM makes
+      cross-language parity tractable more broadly: the engine is a function of the event log
+      and the rule, with no ambient state. The bindings differ; the semantics do not.
+    </p>
+    <p class="text-text-muted mb-4">
+      Likely paths: C# and Go via WASM (same artifact, different host); Python via WASM or
+      PyO3 FFI. The ordering and exact mechanism are not settled. If you have a concrete need,
+      file an issue on the crate's repository.
+    </p>
+
+    <!-- Next -->
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">See also:</strong>{' '}
+        <a href="/docs/examples" class="text-primary hover:underline">Examples</a>
+        {' '}&mdash; concrete applications built on the native and WASM bindings &mdash; and{' '}
+        <a href="/positioning" class="text-primary hover:underline">Positioning</a>
+        {' '}for the React temporal UX walkthrough, or{' '}
+        <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics</a>
+        {' '}for the framework-agnostic browser example.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

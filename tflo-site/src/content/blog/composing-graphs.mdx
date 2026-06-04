@@ -1,0 +1,287 @@
+---
+title: Composing graphs — from indicator to pipeline
+description: One graph, one output. But you never want one output. Seven combinators turn any indicator into a multi-stage pipeline — zip, map, filter, fold, pipe, reduce, filter_map.
+pubDate: 2025-03-22
+tags: ["composition", "pipeline", "zip", "map", "filter", "fold", "pipe"]
+---
+
+One graph, one output. But you never want one output. You want the smoothed signal, its volatility, and the raw value side by side. You want to filter out low-confidence events. You want to accumulate statistics across the stream. You want a pipeline, not an island.
+
+tflo has two distinct phases: **building** and **compiled**. They use different APIs.
+
+**Building phase** — Inside a `.tflo(|t| { ... })` closure, you work with a `TFlowBuilder`. You extract properties with `t.prop()`, chain operators like `.sma()`, `.rsi()`, and compose with `Comp` arithmetic (add, subtract, compare, cross — all the operator overloading). The closure returns one or more `Comp` values, and `.tflo()` compiles them into a `CompiledGraph` for you automatically.
+
+**Compiled phase** — Once you have a `CompiledGraph<R, O, C>`, you can chain the seven combinators: `zip()`, `map()`, `filter()`, `fold()`, `pipe()`, `reduce()`, `filter_map()`. These transform the output type and add post-processing logic.
+
+If you want to use combinators, you need a handle to the `CompiledGraph`. The simplest way is to build and compile manually with `CompiledGraph::compile()`. Let's walk through each combinator.
+
+## Zip — two graphs, one output
+
+`zip` merges two graphs so they run side by side. Each step produces both outputs as a tuple.
+
+```rust
+pub fn zip<O2>(self, other: CompiledGraph<R, O2, C>) -> CompiledGraph<R, (O, O2), C>
+```
+
+Use it when you need to combine independent computations:
+
+```rust
+use tflo_core::builder::Compile;
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+use std::sync::Arc;
+
+#[derive(Clone)]
+struct Tick {
+    ts: i64,
+    price: f64,
+}
+
+// Build and compile an SMA graph
+fn build_sma() -> CompiledGraph<Tick, f64> {
+    let mut builder = TFlowBuilder::new();
+    builder.timestamp(|x: &Tick| x.ts);
+    let price = builder.prop(|x| x.price);
+    let sma = price.sma(20usize);
+    let nodes = builder.into_nodes();
+    CompiledGraph::compile(
+        Arc::new(|x: &Tick| x.ts),
+        nodes,
+        sma.output_ids(),
+    )
+}
+
+// Build and compile an RSI graph
+fn build_rsi() -> CompiledGraph<Tick, f64> {
+    let mut builder = TFlowBuilder::new();
+    builder.timestamp(|x: &Tick| x.ts);
+    let price = builder.prop(|x| x.price);
+    let rsi = price.rsi(14usize);
+    let nodes = builder.into_nodes();
+    CompiledGraph::compile(
+        Arc::new(|x: &Tick| x.ts),
+        nodes,
+        rsi.output_ids(),
+    )
+}
+
+let sma_graph = build_sma();
+let rsi_graph = build_rsi();
+
+// Run them together
+let combined = sma_graph.zip(rsi_graph);
+// step() now returns PipelineItem<C, (f64, f64)>
+```
+
+`min_warmup` becomes the max of both graphs. Both must be warm before either produces output.
+
+The type system tracks what you combine. A `CompiledGraph<R, f64>` becomes `CompiledGraph<R, (f64, f64)>` after one zip, and so on.
+
+**But in practice, you can skip all that boilerplate.** If you just want multiple outputs from the same builder, return a tuple from `.tflo()`:
+
+```rust
+let results: Vec<(f64, f64)> = ticks.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let price = t.prop(|x| x.price);
+        let sma = price.sma(20usize);
+        let rsi = price.rsi(14usize);
+        (sma, rsi)
+    })
+    .collect();
+```
+
+That's it — `.tflo()` handles compilation, and you get `(f64, f64)` per record. No `zip` needed when both indicators come from the same builder.
+
+Where `zip` really shines is when you have two separately compiled graphs — different record types, different pipelines — and you need to merge them into one output stream.
+
+## Map — transform the output
+
+`map` applies a stateless transformation to every output value. Context flows through unchanged.
+
+```rust
+pub fn map<O2, F>(self, f: F) -> CompiledGraph<R, O2, C>
+where
+    F: Fn(O) -> O2 + Send + Sync + 'static
+```
+
+```rust
+let signals = sma_graph.map(|value| {
+    if value > 100.0 { "ABOVE" } else { "BELOW" }
+});
+// step() returns PipelineItem<C, &str>
+```
+
+Every combinator that changes the output type uses `map` internally. It's the simplest building block.
+
+## Filter — suppress unwanted outputs
+
+`filter` keeps outputs where the predicate returns true. The rest become `None` — the graph step returns `PipelineItem<C, Option<O>>` instead of the value directly.
+
+```rust
+pub fn filter<F>(self, predicate: F) -> CompiledGraph<R, Option<O>, C>
+where
+    F: Fn(&O) -> bool + Send + Sync + 'static
+```
+
+```rust
+// Only keep values above a threshold
+let above_threshold = sma_graph.filter(|value| *value > 50.0);
+// step() returns PipelineItem<C, Option<f64>>
+```
+
+When the predicate returns false, you get `Some(None)`. Your stream continues — the record is just marked as filtered rather than dropped entirely.
+
+## Filter_map — combine map and filter
+
+`filter_map` does both in one pass. Apply a fallible transformation — return `Some(output)` to keep it, `None` to suppress.
+
+```rust
+pub fn filter_map<O2, F>(self, f: F) -> CompiledGraph<R, Option<O2>, C>
+where
+    F: Fn(O) -> Option<O2> + Send + Sync + 'static
+```
+
+```rust
+// Parse and validate in one step
+let valid_prices = raw_prices.filter_map(|s| s.parse::<f64>().ok());
+```
+
+## Fold — accumulate state across the stream
+
+`fold` is the stateful one. It maintains an accumulator that updates with every step. Each output is the current accumulator value.
+
+```rust
+pub fn fold<Acc, F>(self, initial: Acc, f: F) -> CompiledGraph<R, Acc, C>
+where
+    F: Fn(Acc, O) -> Acc + Send + Sync + 'static
+```
+
+```rust
+// Count consecutive matching events
+let event_count = events.fold(0u64, |count, event| {
+    if event == Some("ACTIVE") { count + 1 } else { 0 }
+});
+// step() returns PipelineItem<C, u64>
+```
+
+The accumulator is protected by a `Mutex` internally — safe to share, stateful across the stream.
+
+## Reduce — collapse tuples back to single values
+
+`reduce` is only available on tuple outputs. It takes the two components of a `(A, B)` tuple and combines them.
+
+```rust
+// Only on CompiledGraph<R, (A, B), C>
+pub fn reduce<D, F>(self, f: F) -> CompiledGraph<R, D, C>
+where
+    F: Fn(A, B) -> D + Send + Sync + 'static
+```
+
+```rust
+let ratio = price_graph
+    .zip(volume_graph)
+    .reduce(|p, v| p / v);
+// Back to CompiledGraph<R, f64>
+```
+
+There's also `reduce3` for 3-tuples.
+
+## Pipe — chain graphs end to end
+
+`pipe` is different from the others. Instead of running two graphs side by side, it runs one after the other. The output of the first graph becomes the input record of the second — with context flowing through.
+
+```rust
+pub fn pipe<O2>(
+    self,
+    next: CompiledGraph<PipelineItem<C, O>, O2, C>,
+) -> PipelinedGraph<R, O, O2, C>
+```
+
+The second graph receives `PipelineItem<C, O>` — it has access to both the value and the context (timestamp, key, etc.) from the first graph.
+
+```rust
+// Stage 1: compute SMA
+let sma_graph: CompiledGraph<Tick, f64> = build_sma();
+
+// Stage 2: detect crossovers (receives SMA values with timestamps)
+let crossover_graph: CompiledGraph<PipelineItem<Timestamped, f64>,
+    ThresholdCrossEventMode> = /* built from a separate builder */;
+
+// Combine into a pipeline
+let pipeline = sma_graph.pipe(crossover_graph);
+// step() runs the full pipeline
+```
+
+## Putting it together: a real pipeline
+
+Let's build something concrete — an SMA crossover detector with an RSI filter and a consecutive-event counter. The shape is generic: smooth a noisy signal at two timescales, gate on a secondary condition, then count sustained activity. It works just as well for an intrusion-detection rate gauge or an observability latency monitor.
+
+Here's the thing: combinators (`zip`, `map`, `filter`, `fold`) live on `CompiledGraph` — they're post-compilation transforms. But the actual operator math lives **inside** the `TFlowBuilder`. So for a three-operator pipeline with filtering and folding, you build the operators inside `.tflo()`, then chain the combinators on the compiled result.
+
+When you need both, build manually:
+
+```rust
+use tflo_core::builder::Compile;
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+use std::sync::Arc;
+
+#[derive(Clone)]
+struct Tick {
+    ts: i64,
+    price: f64,
+}
+
+// Build a graph that outputs (fast_sma, slow_sma, rsi)
+fn build_indicators() -> CompiledGraph<Tick, (f64, f64, f64)> {
+    let mut builder = TFlowBuilder::new();
+    builder.timestamp(|x: &Tick| x.ts);
+    let price = builder.prop(|x| x.price);
+    let fast_sma = price.sma(10usize);
+    let slow_sma = price.sma(30usize);
+    let rsi = price.rsi(14usize);
+    let nodes = builder.into_nodes();
+    CompiledGraph::compile(
+        Arc::new(|x: &Tick| x.ts),
+        nodes,
+        (fast_sma, slow_sma, rsi).output_ids(),
+    )
+}
+
+let pipeline = build_indicators()
+    // Filter: only proceed when fast > slow (an upward regime shift)
+    .filter(|(fast, slow, _)| *fast > *slow)
+    // Map: drop slow_sma — transform inner value while keeping the Option wrapper
+    .map(|opt| opt.map(|(fast, _, rsi)| (fast, rsi)))
+    // Filter: only keep events with RSI in the neutral mid-band (30-70)
+    .filter(|opt| opt.as_ref().is_some_and(|(_, rsi)| *rsi < 70.0 && *rsi > 30.0))
+    // Fold: count consecutive valid events
+    .fold(0u64, |count, opt| if opt.is_some() { count + 1 } else { 0 });
+```
+
+Here's what happens step by step:
+
+1. **Builder phase** — `TFlowBuilder` creates three `Comp` nodes: `fast_sma.sma(10usize)`, `slow_sma.sma(30usize)`, and `price.rsi(14usize)`. The closure returns a `(Comp, Comp, Comp)` tuple.
+2. **Compilation** — `CompiledGraph::compile()` turns the raw nodes into an executable graph that outputs `(f64, f64, f64)` per record.
+3. **Combinator chain** — Post-compilation transforms:
+   - **filter** — keep only records where fast SMA > slow SMA (an upward regime shift)
+   - **map** — drop slow_sma from the tuple inside the Option → `Option<(f64, f64)>`
+   - **filter** — keep only records where RSI sits in the neutral 30-70 mid-band (reject the extremes). Calling `filter` on an already-Option output creates `Option<Option<...>>`, so the predicate checks the inner tuple via `opt.as_ref().is_some_and(...)`.
+   - **fold** — count consecutive valid events (a `Some` increments, a `None` resets)
+
+The type evolves through each step:
+- `CompiledGraph<R, (f64, f64, f64)>` — raw indicators
+- `CompiledGraph<R, Option<(f64, f64, f64)>>` — after first filter
+- `CompiledGraph<R, Option<(f64, f64)>>` — after map
+- `CompiledGraph<R, Option<Option<(f64, f64)>>>` — after second filter (filter on an Option wraps again)
+- `CompiledGraph<R, u64>` — after fold
+
+Seven combinators. That's the entire composition API. They're enough to build anything from a simple threshold to a multi-stage pipeline that combines operators, filters noise, and accumulates statistics across an entire streaming session.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/composing-graphs`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/composing-graphs)
+
+*— Matt*

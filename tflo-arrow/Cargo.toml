@@ -1,0 +1,33 @@
+[package]
+name = "tflo-arrow"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Arrow/Parquet/Polars interop for tflo (Phase 4): batch-replay sources + window-result sinks"
+license.workspace = true
+repository.workspace = true
+keywords = ["arrow", "parquet", "polars", "dataframe"]
+categories = ["data-structures"]
+
+[features]
+default = ["arrow-impl"]
+arrow-impl = ["dep:arrow", "dep:arrow-schema", "dep:blake3"]
+parquet = ["arrow-impl", "dep:parquet"]
+polars = ["arrow-impl", "dep:polars"]
+async = ["tflo-core/async"]
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+arrow = { version = "58", optional = true, default-features = false }
+arrow-schema = { version = "58", optional = true, default-features = false }
+parquet = { version = "58", optional = true, default-features = false, features = ["arrow"] }
+polars = { version = "0.53", optional = true, default-features = false, features = ["lazy"] }
+blake3 = { version = "1", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = "3"
+
+[lints]
+workspace = true

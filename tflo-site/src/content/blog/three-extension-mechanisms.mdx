@@ -1,0 +1,287 @@
+---
+title: "3 ways to extend tflo without recompiling — and when each one bites you"
+description: CEL, Rego, and Rhai each solve a different problem. Picking the wrong one costs you weeks. Here's how to decide.
+pubDate: 2025-03-20
+tags: ["extensions", "cel", "rego", "rhai", "architecture"]
+---
+
+You've built a computation graph. It processes streaming data, computes indicators, fires signals. It works.
+
+Then someone asks: "Can we add a rule to suppress alerts when SNR drops below 10?" Or: "We need to classify signals differently based on a new compliance policy." Or: "Can we transform this output field without a full deploy?"
+
+In a compiled Rust project, those questions hurt. Every change means a recompile, a new binary, a deployment pipeline. If you're doing this weekly, you're wasting time.
+
+tflo gives you three escape hatches — CEL, Rego, and Rhai. Each lets you change behavior at runtime without recompiling. But they're not interchangeable, and picking wrong means you'll fight the tool instead of solving the problem.
+
+I've made each of those mistakes so you don't have to.
+
+## The short version
+
+Here's the decision tree:
+
+- **Simple boolean checks?** Use CEL. It's fast, safe, and compiles to a tiny evaluation step.
+- **Policy with context — access control, compliance, multi-condition rules?** Use Rego. It's built for this.
+- **Transformation, enrichment, or custom computation?** Use Rhai. It's a full scripting language.
+- **Fixed logic that won't change?** Write a custom node in Rust. The compiler is your test suite.
+
+Still reading? Good. Let me show you the edges.
+
+## CEL — when you just need a yes/no
+
+CEL (Common Expression Language) is Google's expression language, originally built for their APIs. It compiles to a program and evaluates it against a context. No side effects, no loops, no function calls. Just expressions that return values.
+
+tflo-cel wraps this into something you can drop into a stream:
+
+```rust
+use tflo_cel::prelude::*;
+
+let filtered: Vec<Detection> = detections.into_iter()
+    .cel_filter("snr > 10.0 && freq_mhz > 100.0")
+    .collect();
+```
+
+Three operations and you're filtering a stream. No compilation step. No script files to load. The expression is compiled once and evaluated per item.
+
+### What CEL is good at
+
+CEL excels at **threshold checks and routing rules** — the kind of logic you might have in a config file today. The rule engine even supports YAML-based configuration with hot reload:
+
+```yaml
+rules:
+  - name: strong_signal
+    condition: "snr > 20.0"
+    action:
+      type: alert
+      priority: high
+
+  - name: protected_band
+    condition: "freq_mhz >= 118.0 && freq_mhz <= 137.0"
+    action:
+      type: log
+```
+
+You can ship this YAML file to production, change it, and the engine picks up the new rules without a deploy. That's the dream.
+
+### Where CEL falls apart
+
+CEL can't call functions. It can't maintain state between evaluations. It can't iterate over collections. If your condition involves a lookup table or a multi-step classification, you'll find yourself writing contorted expressions that shouldn't exist.
+
+I once watched someone try to encode a three-tier signal classifier in CEL. It ended up as a nested ternary abomination that nobody could read. The fix was moving it to Rego in about twenty minutes.
+
+**Use CEL when:** Your rules look like `field > threshold && other_field in range`. Ten lines of YAML, no more.
+
+**Don't use CEL when:** Your logic needs iteration, external data, or anything that isn't a pure expression of the current input.
+
+## Rego — when policy is the product
+
+Rego is the policy language from Open Policy Agent (OPA). It's designed for exactly one thing: making decisions based on structured data. If you've ever needed "allow this request only if the user has role X and the resource is in region Y and it's not a maintenance window," Rego is what you reach for.
+
+tflo-rego wraps this into a policy engine you can embed in your stream:
+
+```rust
+use tflo_rego::prelude::*;
+use std::sync::{Arc, Mutex};
+
+let mut engine = PolicyEngine::new();
+
+engine.add_policy("spectrum", r#"
+    package spectrum
+
+    default allow = false
+
+    allow {
+        input.snr > 10.0
+        not protected_band
+    }
+
+    protected_band {
+        input.freq_mhz >= 118.0
+        input.freq_mhz <= 137.0
+    }
+"#)?;
+```
+
+What makes Rego different is its approach to negation and iteration. The `not protected_band` line isn't a function call — it's a rule that the engine evaluates. If `protected_band` is true, the `allow` rule fails. You get composable logic without glue code.
+
+### Static data makes Rego powerful
+
+Here's where Rego shines over CEL. You can load reference data — protected frequency bands, user roles, compliance tables — and write policies against them:
+
+```rust
+engine.add_data(serde_json::json!({
+    "protected_bands": [
+        {"start": 118.0, "end": 137.0, "name": "Aviation"},
+        {"start": 156.0, "end": 162.0, "name": "Maritime"}
+    ],
+    "min_snr": 10.0
+}))?;
+```
+
+Your policy can reference `data.protected_bands` and `data.min_snr` directly. Change the data file, restart, and the policy picks it up. No recompile, no code change.
+
+### Where Rego is overkill
+
+Rego has a learning curve. The syntax is declarative in a way that trips up engineers who think in if/else chains. And it's slower than CEL for simple checks — you're spinning up a policy engine to evaluate what could be a one-line expression.
+
+**Use Rego when:** Your decisions depend on external data, multiple conditions, or policy composition. Access control, compliance, multi-factor classification.
+
+**Don't use Rego when:** You need to transform data, or your "policy" is a single threshold check. CEL is faster and simpler.
+
+## Rhai — when you need to compute something
+
+Rhai is an embedded scripting language for Rust. Its syntax looks like Rust — if you can read Rust, you can read Rhai. Unlike CEL and Rego, Rhai is a full language: variables, loops, functions, custom types. You can register Rust functions and call them from scripts.
+
+tflo-rhai wraps this for filtering, transformation, and enrichment:
+
+```rust
+use tflo_rhai::prelude::*;
+
+// Filter
+let filtered: Vec<Detection> = detections.into_iter()
+    .rhai_filter("snr > 10.0 && freq_mhz > 100.0")
+    .collect();
+
+// Transform
+let scores: Vec<Dynamic> = items.into_iter()
+    .rhai_map("snr * confidence * 0.01")
+    .collect();
+```
+
+The transformation path is where Rhai differentiates itself. CEL and Rego are decision engines — they tell you yes or no. Rhai can produce new values. You can enrich a stream item with a computed score, derive a classification string, or reshape a data structure.
+
+### Custom functions unlock real power
+
+Rhai's real strength is that you can register domain-specific Rust functions and call them from scripts:
+
+```rust
+let mut rhai_engine = Engine::new();
+
+rhai_engine.register_fn("db_to_linear", |db: f64| -> f64 {
+    10.0_f64.powf(db / 10.0)
+});
+
+rhai_engine.register_fn("is_protected_band", |freq_mhz: f64| -> bool {
+    (118.0..=137.0).contains(&freq_mhz)
+});
+
+let engine = ScriptEngine::with_engine(rhai_engine);
+```
+
+Now your scripts can call `db_to_linear(snr)` or `is_protected_band(freq_mhz)` as if they were built-in. You keep the performance-critical logic in Rust and the configurable logic in scripts.
+
+### Where Rhai gets dangerous
+
+Rhai scripts are code. They can have bugs. They can loop infinitely. They can produce unexpected results because someone wrote `x = x + 1` instead of `x += 1`. You're trading compile-time safety for runtime flexibility, and that trade-off needs boundaries.
+
+I've seen teams put complex business logic in Rhai scripts, then spend weeks debugging them without the safety net of Rust's type system. The scripts worked in the end, but they'd have been better as compiled Rust code.
+
+**Use Rhai when:** You need to transform data, compute derived values, or express logic that doesn't fit in CEL's expression model.
+
+**Don't use Rhai when:** Your logic is a simple boolean check (use CEL) or a multi-condition policy (use Rego). And *definitely* don't use it when the logic is stable and won't change — compile it.
+
+## Rust native — when flexibility isn't the goal
+
+All three extension mechanisms solve the same fundamental problem: *changing behavior without recompiling*. But that flexibility comes at a cost. Every expression string, policy file, or script you ship is code that bypassed your compiler.
+
+Sometimes that cost isn't worth paying.
+
+If your logic is well-understood, rarely changes, and performance-sensitive, you're better off writing a custom node in Rust and compiling it directly into the graph. tflo exposes the [`Operator`](https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/operator.rs) trait exactly for this — it's in `tflo_core::prelude`. An `Operator` receives one `Computed` per wired input and a record timestamp `ts`, and returns a `NodeOutput`; return `NodeOutput::computed(Err(Absent::WarmingUp))` to mean "still warming up", or `NodeOutput::computed(Err(Absent::FilteredOut))` to drop a value:
+
+```rust
+use tflo_core::prelude::*;
+use tflo_core::operator::require;
+
+struct SnrFilter {
+    threshold: f64,
+}
+
+impl Operator for SnrFilter {
+    fn eval(&mut self, inputs: &[Computed], _ts: i64) -> NodeOutput {
+        let value = match require(inputs, 0) {
+            Ok(v) => v,
+            Err(e) => return NodeOutput::computed(Err(e)),
+        };
+        if value > self.threshold {
+            NodeOutput::computed(Ok(value))
+        } else {
+            NodeOutput::computed(Err(Absent::FilteredOut))
+        }
+    }
+
+    fn name(&self) -> &str {
+        "snr_filter"
+    }
+}
+```
+
+Attach it to the graph with `Comp::custom_node` (for multiple inputs) or `comp.custom_node1` (single input):
+
+```rust
+let strong: Vec<f64> = detections.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let snr = t.prop(|x| x.snr);
+        snr.custom_node1(|| SnrFilter { threshold: 10.0 })
+    })
+    .collect();
+```
+
+You get full Rust semantics: type safety, pattern matching, enums, traits, all of it. The logic is checked at compile time, not at runtime when a stray `snr > 10.0` vs `snr >= 10.0` typo slips into production in a YAML file.
+
+### When Rust native wins
+
+**It's stable logic that won't change between deploys.**. That "add a threshold" request that came in last week turned into a config parameter. The logic around that parameter is fixed. Write it once, compile it, move on.
+
+**Performance matters.** Every CEL expression, Rego policy, and Rhai script has an interpretation overhead. For a single evaluation it's microseconds. Over millions of streaming events, those microseconds add up to real latency. A custom Rust node is as fast as the rest of the graph — because it is the rest of the graph.
+
+**You need full Rust semantics.** Conditions get complex. You want `match` on enums. You want iterator combinators. You want the borrow checker to catch your mistakes before they become outages. Scripting languages can't give you any of that.
+
+### When Rust native loses
+
+**Every change requires a deploy.** That's the trade-off, plain and simple. If your operations team needs to adjust thresholds at 2 AM without waking anyone up, a custom node won't help. You need CEL or a config file.
+
+**The iteration cycle is slower.** Rust compile times aren't instant. If you're experimenting with indicator logic — trying different window sizes, different weighting schemes — a Rhai script lets you iterate in seconds. A Rust node takes at least a `cargo check` cycle.
+
+**It penalizes exploration.** For well-understood, production-hardened logic, Rust native is the right call. For the phase where you're still figuring out what the logic should be, scripting is faster.
+
+**Use Rust native when:** The logic is stable, the performance path is hot, or the semantics are too complex for any scripting language to express safely.
+
+**Don't use Rust native when:** You're still figuring out what the logic should be, or you need to change it without a deployment pipeline.
+
+## The gotcha table
+
+Here's the honest comparison. No corporate speak. No "all three are great for everything."
+
+| | CEL | Rego | Rhai | **Rust native** |
+|---|---|---|---|---|
+| **What it does** | Boolean expressions | Policy decisions | Scripting | **Compiled graph nodes** |
+| **Side effects** | No | No | Yes (via registered functions) | **Yes** |
+| **External data** | No | Yes (static data) | Yes (via closures) | **Yes** |
+| **Hot reload** | Yes (YAML/JSON) | Yes (bundle dirs) | Yes (file watcher) | **No — requires recompile** |
+| **Learning curve** | Low | Medium-high | Low (if you know Rust) | **Low (if you know Rust)** |
+| **Evaluation speed** | Fastest | Moderate | Fast | **Fastest** |
+| **Type safety** | None | None | Minimal | **Full** |
+| **Good for** | Thresholds, routing | Policies, compliance | Transforms, enrichment | **Stable, perf-sensitive logic** |
+| **Bad for** | Complex logic | Simple checks | Stable logic | **Frequently changing rules** |
+
+## How to decide
+
+Walk through this checklist before picking an extension mechanism:
+
+1. **Do I just need a yes/no on a single value?** → CEL. Don't overthink it.
+2. **Does my decision depend on external data — roles, bands, lookup tables?** → Rego. That's what it's for.
+3. **Am I computing a new value — a score, a classification, a transformed field?** → Rhai. The other two can't do this.
+4. **Will this logic change often?** → Any of them. That's the point.
+5. **Is this logic well-understood and stable?** → **Rust native.** Don't pay the scripting tax for logic that won't move.
+6. **Is this on a hot performance path?** → **Rust native.** Microseconds matter at scale.
+7. **Do I need full type safety and the borrow checker?** → **Rust native.** No scripting language provides either.
+8. **Am I still experimenting with what the logic should be?** → Rhai. Iterate fast, then compile when it's stable.
+
+The worst outcome is picking one because "it's what the team knows" and fighting it for months. I've done that. You don't have to.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/three-extension-mechanisms`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/three-extension-mechanisms)
+
+*— Matt*

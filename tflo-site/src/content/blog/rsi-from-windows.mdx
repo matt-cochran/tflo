@@ -1,0 +1,155 @@
+---
+title: RSI — range-bound momentum, three different ways
+description: RSI is a bounded 0-100 momentum gauge — useful for spotting saturation in any signal. But different references compute it differently, and the difference matters at the edges.
+pubDate: 2025-04-09
+tags: ["operators", "rsi", "momentum", "wilder"]
+---
+
+import DemoChart from '../../components/DemoChart.tsx';
+
+RSI began life in finance — a 0-100 gauge of whether a price is "overbought" or "oversold." But strip the trading vocabulary away and it's a generic primitive: a bounded measure of how lopsided the recent gains-versus-losses balance is. That makes it useful far beyond finance — saturation on a sensor, sustained error-rate climb in observability, a runaway packet-rate trend in intrusion detection. Finance is just the domain it was born in; in tflo it's a generic `tflo-ops` operator anyone can use.
+
+The math sounds simple. You take rises and falls over a window, average them, and plug into a formula. But "average" is the problem — there are two different averaging methods, and they produce different curves.
+
+tflo supports both. You pick the one that matches your reference.
+
+<div class="card my-8">
+  <DemoChart
+    dataKey="rsi"
+    loop={true}
+    autoplay={true}
+    height={300}
+    client:load
+  />
+</div>
+
+## The formula never changes
+
+RSI = 100 − (100 / (1 + RS))
+
+RS = average gain / average loss
+
+That part is fixed. The divergence is in how you compute "average gain" and "average loss."
+
+## Simple-average RSI
+
+This is the default in tflo. A sliding window of the last N gains and N losses, simple mean of each:
+
+```rust
+use tflo_ops::primitives::RsiCountWindow;
+
+let mut rsi = RsiCountWindow::new(14);
+
+for price in [44.0, 44.25, 44.5, 43.75, 44.5, /* ... */] {
+    rsi.push(price);
+}
+
+let value = rsi.rsi(); // 0-100
+// Returns NaN during warmup (need period + 1 values)
+```
+
+`RsiCountWindow` maintains two `VecDeque`s — one for gains, one for losses. Each `push()` computes the change from the previous value, evicts the oldest pair if at capacity, and updates running sums. The `rsi()` method divides the sums by the count.
+
+This is the version most people expect. Each new value carries equal weight. Old values drop off cleanly. It's straightforward and it works.
+
+You can also use the time-based variant when your data has irregular intervals:
+
+```rust
+use tflo_ops::primitives::RsiTimeWindow;
+
+let mut rsi = RsiTimeWindow::new(std::time::Duration::from_secs(300)); // 5 min
+```
+
+Same formula, but the window evicts by timestamp instead of count.
+
+In the graph, both are accessible through the same API (requires `use tflo_ops::prelude::*;`):
+
+```rust
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+let rsi_count = price.rsi(14usize);          // count-based, period 14
+let rsi_time = price.rsi(5_u64.mins());      // time-based, 5 minute window
+```
+
+`WindowOps::rsi` handles both. The graph compiles the right window based on whether you pass a `Window::Count(n)` or `Window::Time(d)`.
+
+## Wilder's smoothed RSI (TradingView compatible)
+
+TradingView doesn't use simple averaging. It uses Wilder's smoothing — an EMA-like recursive filter with alpha = 1/period. The first value is seeded with a simple average, then each subsequent update smooths recursively. In the graph, use `rsi_wilder_n`:
+
+```rust
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+// Wilder's smoothed RSI — period 14
+let rsi_wilder = price.rsi_wilder_n(14);
+```
+
+The smoothing implementation lives inside `tflo_ops` as a private `Operator`. You access it exclusively through the graph API; there is no public primitive struct to construct directly.
+
+The difference:
+- **Simple average**: equal weight per period, old value drops off entirely after N periods
+- **Wilder's smoothing**: exponential decay, recent values weighted more, old values fade asymptotically
+
+The Wilder version is smoother. It reacts slower to sharp moves. On a 14-period RSI, the two can differ by 5-10 points during volatile price action.
+
+TA-Lib uses simple averaging, so `RsiCountWindow` matches that convention.
+
+In the graph, Wilder's RSI is available as `price.rsi_wilder_n(14)`.
+
+## Real data, side by side
+
+Say you have a 14-period RSI on a series where price jumps sharply from 100 to 120 in one period:
+
+| After jump | Simple avg RSI | Wilder's RSI |
+|------------|----------------|--------------|
+| Period 1   | 100.0          | 100.0        |
+| Period 2   | 75.0           | 80.5         |
+| Period 3   | 66.7           | 73.2         |
+| Period 10  | ~55            | ~62          |
+
+The Wilder version decays more slowly. That 100% gain stickiness lingers. Whether that's desirable depends on your strategy.
+
+## Event generation
+
+Once you have RSI, you can detect crosses against thresholds:
+
+```rust
+let recovery = rsi.cross_above(&t.constant(30.0));  // climbing out of the low band
+let saturation = rsi.cross_under(&t.constant(70.0)); // dropping back from the high band
+```
+
+`cross_above` and `cross_under` return `ThresholdCrossEventMode` — `Rising` on the tick the cross happens, `Falling` on the reverse tick, `None` otherwise. In a finance domain these become buy/sell signals; in observability they might be "load returning to normal" and "load leaving the danger zone." The operator is the same — only the interpretation changes.
+
+## Edge cases
+
+**No movement.** If every price is identical, all gains and all losses are zero. Both `avg_gain` and `avg_loss` are 0. The division `avg_gain / avg_loss` is 0/0. The code handles this explicitly:
+
+```rust
+if avg_loss == 0.0 {
+    if avg_gain == 0.0 {
+        return 50.0; // No movement → neutral
+    }
+    return 100.0; // All gains, no losses
+}
+```
+
+RSI = 50 when nothing happens — neutral, no bias.
+
+**All gains or all losses.** If every change is positive, `avg_loss` is 0. The code catches this before the division and returns 100. Same for all losses — returns 0.
+
+**Warmup.** `RsiCountWindow` needs `period + 1` values (period changes plus one initial value to compare against). Before that, `rsi()` returns `NaN`. The graph handles propagation automatically — downstream nodes that consume RSI won't fire until it's ready.
+
+## Which one should you use?
+
+If you're comparing against TradingView charts, use `price.rsi_wilder_n(14)`. If you're backtesting against TA-Lib output, use `price.rsi(14usize)` (default is simple average, which matches TA-Lib). Both are available via `use tflo_ops::prelude::*;` — the catalog methods live in the `tflo-ops` crate.
+
+The important thing is to know which one you're running. They're different indicators with the same name. tflo gives you both, clearly labeled, so you never have to guess.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/rsi-from-windows`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/rsi-from-windows)
+
+*— Matt*

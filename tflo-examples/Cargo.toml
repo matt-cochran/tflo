@@ -1,0 +1,52 @@
+[package]
+name = "tflo-examples"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Canonical runnable examples for tflo articles and tutorials"
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+tflo-core = { workspace = true, features = ["full"] }
+tflo-ops = { workspace = true }
+tflo-fintech = { workspace = true }
+
+# Scripting filter adapters
+tflo-cel = { workspace = true }
+tflo-rhai = { workspace = true }
+tflo-rego = { workspace = true }
+
+# State-store backends — Phase 1 examples use the async path on both.
+tflo-state-files = { workspace = true, features = ["async"] }
+tflo-state-s3 = { workspace = true, features = ["async"] }
+
+# Phase 2/3/4 connectors and sinks — used by the iot-portal example.
+tflo-connect-kafka = { workspace = true, features = ["async"] }
+tflo-connect-mqtt = { workspace = true, features = ["async"] }
+tflo-sink-influx = { workspace = true, features = ["async"] }
+tflo-arrow = { workspace = true, features = ["parquet"] }
+
+# Arrow types used in the iot-portal example.
+arrow = { version = "58", default-features = false }
+arrow-schema = { version = "58", default-features = false }
+
+# Scripting crate re-exports (needed to implement context traits)
+cel-interpreter = { version = "0.10", default-features = false }
+rhai = "1.19"
+
+# S3 mock impl requires async_trait
+async-trait = "0.1"
+
+# Serialization (used by checkpointing example)
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Async runtime (used by async execution mode example)
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+
+[lints]
+workspace = true

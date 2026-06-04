@@ -1,0 +1,187 @@
+---
+title: "What's a signal? — the abstraction that turns numbers into meaning"
+description: "Most engineers think 'signal' means 'crossing detected.' In tflo, it's a typed event mode plus payload — and it's how a noisy detection stream becomes clean lifecycle events."
+pubDate: 2025-04-14
+tags: ["architecture", "signals", "events", "core", "temporal event processing"]
+---
+
+You're building a streaming pipeline. Noisy domain events go in. Values come out. But somewhere between the SMA and the crossing, something got lost — you're drowning in `f64` values and starving for meaning.
+
+The raw numbers tell you *what*. They don't tell you *what it means*. A 0.3 is just a 0.3 — is that rising, falling, inside a zone, a glitch? You can't tell from the float alone. A temporal event processing engine exists to bridge exactly this gap: turn a stream of measurements into named events your system can act on.
+
+That's what `Signal` is for.
+
+## Signal — typed mode plus payload
+
+A signal is a value wrapped in context. It has two parts:
+
+- `mode` — what kind of event this is (`Rising`, `Falling`, `Entered`, `TooShort`, etc.)
+- `payload` — the data attached to the event (a price, a timestamp, metadata, whatever you need)
+
+Here's the struct itself:
+
+```rust
+pub struct Signal<TMode, TPayload = ()> {
+    pub mode: TMode,
+    pub payload: TPayload,
+}
+```
+
+Default payload is `()`. If all you need is the event type — "it crossed!" — you don't carry dead weight.
+
+Creating a signal with a payload:
+
+```rust
+use tflo_core::event::{Signal, ThresholdCrossEventMode};
+
+let cross = Signal::new(ThresholdCrossEventMode::Rising, 100.45);
+```
+
+Creating one without:
+
+```rust
+let cross = Signal::simple(ThresholdCrossEventMode::Falling);
+```
+
+## Why this beats raw floats
+
+A raw `f64` tells you nothing about what happened. A `Signal` tells you:
+
+- **What happened** — `mode` says `Rising`, `Falling`, `Entered`, `ExitedHigh`, `TooShort`, `Valid`
+- **What's attached** — `payload` carries the price, the timestamp, the metadata
+
+You don't inspect a float and guess. You match on `signal.mode` and read `signal.payload`.
+
+```rust
+match signal.mode {
+    ThresholdCrossEventMode::Rising => println!("Crossed up at {}", signal.payload),
+    ThresholdCrossEventMode::Falling => println!("Crossed down"),
+    ThresholdCrossEventMode::None => {} // no signal
+}
+```
+
+## Transform the payload, keep the mode
+
+Once you have a signal, you can operate on it without losing the event type:
+
+```rust
+// Transform payload: double the price while keeping the mode
+let doubled = signal.map_payload(|x| x * 2.0);
+
+// Replace payload entirely
+let annotated = signal.with_payload("cross detected at 2025-04-14");
+```
+
+`map_payload` preserves the mode and transforms the payload. `with_payload` swaps it out completely.
+
+## Extraction — when you just need one piece
+
+Four accessors, because sometimes you only need half the signal:
+
+```rust
+let mode: ThresholdCrossEventMode = signal.into_mode();       // consume, get mode
+let payload: f64 = signal.into_payload();                       // consume, get payload
+let mode_ref: &ThresholdCrossEventMode = signal.mode();         // borrow mode
+let payload_ref: &f64 = signal.payload();                       // borrow payload
+```
+
+`into_mode` and `into_payload` consume the signal. `mode()` and `payload()` borrow it. Pick the right level of ownership.
+
+## The three mode types
+
+Three event systems, each with their own semantics.
+
+### ThresholdCrossEventMode
+
+The simplest — did we cross a line, and which direction?
+
+```rust
+pub enum ThresholdCrossEventMode {
+    Rising,   // crossed upward
+    Falling,  // crossed downward
+    None,     // no cross
+}
+```
+
+### ZoneEventMode
+
+For window or band detection — are we inside, entering, or leaving?
+
+```rust
+pub enum ZoneEventMode {
+    Entered,      // just entered the zone
+    ExitedLow,    // exited through the bottom
+    ExitedHigh,   // exited through the top
+    Inside,       // currently inside (steady state)
+}
+```
+
+### PulseEventMode
+
+For pulse and glitch detection — is this a real signal or noise?
+
+```rust
+pub enum PulseEventMode {
+    Valid,     // good pulse
+    TooShort,  // glitch — too brief
+    TooLong,   // held too long
+    Runt,      // incomplete amplitude transition
+}
+```
+
+And the metadata that comes with a pulse:
+
+```rust
+pub struct PulseMetadata {
+    pub width_ms: i64,
+    pub peak: Option<f64>,
+}
+```
+
+## The type aliases you'll actually use
+
+Full generic signatures get long. Three aliases cover the common cases:
+
+```rust
+pub type EdgeSignal = Signal<ThresholdCrossEventMode>;
+pub type ZoneSignal<P = ()> = Signal<ZoneEventMode, P>;
+pub type PulseSignal = Signal<PulseEventMode, PulseMetadata>;
+```
+
+`EdgeSignal` — a threshold crossing with no payload. `ZoneSignal` — zone events with an optional payload. `PulseSignal` — pulses with width and peak metadata baked in.
+
+## The five detectors that produce signals
+
+All live in `tflo-ops/src/primitives/`. Each one turns a noisy detection stream into clean lifecycle events — *it crossed*, *it entered the zone*, *that pulse was too short to be real*:
+
+| Detector | Input | Output |
+|---|---|---|
+| `CrossDetector` | Value + threshold | `ThresholdCrossEventMode` |
+| `GlitchFilter` | Value + timestamp | `Option<bool>` |
+| `RuntDetector` | Value | `Option<RuntResult>` |
+| `PulseWidthDetector` | Value + timestamp | `Option<PulseWidthResult>` |
+| `WindowDetector` | Value | `Option<WindowEvent>` |
+
+Each `*Result` type has a conversion helper so you can bridge detector outputs:
+
+```rust
+glitch_result.to_threshold_cross()        // GlitchResult → ThresholdCrossEventMode
+runt_result.to_threshold_cross()          // RuntResult → ThresholdCrossEventMode
+window_event.to_threshold_cross()         // WindowEvent → ThresholdCrossEventMode
+pulse_width_result.to_threshold_cross()   // PulseWidthResult → ThresholdCrossEventMode
+```
+
+> **Note**: The legacy `.to_signal()` and `.to_edge_mode()` conversion helpers are deprecated since v2.0.0 in favor of `.to_threshold_cross()`. They still work but will be removed in a future release.
+
+## Signals are the bridge
+
+Raw math produces numbers. Signals produce meaning. A raw value says `101.2`. A signal says `Rising at 101.2`. One is data. The other is an event your system can act on.
+
+When you design a pipeline around signals instead of floats, you stop writing conditional chains that try to reconstruct what happened from raw values. You just match on the mode, read the payload, and move on. This is the whole point of a temporal event processing engine: a noisy detection stream in, named lifecycle events out.
+
+## Source code
+
+The full working example is available on GitHub:
+[`tflo-examples/examples/what-is-a-signal`](https://github.com/matt-cochran/tflo/tree/main/tflo-examples/examples/what-is-a-signal)
+
+*— Matt*

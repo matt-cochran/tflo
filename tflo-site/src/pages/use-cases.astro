@@ -1,0 +1,353 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+    <div class="mb-16">
+      <h1 class="text-4xl sm:text-5xl font-extrabold text-white">Use Cases</h1>
+      <p class="mt-4 text-lg sm:text-xl text-text-muted max-w-2xl">
+        tflo is a temporal event processing engine: model your domain events,
+        and it turns the noisy stream into clean lifecycle events &mdash;
+        <em>appeared</em>, <em>persisted</em>, <em>changed</em>,
+        <em>dropped out</em>, <em>crossed a threshold</em>. The same
+        computation graph runs on <strong class="text-white">static data</strong>
+        and <strong class="text-white">live streams</strong>: develop against a
+        <code>Vec</code> of historical events, then deploy the exact same logic
+        against a live Kafka topic &mdash; no code changes.
+      </p>
+    </div>
+
+    <!-- RF Spectrum Monitoring -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F4E1;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">RF Spectrum Monitoring</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            A receiver pours out a noisy stream of detections &mdash; energy at a
+            frequency, a bearing, a power level &mdash; many of them spurious. You
+            need to know when a <em>signal</em> appears, how long it persists, when
+            its bearing or range-rate changes, and when it drops out. That is a
+            lifecycle, not a row in a table. Hand-rolling the de-bounce, hysteresis,
+            and per-emitter state is where the bugs live.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Lifecycle events</span> &mdash; noisy detections in; <em>appeared / persisted / changed / dropped-out</em> events out.</li>
+            <li><span class="text-primary font-medium">Keyed execution</span> &mdash; one graph definition, independent state per emitter or frequency bin.</li>
+            <li><span class="text-primary font-medium">Glitch and runt detectors</span> &mdash; reject transient energy that never becomes a real track.</li>
+            <li><span class="text-primary font-medium">Rate-of-change and direction detection</span> &mdash; Doppler range-rate, bearing-change alerts via <code>rate_of_change</code> and cross detectors.</li>
+            <li><span class="text-primary font-medium">Checkpoint to S3</span> &mdash; crash recovery without replaying the capture from the start.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Intrusion Detection -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F6E1;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Intrusion &amp; Anomaly Detection</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Security and fraud telemetry arrives as a firehose of low-level events:
+            connections, logins, transactions. Any single event is meaningless &mdash;
+            what matters is a sustained pattern: a slow rise in failed logins, a
+            transaction rate that crosses a baseline, a host that suddenly behaves
+            unlike its peers. You need stateful, per-entity correlation, not a
+            stateless rule on one record.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Keyed by entity</span> &mdash; per source IP, per account, per host, each with its own window state.</li>
+            <li><span class="text-primary font-medium">Threshold-cross events</span> &mdash; fire when a rate or z-score crosses a learned baseline.</li>
+            <li><span class="text-primary font-medium">Pulse and hysteresis detectors</span> &mdash; require a pattern to persist before alerting; suppress single-event noise.</li>
+            <li><span class="text-primary font-medium">Policy filters</span> &mdash; express detection rules in CEL, Rhai, or Rego and update them without recompiling.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- IoT / Sensor Monitoring -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F3ED;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">IoT &amp; Sensor Monitoring</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Thousands of sensors reporting temperature, pressure, vibration, humidity.
+            You need running statistics per device, anomaly detection, and the ability
+            to distinguish real events from transient glitches.
+            Database queries and batch jobs miss the real-time window.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Per-device state via keyed execution</span> &mdash; each sensor ID gets its own window.</li>
+            <li><span class="text-primary font-medium">Running statistics</span> &mdash; mean, variance, standard deviation, z-score, all updated online.</li>
+            <li><span class="text-primary font-medium">Glitch detector</span> &mdash; rejects transient spikes that revert within a configurable window.</li>
+            <li><span class="text-primary font-medium">Pulse detector</span> &mdash; fires when a value stays above threshold for a minimum duration.</li>
+            <li><span class="text-primary font-medium">Async-native</span> &mdash; integrates directly into Tokio-based ingestion pipelines.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Signal Processing -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F4C9;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Signal Processing &amp; Oscilloscope Pipelines</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Audio, radar, radio, and other waveform data streams at high sample rates.
+            You need envelope detection, running statistics, and pattern recognition
+            without buffering the entire signal. Many DSP tools are batch-oriented
+            or require manual buffer management.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Streaming window primitives</span> &mdash; duration-based and count-based windows over any iterator or stream.</li>
+            <li><span class="text-primary font-medium">Running moments</span> &mdash; mean, variance, stddev, correlation, and median over sliding windows.</li>
+            <li><span class="text-primary font-medium">Pattern and slope detectors</span> &mdash; custom pattern matching and rate-of-change detection.</li>
+            <li><span class="text-primary font-medium">Zero-copy keyed execution</span> &mdash; process multiple channels independently without per-channel buffering.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Edge Computing -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x26A1;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Edge Computing &amp; Embedded</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Running analytics close to the source means tight CPU and memory budgets.
+            You can&rsquo;t ship a Python runtime with NumPy to a Raspberry Pi or an
+            industrial gateway. You need Rust-level performance and minimal allocations.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Works on Iterator, no async required</span> &mdash; use <code>.tflo()</code> on a bare <code>Vec</code> iterator for embedded use.</li>
+            <li><span class="text-primary font-medium">Compiled graph</span> &mdash; build once, feed data repeatedly. No per-tick allocation overhead.</li>
+            <li><span class="text-primary font-medium">Minimal footprint</span> &mdash; pull in only <code>tflo-core</code> for the engine; add crates as needed.</li>
+            <li><span class="text-primary font-medium">File-based checkpointing</span> &mdash; survive power cycles with local flash persistence.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Observability -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F52D;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Observability &amp; Infrastructure Monitoring</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Latency percentiles, error rates, throughput, and saturation metrics
+            stream in from hundreds of services. The hardest part isn&rsquo;t the
+            threshold &mdash; it&rsquo;s the <em>flapping</em>: an alert that fires,
+            clears, and re-fires every few seconds as a metric jitters around its
+            limit. De-flapping is a hysteresis problem, and most alerting stacks
+            don&rsquo;t model it.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Hysteresis detector</span> &mdash; separate arm/disarm thresholds turn a flapping metric into one clean <em>crossed</em> event.</li>
+            <li><span class="text-primary font-medium">Running statistical nodes</span> &mdash; mean, variance, z-score over sliding windows.</li>
+            <li><span class="text-primary font-medium">Window and pulse detectors</span> &mdash; alert only when a metric stays in a band for a minimum duration.</li>
+            <li><span class="text-primary font-medium">Rego policy integration</span> &mdash; define alert policies in OPA/Rego via <code>tflo-rego</code> and evaluate them inline.</li>
+            <li><span class="text-primary font-medium">Async streaming</span> &mdash; ingest directly from Kafka, gRPC streams, or WebSocket feeds.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sparse & Irregular Time-Series -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F4C6;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Sparse &amp; Irregular Time-Series Data</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Most real-world time-series data is <em>not</em> evenly sampled.
+            Clinical measurements happen on clinic visit days, not every Tuesday at 2pm.
+            Real estate transactions close when they close.
+            Ecological field data arrives when a researcher visits the site.
+            Traditional tools force you to resample, interpolate, or pad &mdash;
+            distorting the signal before you even start analyzing.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Duration-based windows, not count-based</span> &mdash; <code>30_u64.days()</code> means the last 30 days of data, regardless of how many points arrived.</li>
+            <li><span class="text-primary font-medium">No resampling required</span> &mdash; timestamps determine window membership. Gaps in data are gaps; tflo doesn&rsquo;t invent fill values.</li>
+            <li><span class="text-primary font-medium">Keyed by entity</span> &mdash; track each patient, property, or study site independently with its own irregular cadence.</li>
+            <li><span class="text-primary font-medium">Same graph, any data density</span> &mdash; works identically whether you have 3 points per year or 10,000 per second.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Domain cards -->
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div class="card">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-lg">&#x1F3E5;</span>
+            <h4 class="font-semibold text-white">Clinical Trials &amp; Healthcare</h4>
+          </div>
+          <p class="text-sm text-text-muted leading-relaxed">
+            Patients visit on irregular schedules. Key by patient ID. Track
+            running mean and stddev of lab values over a rolling 90-day window.
+            Slope-detect a sustained rise in liver enzymes or a drop in
+            platelet count. Pulse-detect fever episodes lasting &gt; 48 hours.
+            No interpolation needed &mdash; the window respects actual timestamps.
+          </p>
+        </div>
+        <div class="card">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-lg">&#x1F3E0;</span>
+            <h4 class="font-semibold text-white">Real Estate &amp; Housing Markets</h4>
+          </div>
+          <p class="text-sm text-text-muted leading-relaxed">
+            Transactions are sparse and clustered by season. Key by ZIP code
+            or neighborhood. Compute a 6-month EMA of price-per-sqft. Cross-detect
+            when median days-on-market drops below a 2-year baseline. Trend changes
+            emerge from duration windows that span dozens or hundreds of days,
+            not a fixed transaction count.
+          </p>
+        </div>
+        <div class="card">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-lg">&#x1F52C;</span>
+            <h4 class="font-semibold text-white">Scientific &amp; Field Research</h4>
+          </div>
+          <p class="text-sm text-text-muted leading-relaxed">
+            Ecology surveys, astronomy transients, seismology events, climate
+            sensor networks. Irregular visits, bursty detections, gappy
+            telemetry. Duration windows match the natural cadence of the domain.
+            Running statistics across seasonal windows. Glitch-filter
+            instrument noise. Pattern-detect across uneven observation intervals.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Log Analysis & Uptick Detection -->
+    <section class="mb-20">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-3xl">&#x1F4DD;</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">Log Analysis &amp; Uptick Detection</h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">The Problem</h3>
+          <p class="text-text-muted leading-relaxed">
+            Logs stream in from dozens of services. Buried in the noise are upticks that matter:
+            a spike in 5xx errors after a deploy, a sudden increase in database timeouts,
+            a wave of auth failures that might be a credential attack.
+            Dashboards show you the current count; they don&rsquo;t tell you the rate of change
+            or whether a burst is a real trend or a statistical blip.
+          </p>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-white mb-3">How tflo Helps</h3>
+          <ul class="space-y-3 text-text-muted">
+            <li><span class="text-primary font-medium">Count-per-window indicators</span> &mdash; treat log event counts as a time series; compute SMA, EMA, and z-score over sliding windows.</li>
+            <li><span class="text-primary font-medium">Pulse detection</span> &mdash; fire when error rate stays above threshold for a minimum duration; ignore single-event noise.</li>
+            <li><span class="text-primary font-medium">Slope detection</span> &mdash; alert when the rate of increase exceeds a configurable threshold, not just a static count.</li>
+            <li><span class="text-primary font-medium">Keyed by log type</span> &mdash; track 5xx, 4xx, timeout, and auth-failure trends independently in one graph.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Concrete examples -->
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div class="card">
+          <h4 class="font-semibold text-white mb-2">5xx Error Uptick After Deploy</h4>
+          <p class="text-sm text-text-muted leading-relaxed">
+            Treat per-minute <code>5xx</code> count as a property. Compute a z-score over a
+            10-minute baseline. Pulse-detect when z-score &gt; 3 for at least 2 consecutive
+            minutes. Fire a rollback alert before users notice.
+          </p>
+        </div>
+        <div class="card">
+          <h4 class="font-semibold text-white mb-2">Database Timeout Wave</h4>
+          <p class="text-sm text-text-muted leading-relaxed">
+            Key by error type (<code>db_timeout</code>, <code>db_conn_refused</code>).
+            Compute a 5-minute EMA of timeout count. Cross-detect when the EMA exceeds
+            the 95th percentile of the previous hour. Distinguish gradual degradation
+            from a sudden pool exhaustion.
+          </p>
+        </div>
+        <div class="card">
+          <h4 class="font-semibold text-white mb-2">Credential Attack Detection</h4>
+          <p class="text-sm text-text-muted leading-relaxed">
+            Key by <code>auth_failure</code> per source IP. Slope-detect a sustained
+            increase in failure rate (not just a high absolute count). Combine with a
+            glitch filter to ignore a single user who fat-fingered their password three times.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="border-t border-border pt-16">
+      <div class="card text-center py-16 relative overflow-hidden">
+        <div class="absolute inset-0 bg-linear-to-br from-primary/5 to-accent/5" />
+        <div class="relative">
+          <h2 class="text-3xl sm:text-4xl font-extrabold text-white">See it in action</h2>
+          <p class="mt-4 text-lg text-text-muted max-w-lg mx-auto">
+            Head to the Quick Start guide and have a streaming SMA running in under 5 minutes.
+          </p>
+          <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="/docs/quick-start" class="btn-primary text-lg px-10 py-4">Quick Start</a>
+            <a href="/docs" class="btn-secondary text-lg px-10 py-4">Browse Docs</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</BaseLayout>

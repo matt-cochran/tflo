@@ -1,0 +1,410 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+const asyncContractsCode = `use tflo_core::state::{AsyncStateStore, Checkpointer};
+
+// The Checkpointer is the single place that orders the writes.
+// Snapshot first, cursor last — the only crash-safe order.
+let cp = Checkpointer::new(state_store, cursor_store)
+    .with_stage_deadline(Duration::from_secs(5))    // per-stage timeout
+    .with_failure_breaker(consecutive = 3);          // circuit breaker
+
+// commit() takes a snapshot from the graph and the current cursor and
+// writes both in order. Counters: commits_total / failures_total /
+// timeouts_total — wire them up via the Metrics trait below.
+cp.commit(key, graph.snapshot()?, cursor).await?;`;
+
+const dedupCode = `use tflo_core::dedup::Deduplicator;
+
+// At-least-once + idempotent sinks is tflo's answer to exactly-once.
+// Deduplicator backs a per-sink durable window keyed by message id.
+let mut dedup = Deduplicator::new(state_store, namespace = "influx-sink")
+    .with_window(64 * 1024);
+
+for msg in incoming {
+    if dedup.is_new(&msg.id).await? {
+        sink.write(&msg).await?;
+        dedup.remember(&msg.id).await?;
+    }
+    // Duplicates are skipped silently — safe to replay the source.
+}`;
+
+const metricsCode = `use tflo_core::metrics::Metrics;
+
+// Pluggable metrics trait — no-op by default. Wire to Prometheus,
+// statsd, OTEL by implementing it once.
+struct PromMetrics;
+
+impl Metrics for PromMetrics {
+    fn on_keyed_step(&self, key: &[u8], lat_ns: u64) { /* observe */ }
+    fn on_timer_fire(&self, key: &[u8], count: u64)   { /* counter */ }
+    fn on_checkpoint_commit(&self, dur_ms: u64)       { /* histogram */ }
+    fn on_checkpoint_failure(&self, kind: &str)       { /* counter */ }
+    fn on_late_record_drop(&self, key: &[u8])         { /* counter */ }
+}
+
+// Plug into the builder.
+builder.metrics(Arc::new(PromMetrics));`;
+
+const fileCheckpointCode = `use std::sync::Arc;
+use tflo_core::builder::Compile;
+use tflo_core::compile::CompiledGraph;
+use tflo_core::keyed::StateStore;
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+use tflo_state_files::FileStateStore;
+
+fn main() -> Result<(), String> {
+    // Build and compile a graph.
+    let mut builder = TFlowBuilder::new();
+    builder.timestamp(|x: &Tick| x.ts);
+    let price = builder.prop(|x: &Tick| x.price);
+    let sma = price.sma(3usize);
+    let output_ids = sma.output_ids();
+    let nodes = builder.into_nodes();
+    let mut graph: CompiledGraph<Tick, f64> =
+        CompiledGraph::compile(Arc::new(|x: &Tick| x.ts), nodes, output_ids);
+
+    // Feed some records.
+    for record in sample_prices().iter().take(5) {
+        graph.step(record);
+    }
+
+    // Take a snapshot and persist it.
+    let snapshot = graph.snapshot();
+    let store = FileStateStore::new("/tmp/tflo-checkpoints")?;
+    store.save(b"sma-graph", &snapshot)?;
+
+    // Later: load and restore.
+    let loaded = store.load(b"sma-graph")?.unwrap();
+    graph.restore(&loaded).map_err(|e| e.to_string())?;
+
+    let summary = graph.state_summary();
+    println!("Restored: records_seen={}", summary.records_seen);
+    Ok(())
+}`;
+
+const s3CheckpointCode = `use async_trait::async_trait;
+use tflo_core::keyed::StateStore;
+use tflo_state_s3::{S3Client, S3StateStore};
+
+// Plug in any S3-compatible client by implementing S3Client.
+// Here: aws-sdk-s3, MinIO, or your own mock.
+struct MyAwsClient { /* aws_sdk_s3::Client, bucket config, … */ }
+
+#[async_trait]
+impl S3Client for MyAwsClient {
+    async fn put_object(&self, bucket: &str, key: &str, data: &[u8])
+        -> Result<(), String> { todo!() }
+    async fn get_object(&self, bucket: &str, key: &str)
+        -> Result<Option<Vec<u8>>, String> { todo!() }
+    async fn list_objects(&self, bucket: &str, prefix: &str)
+        -> Result<Vec<String>, String> { todo!() }
+}
+
+// S3StateStore is generic over any S3Client — same StateStore trait
+// as FileStateStore, so the snapshot/restore pattern is identical.
+let store = S3StateStore::new(
+    MyAwsClient { /* … */ },
+    "my-bucket".to_string(),
+    "checkpoints/".to_string(),
+);
+store.save(b"prod-graph", &snapshot)?;
+
+if let Some(loaded) = store.load(b"prod-graph")? {
+    graph.restore(&loaded)?;
+}`;
+
+const asyncStreamCode = `// Requires tflo-core features = ["async"] (included in "full").
+use tokio_stream::StreamExt as _;
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+#[tokio::main]
+async fn main() {
+    let ticks = vec![
+        Tick { ts: 1000, price: 100.0 },
+        Tick { ts: 2000, price: 101.0 },
+        Tick { ts: 3000, price: 99.0  },
+    ];
+
+    // .tflo() returns only computed values (filtered to Some outputs).
+    let smas: Vec<f64> = tokio_stream::iter(ticks.clone())
+        .tflo(|t| {
+            t.timestamp(|x| x.ts);
+            let price = t.prop(|x| x.price);
+            price.sma(3usize)
+        })
+        .collect()
+        .await;
+
+    // .tflo_with() pairs each input record with its output.
+    let enriched: Vec<(Tick, f64)> = tokio_stream::iter(ticks)
+        .tflo_with(|t| {
+            t.timestamp(|x| x.ts);
+            let price = t.prop(|x| x.price);
+            price.sma(3usize)
+        })
+        .collect()
+        .await;
+
+    println!("smas={smas:?}");
+    println!("enriched={}", enriched.len());
+}`;
+
+const kafkaCode = `// tflo-connect-kafka is a reference design / placeholder crate.
+// It shows the intended integration pattern; production use requires
+// wiring in a Kafka client library (e.g., rdkafka).
+//
+// use tflo_connect_kafka::KafkaTfloAdapter;
+//
+// let adapter = KafkaTfloAdapter::new(
+//     key_fn,          // partition key (e.g., |msg| msg.partition_key())
+//     timestamp_fn,    // event-time extractor
+//     builder_fn,      // graph builder closure (called once per key)
+//     OutOfOrderPolicy::Error,
+//     checkpoint_policy,
+//     state_store,     // any StateStore impl (FileStateStore, S3StateStore, …)
+//     cursor_store,    // pairs snapshots with Kafka offsets
+//     metrics,
+// );
+//
+// Partitions map to tflo_keyed() keys; checkpointing coordinates
+// snapshot saves with Kafka offset commits.
+//
+// See tflo-connect-kafka/src/lib.rs
+// NOTE: KafkaTfloAdapter is a reference implementation / placeholder.`;
+
+const celCode = `use cel_interpreter::Context;
+use tflo_cel::prelude::*;
+
+// 1. Implement IntoCelContext for your domain type.
+struct Detection { snr: f64, freq_mhz: f64, power_dbm: f64 }
+
+impl IntoCelContext for Detection {
+    fn into_cel_context(&self) -> Context<'static> {
+        let mut ctx = Context::default();
+        ctx.add_variable("snr",       self.snr).unwrap();
+        ctx.add_variable("freq_mhz",  self.freq_mhz).unwrap();
+        ctx.add_variable("power_dbm", self.power_dbm).unwrap();
+        ctx
+    }
+}
+
+// 2. Call .cel_filter() on any iterator — no graph step cycle required.
+let detections: Vec<Detection> = /* … */ vec![];
+let high_snr: Vec<Detection> = detections
+    .into_iter()
+    .cel_filter("snr > 10.0 && freq_mhz > 100.0")
+    .collect();`;
+
+const rhaiCode = `use rhai::Scope;
+use tflo_rhai::prelude::*;
+
+// 1. Implement IntoRhaiScope for your domain type.
+struct Detection { snr: f64, freq_mhz: f64, power_dbm: f64 }
+
+impl IntoRhaiScope for Detection {
+    fn into_rhai_scope(&self) -> Scope<'static> {
+        let mut scope = Scope::new();
+        scope.push("snr",       self.snr);
+        scope.push("freq_mhz",  self.freq_mhz);
+        scope.push("power_dbm", self.power_dbm);
+        scope
+    }
+}
+
+// 2. Call .rhai_filter() on any iterator with an inline Rhai expression.
+let detections: Vec<Detection> = /* … */ vec![];
+let high_snr: Vec<Detection> = detections
+    .into_iter()
+    .rhai_filter("snr > 10.0 && freq_mhz > 100.0")
+    .collect();`;
+
+const regoCode = `use std::sync::{Arc, Mutex};
+use serde::Serialize;
+use tflo_rego::prelude::*;
+
+// Any type that derives Serialize automatically implements IntoRegoInput.
+#[derive(Clone, Serialize)]
+struct Detection { snr: f64, freq_mhz: f64, power_dbm: f64 }
+
+let mut engine = PolicyEngine::new();
+engine.add_policy("spectrum", r#"
+    package spectrum
+    default allow = false
+    allow {
+        input.snr > 10.0
+        input.freq_mhz > 100.0
+    }
+"#).expect("policy should parse");
+
+let engine = Arc::new(Mutex::new(engine));
+
+let detections: Vec<Detection> = /* … */ vec![];
+let allowed: Vec<Detection> = detections
+    .into_iter()
+    .rego_filter(Arc::clone(&engine), "data.spectrum.allow")
+    .collect();`;
+---
+
+<DocsLayout title="Advanced" description="Advanced tflo topics: checkpointing, async, scripting, and performance.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Advanced Topics</h1>
+    <p class="text-lg text-text-muted mb-12">Checkpointing, async streams, Kafka, scripting, and performance tuning.</p>
+
+    <!-- Checkpointing -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Checkpoint &amp; Restore</h2>
+    <p class="text-text-muted mb-4">
+      tflo can persist window state so your computation can survive restarts without recomputing
+      from the beginning of time. Snapshot the graph via
+      <a href="https://github.com/matt-cochran/tflo/blob/main/tflo-core/src/compile.rs"><code>CompiledGraph::snapshot()</code></a>,
+      persist with a <code>StateStore</code>, and restore later:
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">File-based Checkpoint</h3>
+    <CodeBlock code={fileCheckpointCode} src="tflo-examples/examples/docs-file-checkpoint/main.rs" />
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">S3 Checkpoint</h3>
+    <CodeBlock code={s3CheckpointCode} src="tflo-examples/examples/docs-s3-checkpoint/main.rs" />
+
+    <p class="text-text-muted mb-4">
+      <strong>What is saved:</strong> a snapshot serializes the full per-node state —
+      window buffers, running sums, EMA accumulators, detector state machines — with
+      <code>postcard</code>, alongside <code>records_seen</code> and <code>min_warmup</code>.
+      <code>snapshot()</code> returns a <code>Result</code>: it rejects any graph it cannot
+      fully capture (a <code>scan</code>/<code>fold</code> node, or an <code>Operator</code>
+      without <code>save</code>/<code>load</code>) rather than writing a partial checkpoint.
+      After <code>restore()</code>, indicator state resumes exactly where it left off — no
+      re-warming, no cold start.
+    </p>
+
+    <!-- Async Streams -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Async Stream Processing</h2>
+    <p class="text-text-muted mb-4">
+      The <code>async</code> feature on <code>tflo-core</code> provides async adapters that work with any <code>Stream</code>:
+    </p>
+    <CodeBlock code={asyncStreamCode} src="tflo-examples/examples/docs-advanced/main.rs" />
+    <p class="text-text-muted mb-4">
+      The async adapter integrates with Tokio. <code>.tflo()</code> yields only computed output values;
+      <code>.tflo_with()</code> pairs each input record with its output so you can enrich downstream.
+    </p>
+
+    <!-- Kafka -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Kafka Integration</h2>
+    <p class="text-text-muted mb-4">
+      <code>tflo-connect-kafka</code> provides a reference implementation pattern for
+      integrating tflo with Kafka. The <code>KafkaTfloAdapter</code> wraps keyed execution around
+      a Kafka consumer — partitions map to keys, checkpointing coordinates state snapshots
+      with offset commits:
+    </p>
+    <CodeBlock code={kafkaCode} />
+    <p class="text-text-muted mb-4">
+      <strong>Note:</strong> <code>tflo-connect-kafka</code> is currently a reference design /
+      placeholder crate showing the integration pattern. Production Kafka integration
+      requires wiring in a Kafka client library (e.g., rdkafka).
+    </p>
+
+    <!-- Scripting -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Multi-Language Scripting</h2>
+    <p class="text-text-muted mb-4">
+      Define computation rules at runtime without recompiling your Rust binary.
+      Each scripting crate provides standalone iterator adapters — they work on regular
+      iterators, not through the compiled graph step cycle:
+    </p>
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">CEL (Common Expression Language)</h3>
+    <CodeBlock code={celCode} src="tflo-examples/examples/docs-scripting/main.rs" />
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Rhai</h3>
+    <CodeBlock code={rhaiCode} src="tflo-examples/examples/docs-scripting/main.rs" />
+
+    <h3 class="text-xl font-semibold text-white mt-8 mb-3">Rego (OPA Policy)</h3>
+    <CodeBlock code={regoCode} src="tflo-examples/examples/docs-scripting/main.rs" />
+
+    <!-- Performance -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">Performance Tuning</h2>
+
+    <ul class="list-disc pl-6 space-y-3 text-text-muted">
+      <li>
+        <strong class="text-white">Use release profile:</strong>
+        <code class="text-primary bg-bg-card px-1 py-0.5 rounded text-sm">cargo build --release</code> with ThinLTO enabled (<a href="https://github.com/matt-cochran/tflo/blob/main/Cargo.toml">see workspace <code>Cargo.toml</code></a>).
+      </li>
+      <li>
+        <strong class="text-white">Prefer count windows over duration windows</strong> when you don&rsquo;t need timestamp-based eviction — they&rsquo;re allocation-free for fixed-size buffers.
+      </li>
+      <li>
+        <strong class="text-white">Reuse graphs:</strong> compile once with <code>CompiledGraph::compile(...)</code> and feed data through it repeatedly.
+      </li>
+      <li>
+        <strong class="text-white">Batch keyed writes:</strong> when using keyed execution, processing records in key-grouped batches may reduce HashMap lookups.
+      </li>
+      <li>
+        <strong class="text-white">Checkpoint periodically, not per-tick:</strong> choose a checkpoint interval that balances recovery time against write overhead.
+      </li>
+    </ul>
+
+    <!-- Async state contracts -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Async state contracts
+    </h2>
+    <p class="text-text-muted mb-4">
+      For network-backed state stores, tflo exposes <code>AsyncStateStore</code> /
+      <code>AsyncCursorStore</code> alongside the sync trait family. The
+      <code>Checkpointer</code> orchestrates the only crash-safe write order
+      &mdash; snapshot first, cursor last &mdash; with a per-stage deadline and a
+      consecutive-failure circuit breaker. Counters (<code>commits_total</code>,
+      <code>failures_total</code>, <code>timeouts_total</code>) feed back through the
+      <code>Metrics</code> trait below.
+    </p>
+    <CodeBlock code={asyncContractsCode} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      See <a href="/docs/contracts" class="text-primary hover:underline">Contracts</a> for
+      the trait signatures, and
+      <a href="/docs/reference-deployment" class="text-primary hover:underline">reference deployment</a>
+      for end-to-end use against Kafka and Influx.
+    </p>
+
+    <!-- Deduplication -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Idempotent sinks via <code>Deduplicator</code>
+    </h2>
+    <p class="text-text-muted mb-4">
+      End-to-end exactly-once delivery requires either transactional sinks coordinated with
+      checkpoint barriers (Flink's approach) or idempotent sinks with at-least-once delivery
+      and deduplication. tflo commits to the second path: <code>Deduplicator&lt;K&gt;</code>
+      is a first-class primitive that maintains a process-local cache plus a durable per-sink
+      window keyed by message id, backed by any <code>AsyncStateStore</code>.
+    </p>
+    <CodeBlock code={dedupCode} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      This is the engine's "exactly-once via 2PC is not a goal" answer &mdash; see
+      <a href="/docs/non-goals" class="text-primary hover:underline">non-goals</a> for the
+      reasoning. Two-phase commit lives in the host engine if you need it; the
+      <code>Deduplicator</code> covers the at-least-once + idempotent-sink path natively.
+    </p>
+
+    <!-- Metrics -->
+    <h2 class="text-2xl font-bold text-white mt-12 mb-4">
+      Metrics integration
+    </h2>
+    <p class="text-text-muted mb-4">
+      Observability ships as a pluggable <code>Metrics</code> trait with a no-op default.
+      The engine fires events on keyed-step latency, timer fire counts, checkpoint commit
+      and failure, and late-record drops. Implement the trait once to bridge to Prometheus,
+      statsd, or OTEL; the rest of the engine doesn't know or care which.
+    </p>
+    <CodeBlock code={metricsCode} lang="rust" />
+    <p class="text-text-muted mt-3 mb-4">
+      Trait-level integration means no log-line parsing, no engine forking, and no runtime
+      cost when nobody's listening (the default impl is a no-op the optimizer eliminates).
+    </p>
+
+    <div class="mt-16 p-6 rounded-xl border border-border bg-bg-card">
+      <p class="text-text-muted">
+        <strong class="text-white">Have questions?</strong> Open an issue on <a href="https://github.com/matt-cochran/tflo" class="text-primary hover:underline">GitHub</a> or check the <a href="https://docs.rs/tflo-core" class="text-primary hover:underline">API docs</a>.
+      </p>
+    </div>
+  </div>
+</DocsLayout>

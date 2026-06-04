@@ -1,0 +1,63 @@
+---
+// Footer component used in BaseLayout
+---
+
+<footer class="border-t border-border">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-8">
+      <div>
+        <a href="/" class="flex items-center gap-2 font-bold text-lg text-white mb-3">
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" class="text-primary">
+            <rect width="32" height="32" rx="6" fill="currentColor" />
+            <path d="M9 16L14 21L23 12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          tflo
+        </a>
+        <p class="text-sm text-text-muted">
+          An embeddable temporal event-processing engine for the edge, browser, embedded Rust, and as a supplement to Flink / Esper / Kafka Streams.
+        </p>
+      </div>
+      <div>
+        <h4 class="font-semibold text-white mb-3">Docs</h4>
+        <ul class="space-y-2 text-sm text-text-muted">
+          <li><a href="/docs/quick-start" class="hover:text-white transition-colors">Quick Start</a></li>
+          <li><a href="/docs/concepts" class="hover:text-white transition-colors">Core Concepts</a></li>
+          <li><a href="/docs/indicators" class="hover:text-white transition-colors">Indicators</a></li>
+          <li><a href="/docs/signals" class="hover:text-white transition-colors">Signals</a></li>
+          <li><a href="/docs/architecture" class="hover:text-white transition-colors">Crate Architecture</a></li>
+          <li><a href="/docs/advanced" class="hover:text-white transition-colors">Advanced</a></li>
+          <li><a href="/docs/wasm" class="hover:text-white transition-colors">WebAssembly</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-semibold text-white mb-3">Resources</h4>
+        <ul class="space-y-2 text-sm text-text-muted">
+          <li><a href="/positioning" class="hover:text-white transition-colors">Positioning</a></li>
+          <li><a href="/docs/patterns" class="hover:text-white transition-colors">Event patterns</a></li>
+          <li><a href="/docs/browser-analytics" class="hover:text-white transition-colors">Browser analytics</a></li>
+          <li><a href="/docs/deployment-shapes" class="hover:text-white transition-colors">Deployment shapes</a></li>
+          <li><a href="/docs/contracts" class="hover:text-white transition-colors">Contracts</a></li>
+          <li><a href="/docs/reference-deployment" class="hover:text-white transition-colors">Reference deployment</a></li>
+          <li><a href="/docs/non-goals" class="hover:text-white transition-colors">Non-goals</a></li>
+          <li><a href="/docs/interop-backlog" class="hover:text-white transition-colors">Interop backlog</a></li>
+          <li><a href="https://github.com/matt-cochran/tflo/blob/main/CHANGELOG.md" class="hover:text-white transition-colors">Changelog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-semibold text-white mb-3">Links</h4>
+        <ul class="space-y-2 text-sm text-text-muted">
+          <li><a href="https://github.com/matt-cochran/tflo" target="_blank" rel="noopener" class="hover:text-white transition-colors">GitHub</a></li>
+          <li><a href="/playground" class="hover:text-white transition-colors">Playground</a></li>
+          <li><a href="/use-cases" class="hover:text-white transition-colors">Use Cases</a></li>
+          <li><a href="/blog" class="hover:text-white transition-colors">Blog</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p class="text-xs text-text-muted">
+        &copy; {new Date().getFullYear()} Matt Cochran. Licensed under MIT / Apache-2.0.
+      </p>
+
+    </div>
+  </div>
+</footer>

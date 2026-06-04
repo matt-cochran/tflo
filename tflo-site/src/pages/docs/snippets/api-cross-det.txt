@@ -1,0 +1,7 @@
+//! API: CrossDetector::new() -> Self
+//! det.update(value: f64, threshold: f64) -> Option<ThresholdCrossEventMode>
+let mut det = CrossDetector::new();
+let event = det.update(current_price, 150.0);
+if let Some(cross) = event {
+    println!("Crossed: {:?}", cross);
+}

@@ -1,0 +1,466 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+
+// ── Rust quickstart snippets ─────────────────────────────────────────
+
+const cargoSingle = `[dependencies]
+# tflo is pre-1.0 and not yet on crates.io — depend on it via git.
+tflo-core = { git = "https://github.com/matt-cochran/tflo" }
+tflo-ops  = { git = "https://github.com/matt-cochran/tflo" }`;
+
+const cargoAsync = `[dependencies]
+tflo-core = { git = "https://github.com/matt-cochran/tflo", features = ["async"] }`;
+
+const firstSma = `//! Full runnable example: tflo-examples/examples/docs-quick-start
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+// A noisy domain event — e.g. a sensor reading or detection confidence.
+#[derive(Clone)]
+struct Reading {
+    ts: i64,
+    value: f64,
+}
+
+fn main() {
+    let readings = vec![
+        Reading { ts: 1000, value: 100.0 },
+        Reading { ts: 2000, value: 101.0 },
+        Reading { ts: 3000, value: 99.0 },
+        Reading { ts: 4000, value: 102.0 },
+        Reading { ts: 5000, value: 103.0 },
+    ];
+
+    let smoothed: Vec<f64> = readings.into_iter()
+        .tflo(|t| {
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.sma(3_u64.secs())
+        })
+        .collect();
+
+    println!("{:?}", smoothed);
+}`;
+
+const multiIndicators = `let results: Vec<(f64, f64)> = readings.into_iter()
+    .tflo(|t| {
+        t.timestamp(|x| x.ts);
+        let value = t.prop(|x| x.value);
+        let sma = value.sma(3_u64.secs());
+        let ema = value.ema(3_u64.secs());
+        (sma, ema)
+    })
+    .collect();`;
+
+const enrichment = `let enriched: Vec<(Reading, f64)> = readings.into_iter()
+    .with(|t| {
+        t.timestamp(|x| x.ts);
+        let value = t.prop(|x| x.value);
+        value.sma(3_u64.secs())
+    })
+    .collect();`;
+
+const keyedExecution = `//! Full runnable example: tflo-examples/examples/docs-quick-start
+use tflo_core::prelude::*;
+use tflo_ops::prelude::*;
+
+// Events from many emitters — per-sensor, per-host, per-instrument.
+#[derive(Clone)]
+struct Reading {
+    source: String,
+    ts: i64,
+    value: f64,
+}
+
+let results: Vec<Result<_, TFloError>> = readings.into_iter()
+    .tflo_keyed(
+        |t| t.source.clone(),              // key function — partition by source
+        OutOfOrderPolicy::Error,            // fail on out-of-order timestamps
+        |t| {
+            t.timestamp(|x| x.ts);
+            let value = t.prop(|x| x.value);
+            value.sma(10_u64.secs())
+        },
+    )
+    .collect();
+
+// Each source gets independent window state.
+// See tflo-core/src/keyed.rs for the full API.`;
+
+// ── TypeScript quickstart snippets ───────────────────────────────────
+
+const npmInstall = `npm install @tflo/browser-events`;
+
+const tsBootstrap = `import {
+  TFloBrowser,
+  Pattern,
+  ConsoleSink,
+  EdgeSink,
+  type EventRecord,
+} from "@tflo/browser-events";
+
+const tflo = new TFloBrowser({
+  sinks: [
+    new ConsoleSink(),                                  // dev visibility
+    new EdgeSink({ name: "edge", endpoint: "/collect" }),
+  ],
+  consent: () => localStorage.getItem("analytics_consent") === "yes",
+});
+
+// Load the ~40 KB WASM bundle.
+await tflo.init();`;
+
+const tsCapture = `// Capture clicks with a custom payload extractor.
+tflo.capture<MouseEvent>({
+  target: document,
+  type: "click",
+  fields: (e) => {
+    const el = (e.target as HTMLElement | null)
+      ?.closest("[data-analytics-action]");
+    return el
+      ? { action: el.dataset.analyticsAction, cartId: el.dataset.cartId }
+      : {};
+  },
+});
+
+// Track time on each <section data-section-id="…"> via IntersectionObserver.
+// Emits viewport:enter, viewport:exit, and viewport:dwell (with durationMs).
+tflo.captureViewport({
+  target: document,
+  selector: "section[data-section-id]",
+  threshold: 0.5,
+});`;
+
+const tsPattern = `// "Added to cart but didn't purchase within 5 minutes."
+const abandonedCart = new Pattern<EventRecord>("abandoned_cart")
+  .timestamp((e) => e.ts)
+  .when((e) => e.fields.action === "add_to_cart")
+  .notThen((e) => e.fields.action === "purchase")
+  .within(5 * 60 * 1000)
+  .emit((m) => ({
+    name: "abandoned_cart",
+    payload: { cartId: m.first().fields.cartId },
+    sinks: ["edge"],
+  }));
+
+tflo.addPattern(abandonedCart);
+
+// Flush on page hide so end-of-session signals ship via sendBeacon.
+window.addEventListener("pagehide", () => void tflo.flush());`;
+
+const tsRageClick = `// "Three identical clicks on the same target within 1 second each."
+const rageClick = new Pattern<EventRecord>("rage_click")
+  .timestamp((e) => e.ts)
+  .when((e) => e.kind === "click" && e.fields.targetId === "buy_button")
+  .then((e) => e.kind === "click" && e.fields.targetId === "buy_button")
+  .within(1_000)
+  .then((e) => e.kind === "click" && e.fields.targetId === "buy_button")
+  .within(1_000)
+  .emit((m) => ({
+    name: "rage_click",
+    payload: { targetId: m.first().fields.targetId },
+  }));`;
+
+const tsCustomSink = `import type { Sink, DerivedSignal } from "@tflo/browser-events";
+
+class SegmentSink implements Sink {
+  readonly name = "segment";
+  send(signal: DerivedSignal): void {
+    window.analytics?.track(signal.name, signal.payload);
+  }
+}
+
+new TFloBrowser({
+  sinks: [new SegmentSink(), new EdgeSink({ endpoint: "/collect" })],
+});`;
+---
+
+<DocsLayout title="Quick Start" description="Get started with tflo in 5 minutes — Rust or TypeScript.">
+  <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-4xl font-extrabold text-white mb-2">Quick Start</h1>
+    <p class="text-lg text-text-muted mb-8">
+      Get tflo running in your project in under 5 minutes. The Rust crate powers
+      server-side streaming pipelines; the TypeScript SDK wraps the same engine
+      (compiled to WebAssembly) for browser event analytics. Pick your language.
+    </p>
+
+    <!-- Language tabs (sticky-ish, prominent) -->
+    <div
+      id="qs-tabs"
+      role="tablist"
+      aria-label="Quick Start language"
+      class="inline-flex rounded-xl border border-border bg-bg-card p-1 mb-10"
+    >
+      <button
+        type="button"
+        role="tab"
+        data-qs-tab="rust"
+        aria-selected="true"
+        aria-controls="qs-panel-rust"
+        class="qs-tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
+      >
+        Rust
+      </button>
+      <button
+        type="button"
+        role="tab"
+        data-qs-tab="typescript"
+        aria-selected="false"
+        aria-controls="qs-panel-typescript"
+        class="qs-tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
+      >
+        TypeScript
+      </button>
+    </div>
+
+    <!-- ── Rust panel ──────────────────────────────────────────── -->
+    <section
+      id="qs-panel-rust"
+      data-qs-panel="rust"
+      role="tabpanel"
+      aria-labelledby="qs-tab-rust"
+    >
+      <p class="text-text-muted mb-6">
+        Use the Rust crates for server-side streaming pipelines, edge gateways,
+        embedded services, or batch / replay over historical data. The same crate
+        compiles to WebAssembly for browser indicators (<code>tflo-wasm</code>)
+        and browser pattern matching (<code>tflo-cep-wasm</code>).
+      </p>
+
+      <!-- Prerequisites -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Prerequisites</h2>
+      <ul class="list-disc pl-6 space-y-2 text-text-muted">
+        <li>Rust 1.88+ (MSRV). Install with <a href="https://rustup.rs" class="text-primary hover:underline">rustup</a>.</li>
+        <li>An existing Rust project, or create one with <code class="text-primary bg-bg-card px-1 py-0.5 rounded text-sm">cargo new my-tflo-app</code>.</li>
+      </ul>
+
+      <!-- Installation -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Installation</h2>
+      <p class="text-text-muted mb-4">Add the core crate to your <code>Cargo.toml</code>:</p>
+      <CodeBlock code={cargoSingle} lang="toml" />
+
+      <p class="text-text-muted mb-4">For async stream support, add the <code>async</code> feature:</p>
+      <CodeBlock code={cargoAsync} lang="toml" />
+
+      <!-- First Computation -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Your First Computation</h2>
+      <p class="text-text-muted mb-4">
+        tflo turns any Rust <code>Iterator</code> of domain events into a streaming computation graph.
+        Here&rsquo;s a simple moving average that smooths a noisy stream:
+      </p>
+      <CodeBlock code={firstSma} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+      <p class="text-text-muted mb-4">What&rsquo;s happening here:</p>
+      <ol class="list-decimal pl-6 space-y-2 text-text-muted">
+        <li><code>.tflo(|t| &#123; ... &#125;)</code> builds a computation graph over your iterator.</li>
+        <li><code>t.timestamp(|x| x.ts)</code> tells tflo which field is the event timestamp.</li>
+        <li><code>t.prop(|x| x.value)</code> extracts the numeric property for computation.</li>
+        <li><code>value.sma(3_u64.secs())</code> computes a 3-second Simple Moving Average.</li>
+        <li>The output is a <code>Vec&lt;f64&gt;</code> &mdash; one value per input event.</li>
+      </ol>
+
+      <!-- Multiple Outputs -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Multiple Outputs</h2>
+      <p class="text-text-muted mb-4">
+        Want SMA and EMA simultaneously? Just compute both in the same graph:
+      </p>
+      <CodeBlock code={multiIndicators} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+      <!-- Enrichment Pattern -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Enrichment Pattern</h2>
+      <p class="text-text-muted mb-4">
+        Use <code>.with()</code> instead of <code>.tflo()</code> to keep the original event alongside computed values:
+      </p>
+      <CodeBlock code={enrichment} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+      <!-- Keyed Execution -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Keyed Execution (Per-Source)</h2>
+      <p class="text-text-muted mb-4">
+        When events arrive from many emitters &mdash; per sensor, per host, per instrument &mdash;
+        use <code>.tflo_keyed()</code> to give each key its own isolated state:
+      </p>
+      <CodeBlock code={keyedExecution} src="tflo-examples/examples/docs-quick-start/main.rs" />
+
+      <!-- Next Steps -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Next Steps</h2>
+      <ul class="list-disc pl-6 space-y-2 text-text-muted">
+        <li>Read the <a href="/docs/concepts" class="text-primary hover:underline">Core Concepts</a> to understand the graph model.</li>
+        <li>Explore the available <a href="/docs/indicators" class="text-primary hover:underline">Operations &amp; Indicators</a>.</li>
+        <li>Learn about <a href="/docs/signals" class="text-primary hover:underline">Signal Detection</a>.</li>
+        <li>For multi-event patterns, see <a href="/docs/patterns" class="text-primary hover:underline">Event Patterns</a>.</li>
+        <li>See the full <a href="/docs/architecture" class="text-primary hover:underline">Crate Architecture</a>.</li>
+      </ul>
+    </section>
+
+    <!-- ── TypeScript panel ────────────────────────────────────── -->
+    <section
+      id="qs-panel-typescript"
+      data-qs-panel="typescript"
+      role="tabpanel"
+      aria-labelledby="qs-tab-typescript"
+      class="hidden"
+    >
+      <p class="text-text-muted mb-6">
+        The TypeScript SDK
+        <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline"><code>@tflo/browser-events</code></a>
+        wraps <code>tflo-cep-wasm</code> with a capture layer
+        (<code>addEventListener</code> + <code>IntersectionObserver</code>), a
+        pluggable <code>Sink</code> interface, and a consent gate. The matching
+        engine is the same Rust <code>engine::Runtime</code> the Rust crate
+        uses &mdash; just with JS callbacks. Total wire weight: ~25 KB gzip.
+      </p>
+
+      <!-- Prerequisites -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Prerequisites</h2>
+      <ul class="list-disc pl-6 space-y-2 text-text-muted">
+        <li>Node 18+ (for development tooling).</li>
+        <li>A bundler that handles WASM imports &mdash; Vite, Webpack 5, Rollup, and Astro all work out of the box.</li>
+        <li>A browser app, dev server, or static site to load the bundle.</li>
+      </ul>
+
+      <!-- Installation -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Installation</h2>
+      <CodeBlock code={npmInstall} lang="shell" />
+      <p class="text-text-muted mt-3">
+        The package vendors the WebAssembly bytes and the wasm-bindgen JS glue
+        produced by <code>wasm-pack --target web</code>. Bundlers load the
+        <code>.wasm</code> file automatically; no extra config required.
+      </p>
+
+      <!-- Initialize -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Initialize</h2>
+      <p class="text-text-muted mb-4">
+        Construct a <code>TFloBrowser</code>, register the sinks you want to
+        route signals to, and call <code>await tflo.init()</code> once on app
+        startup to load the WASM bundle:
+      </p>
+      <CodeBlock code={tsBootstrap} lang="typescript" />
+      <p class="text-text-muted mt-3">
+        Sinks are name-keyed and isolated &mdash; one sink's failure doesn't
+        block delivery to the others. The <code>consent</code> callback gates
+        outbound delivery; signals are still captured and matched locally even
+        when consent is denied.
+      </p>
+
+      <!-- Capture -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Capture browser events</h2>
+      <p class="text-text-muted mb-4">
+        Three capture helpers ship in v0.1: <code>capture(...)</code> for
+        general DOM events, <code>captureViewport(...)</code> for
+        <code>IntersectionObserver</code>-backed time-on-section tracking, and
+        <code>ingest(record)</code> for events you collect yourself.
+      </p>
+      <CodeBlock code={tsCapture} lang="typescript" />
+      <p class="text-text-muted mt-3">
+        Each <code>capture</code> call returns an unbind function. The
+        viewport tracker emits a trailing <code>viewport:exit</code> and
+        <code>viewport:dwell</code> for any element still visible at unbind
+        time &mdash; so the last section the user was reading still ships its
+        duration when they navigate away.
+      </p>
+
+      <!-- Patterns -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Derive signals with patterns</h2>
+      <p class="text-text-muted mb-4">
+        Patterns turn streams of captured events into typed domain signals.
+        The six-method API mirrors the Rust crate
+        (<code>timestamp</code> / <code>when</code> / <code>then</code> /
+        <code>notThen</code> / <code>within</code> / <code>emit</code>):
+      </p>
+      <CodeBlock code={tsPattern} lang="typescript" />
+      <p class="text-text-muted mt-3 mb-4">
+        Bounded by construction: in-flight partial matches are capped per
+        pattern, and end-of-stream resolves any pending negative-match
+        deadlines so cart-abandonment fires reliably even on tab close.
+      </p>
+      <p class="text-text-muted mb-4">
+        For a positive multi-event pattern ("three identical clicks within
+        one second each"), chain explicit <code>.then().within()</code> pairs.
+        The quantifier sugar <code>.repeated(n..=m, ...)</code> lands in v0.2.
+      </p>
+      <CodeBlock code={tsRageClick} lang="typescript" />
+
+      <!-- Custom sinks -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Route to any sink</h2>
+      <p class="text-text-muted mb-4">
+        The matching engine has zero analytics-vendor knowledge. The
+        <code>Sink</code> interface is the plug-in seam &mdash; bundled
+        implementations include <code>ConsoleSink</code>, <code>EdgeSink</code>
+        (HTTP POST with batching + <code>sendBeacon</code> fallback), and
+        <code>GA4Sink</code>. Adding Segment, Mixpanel, or your own warehouse
+        is a fifty-line class:
+      </p>
+      <CodeBlock code={tsCustomSink} lang="typescript" />
+
+      <!-- Next Steps -->
+      <h2 class="text-2xl font-bold text-white mt-10 mb-4">Next Steps</h2>
+      <ul class="list-disc pl-6 space-y-2 text-text-muted">
+        <li>Read the <a href="/docs/browser-analytics" class="text-primary hover:underline">browser analytics walkthrough</a> for the full end-to-end workflow.</li>
+        <li>The <a href="/docs/patterns" class="text-primary hover:underline">event patterns reference</a> has side-by-side Rust + TypeScript examples for every primitive.</li>
+        <li>See the <a href="/blog/browser-interaction-signals" class="text-primary hover:underline">blog post</a> on capturing user interaction data with tflo in the browser.</li>
+        <li>Companion repo: <a href="https://github.com/matt-cochran/tflo-browser-events" class="text-primary hover:underline">@tflo/browser-events</a> on GitHub.</li>
+      </ul>
+    </section>
+  </div>
+
+  <style>
+    .qs-tab-btn {
+      color: var(--color-text-muted, #9ca3af);
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .qs-tab-btn[aria-selected="true"] {
+      background: var(--color-primary, #3b82f6);
+      color: white;
+    }
+    .qs-tab-btn:not([aria-selected="true"]):hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+    }
+  </style>
+
+  <script is:inline>
+    (() => {
+      const STORAGE_KEY = "tflo-quickstart-lang";
+      const tabs = document.querySelectorAll("[data-qs-tab]");
+      const panels = document.querySelectorAll("[data-qs-panel]");
+
+      function selectTab(lang) {
+        for (const tab of tabs) {
+          const active = tab.getAttribute("data-qs-tab") === lang;
+          tab.setAttribute("aria-selected", active ? "true" : "false");
+        }
+        for (const panel of panels) {
+          const active = panel.getAttribute("data-qs-panel") === lang;
+          panel.classList.toggle("hidden", !active);
+        }
+        try {
+          localStorage.setItem(STORAGE_KEY, lang);
+        } catch {
+          // localStorage may be unavailable (private mode, etc).
+        }
+      }
+
+      // Restore prior selection if any.
+      let initial = "rust";
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === "rust" || stored === "typescript") {
+          initial = stored;
+        }
+      } catch {
+        // ignore
+      }
+      selectTab(initial);
+
+      for (const tab of tabs) {
+        tab.addEventListener("click", () => {
+          const lang = tab.getAttribute("data-qs-tab");
+          if (lang) selectTab(lang);
+        });
+      }
+    })();
+  </script>
+</DocsLayout>

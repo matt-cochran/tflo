@@ -1,0 +1,56 @@
+[package]
+name = "tflo-state-s3"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "S3-compatible object store backend for tflo checkpoints"
+license.workspace = true
+repository.workspace = true
+keywords = ["state", "checkpoint", "s3", "object-store"]
+categories = ["data-structures"]
+
+[features]
+default = []
+# Phase 1 path: implements tflo-core's AsyncStateStore directly, no block_on.
+async = ["tflo-core/async", "dep:tokio"]
+# Opt-in: adapter-level integration tests against a real S3-compatible server
+# (localstack via testcontainers). Requires Docker on the host.
+integration-tests = []
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+async-trait = "0.1"
+hex = { workspace = true }
+tokio = { workspace = true, features = ["rt"], optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+testcontainers = "0.27"
+testcontainers-modules = { version = "0.15", features = ["localstack"] }
+# MSRV-aligned with workspace `rust-version` (1.91); the aws-sdk / aws-smithy
+# crates bumped to that floor in the 1.123+ / 1.8.14+ series respectively.
+# `default-features = false` excludes the legacy `rustls` feature, which
+# pulls hyper-rustls 0.24 + rustls 0.21 + rustls-webpki 0.101 (vulnerable
+# per RUSTSEC-2026-0098/-0099/-0104/-0049). `default-https-client` uses the
+# modern `rustls-aws-lc` backend, which is unaffected.
+aws-sdk-s3 = { version = "1", default-features = false, features = ["behavior-version-latest", "sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "default-https-client", "rt-tokio", "credentials-process", "sso"] }
+aws-credential-types = "1"
+aws-smithy-async = "1"
+aws-smithy-checksums = "0"
+aws-smithy-eventstream = "0"
+aws-smithy-http = "0"
+aws-smithy-http-client = "1"
+aws-smithy-json = "0"
+aws-smithy-observability = "0"
+aws-smithy-query = "0"
+aws-smithy-runtime = "1"
+aws-smithy-runtime-api = "1"
+aws-smithy-types = "1"
+aws-smithy-xml = "0"
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

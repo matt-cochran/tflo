@@ -1,0 +1,36 @@
+[package]
+name = "tflo-sink-influx"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "InfluxDB sink for tflo: line-protocol formatter + batching wrapper + pluggable HTTP backend"
+license.workspace = true
+repository.workspace = true
+keywords = ["influxdb", "tsdb", "metrics", "sink"]
+categories = ["data-structures", "asynchronous"]
+
+[features]
+default = []
+async = ["tflo-core/async", "dep:tokio", "dep:futures", "dep:async-trait"]
+# Opt-in: spins up a real InfluxDB 2.x container via testcontainers. Gates
+# `tests/integration_influx.rs`. Requires Docker on the host; off by
+# default so plain `cargo test` (and CI without Docker) stays fast.
+integration-tests = ["async"]
+
+[dependencies]
+tflo-core = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, optional = true, features = ["rt", "macros", "time"] }
+futures = { workspace = true, optional = true }
+async-trait = { version = "0.1", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+# The `GenericImage` path from the base `testcontainers` crate is the
+# supported way to spin up InfluxDB 2.x with the documented
+# `DOCKER_INFLUXDB_INIT_*` env-var setup.
+testcontainers = "0.27"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+[lints]
+workspace = true
