@@ -142,7 +142,7 @@ async fn main() {
             },
         )
         .collect();
-    assert!(results.len() == 6);
+    assert_eq!(results.len(), 6);
 
     // ---- Async stream ----
     use tokio_stream::StreamExt as _;

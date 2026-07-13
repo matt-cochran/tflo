@@ -592,10 +592,8 @@ where
             let Some(graph_state) = self.graphs.get_mut(&key) else {
                 continue;
             };
-            match graph_state.advance_event_time_watermark(ts, key.clone()) {
-                Ok(items) => self.ready_queue.extend(items.into_iter().map(Ok)),
-                Err(e) => return Err(e),
-            }
+            let items = graph_state.advance_event_time_watermark(ts, key.clone())?;
+            self.ready_queue.extend(items.into_iter().map(Ok));
         }
         Ok(())
     }

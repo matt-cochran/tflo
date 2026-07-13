@@ -1,0 +1,41 @@
+name: Audit
+
+# Security advisories are *time-varying*: the RUSTSEC database and crates.io
+# yank status change independently of this repository. Running them as a
+# blocking PR gate means a brand-new advisory turns an unrelated PR red
+# overnight — which is exactly what RUSTSEC-2026-0204 (crossbeam-epoch) did
+# here: an untouched `Cargo.lock` was green in June and red in July.
+#
+# So the split is by determinism, not by importance:
+#   * ci.yml `deny`  — bans/licenses/sources. A pure function of Cargo.lock,
+#                      so it can only fail because the PR broke it. Blocking.
+#   * audit.yml      — advisories + yanked crates. Runs daily and on demand,
+#                      and *is* allowed to fail. A new CVE opens a failing
+#                      scheduled run we act on deliberately, instead of
+#                      ambushing whoever opens the next PR.
+#
+# This does not weaken the gate: a vulnerable dependency still fails the build
+# within a day, and `workflow_dispatch` lets you check on demand before a
+# release.
+
+on:
+  schedule:
+    # 06:17 UTC daily — off the hour to avoid the cron stampede.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  # Re-check whenever the dependency graph itself changes, so a PR that *adds*
+  # a vulnerable crate is still caught at PR time rather than a day later.
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+
+jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories

@@ -38,7 +38,7 @@ fn cel_abandoned_cart_fires_on_deadline() {
         .timestamp(|e| e.ts)
         .when_cel(r#"kind == "add_to_cart""#)
         .not_then_cel(r#"kind == "purchase""#)
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|m| format!("abandoned {}", m.first().card))
         .expect("pattern is valid");
 
@@ -57,7 +57,7 @@ fn cel_does_not_fire_when_purchase_arrives() {
         .timestamp(|e| e.ts)
         .when_cel(r#"kind == "add_to_cart""#)
         .not_then_cel(r#"kind == "purchase""#)
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|_| "x".to_string())
         .expect("pattern is valid");
 
@@ -78,7 +78,7 @@ fn cel_cross_step_correlation_via_first() {
         .timestamp(|e| e.ts)
         .when_cel(r#"kind == "auth_attempt""#)
         .then_cel(r#"kind == "auth_attempt" && card == first_card"#)
-        .within(Duration::from_millis(60_000))
+        .within(Duration::from_mins(1))
         .emit(|m| format!("retry {}", m.first().card))
         .expect("pattern is valid");
 

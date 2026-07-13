@@ -156,10 +156,10 @@ mod tests {
 
     #[test]
     fn test_window_time_based() {
-        let w = Window::time(Duration::from_secs(60));
+        let w = Window::time(Duration::from_mins(1));
         assert!(w.is_time_based());
         assert!(!w.is_count_based());
-        assert_eq!(w.as_duration(), Some(Duration::from_secs(60)));
+        assert_eq!(w.as_duration(), Some(Duration::from_mins(1)));
         assert_eq!(w.as_count(), None);
     }
 
