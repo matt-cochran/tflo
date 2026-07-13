@@ -82,7 +82,10 @@ fn consumer_injected_clock_drives_abandonment_on_absence() {
     assert!(rt.tick(clock.now_ms()).is_empty());
     // Clock passes the deadline: the abandonment fires on absence.
     clock.set(6_000);
-    assert_eq!(rt.tick(clock.now_ms()), vec!["abandoned at ts=0".to_string()]);
+    assert_eq!(
+        rt.tick(clock.now_ms()),
+        vec!["abandoned at ts=0".to_string()]
+    );
 }
 
 #[test]

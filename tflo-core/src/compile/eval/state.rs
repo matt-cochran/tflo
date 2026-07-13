@@ -258,9 +258,7 @@ impl<R, O, C: PipelineContext> CompiledGraph<R, O, C> {
         for (index, (node, snap)) in self.nodes.iter_mut().zip(graph.node_states).enumerate() {
             // Disjoint field borrows: the codec lives on `op` (immutable),
             // the live accumulator on `state` (mutable).
-            let crate::compile::CompiledNode {
-                op, state: ns, ..
-            } = node;
+            let crate::compile::CompiledNode { op, state: ns, .. } = node;
             let codec = op.scan_codec();
             snap.apply_to(ns, index, codec)
                 .map_err(|e| ComputeError::Decode {

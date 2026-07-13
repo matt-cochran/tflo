@@ -226,7 +226,7 @@ impl<R: 'static> Comp<R, f64> {
     ///
     /// Identical in behaviour to [`scan_f64`](Self::scan_f64), but the state
     /// type `S` must be `serde`-serializable. The builder attaches a
-    /// [`ScanCodec`](crate::comp::ScanCodec) so that a graph containing this
+    /// [`ScanCodec`] so that a graph containing this
     /// node can be captured by
     /// [`snapshot`](crate::compile::CompiledGraph::snapshot) and recovered by
     /// [`restore`](crate::compile::CompiledGraph::restore) — enabling

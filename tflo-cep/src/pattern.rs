@@ -21,7 +21,7 @@ use std::time::Duration;
 ///
 /// The closure is context-aware (`event` plus the prior captures) so a
 /// predicate can correlate across steps. Plain `Fn(&E) -> bool` closures from
-/// `when`/`then`/`not_then` ignore the captures (built via [`Self::from_fn`]);
+/// `when`/`then`/`not_then` ignore the captures (built via `from_fn`);
 /// CEL predicates use them for `first_*`/`prev_*`/`s{i}_*` parity.
 pub struct ArcPredicate<E> {
     f: Arc<dyn Fn(&E, &[(String, E)]) -> bool + Send + Sync>,
@@ -120,7 +120,10 @@ impl std::fmt::Display for PatternError {
                 "pattern step `{step_name}` is `not_then` and must be the last step"
             ),
             Self::CelCompile { step_name, reason } => {
-                write!(f, "pattern step `{step_name}` has an invalid CEL predicate: {reason}")
+                write!(
+                    f,
+                    "pattern step `{step_name}` has an invalid CEL predicate: {reason}"
+                )
             }
         }
     }
@@ -401,8 +404,8 @@ impl<E: Clone + 'static, M: 'static> Pattern<E, M> {
                     repeat,
                     forbidden,
                 } => {
-                    let mut step = Step::positive(name, predicate, within_ms)
-                        .with_contiguity(contiguity);
+                    let mut step =
+                        Step::positive(name, predicate, within_ms).with_contiguity(contiguity);
                     if let Some(spec) = repeat {
                         step = step.with_repeat(spec);
                     }
@@ -481,7 +484,9 @@ impl<E: Clone + serde::Serialize + 'static, M: 'static> Pattern<E, M> {
     fn cel_predicate(prog: cel_interpreter::Program) -> ArcPredicate<E> {
         let prog = Arc::new(prog);
         ArcPredicate {
-            f: Arc::new(move |e: &E, caps: &[(String, E)]| crate::cel::eval_in_context(&prog, e, caps)),
+            f: Arc::new(move |e: &E, caps: &[(String, E)]| {
+                crate::cel::eval_in_context(&prog, e, caps)
+            }),
         }
     }
 

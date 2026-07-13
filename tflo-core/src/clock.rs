@@ -30,7 +30,7 @@ pub struct ManualClock {
 impl ManualClock {
     /// A clock pinned at `start_ms`.
     #[must_use]
-    pub fn new(start_ms: i64) -> Self {
+    pub const fn new(start_ms: i64) -> Self {
         Self {
             now: AtomicI64::new(start_ms),
         }
@@ -43,7 +43,9 @@ impl ManualClock {
 
     /// Advance by `delta_ms` and return the new time.
     pub fn advance(&self, delta_ms: i64) -> i64 {
-        self.now.fetch_add(delta_ms, Ordering::SeqCst).saturating_add(delta_ms)
+        self.now
+            .fetch_add(delta_ms, Ordering::SeqCst)
+            .saturating_add(delta_ms)
     }
 }
 
