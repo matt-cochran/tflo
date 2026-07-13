@@ -3,8 +3,12 @@ name: CI
 on:
   push:
     branches: [main, master]
+  # Deliberately NOT filtered by base branch. With `branches: [main, master]`
+  # here, a stacked PR (one targeting another feature branch rather than main)
+  # got *no CI at all* — the checks tab showed only third-party integrations,
+  # which reads exactly like "nothing to report" rather than "nothing ran".
+  # Every PR gets verified, whatever it targets.
   pull_request:
-    branches: [main, master]
 
 env:
   CARGO_TERM_COLOR: always
