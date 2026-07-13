@@ -16,7 +16,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// A materialized keyed read-model: the current derived state per entity.
 ///
@@ -66,7 +66,9 @@ pub struct InMemoryProjectionStore<K, S> {
 
 impl<K, S> Default for InMemoryProjectionStore<K, S> {
     fn default() -> Self {
-        Self { map: HashMap::new() }
+        Self {
+            map: HashMap::new(),
+        }
     }
 }
 

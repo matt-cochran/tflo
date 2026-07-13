@@ -395,8 +395,7 @@ impl WasmPattern {
     /// satisfying `p` kills the partial. Mirrors native `not_between`.
     #[wasm_bindgen(js_name = notBetween)]
     pub fn not_between(self, p: Function) -> WasmPattern {
-        self.inner.borrow_mut().pending_forbidden =
-            Some(WasmPred::Js(JsPredicate(Rc::new(p))));
+        self.inner.borrow_mut().pending_forbidden = Some(WasmPred::Js(JsPredicate(Rc::new(p))));
         self
     }
 
@@ -408,10 +407,10 @@ impl WasmPattern {
 
     #[wasm_bindgen(js_name = notThenNamed)]
     pub fn not_then_named(self, name: String, p: Function) -> WasmPattern {
-        self.inner
-            .borrow_mut()
-            .steps
-            .push(BuilderStep::negative(name, WasmPred::Js(JsPredicate(Rc::new(p)))));
+        self.inner.borrow_mut().steps.push(BuilderStep::negative(
+            name,
+            WasmPred::Js(JsPredicate(Rc::new(p))),
+        ));
         self
     }
 
@@ -661,7 +660,7 @@ impl WasmPatternRuntime {
     /// Advance logical time to `now` (ms) **without** consuming an event, firing
     /// any deadline-reached matches — e.g. "A then no B within T" fires on
     /// absence. Returns a JS array of emitted signals. The host drives this from
-    /// its clock (the browser provider schedules it at [`nextDeadline`]); the
+    /// its clock (the browser provider schedules it at `nextDeadline`); the
     /// engine reads no wall clock, so a tick-driven run stays byte-identical to an
     /// event-driven one. `now` is a JS `number` (ms), matching the timestamp
     /// convention.

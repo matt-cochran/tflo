@@ -257,6 +257,9 @@ mod tests {
         assert!(joined[0].1.is_empty());
     }
 
+    // `order_id` is named symmetrically with `Payment::order_id` so the join
+    // key reads the same on both sides of the extractors below.
+    #[allow(clippy::struct_field_names)]
     #[derive(Debug, Clone, PartialEq)]
     struct Order {
         order_id: &'static str,
@@ -275,12 +278,26 @@ mod tests {
     #[test]
     fn keyed_window_join_matches_within_forward_window() {
         let orders = [
-            Order { order_id: "O1", ts: 0, amount: 100 },
-            Order { order_id: "O2", ts: 1000, amount: 50 },
+            Order {
+                order_id: "O1",
+                ts: 0,
+                amount: 100,
+            },
+            Order {
+                order_id: "O2",
+                ts: 1000,
+                amount: 50,
+            },
         ];
         let payments = [
-            Payment { order_id: "O1", ts: 2000 },
-            Payment { order_id: "O2", ts: 9000 },
+            Payment {
+                order_id: "O1",
+                ts: 2000,
+            },
+            Payment {
+                order_id: "O2",
+                ts: 9000,
+            },
         ];
         let pairs = keyed_window_join(
             &orders,
@@ -301,8 +318,15 @@ mod tests {
     // different key must NOT join.
     #[test]
     fn keyed_window_join_requires_key_equality() {
-        let orders = [Order { order_id: "O1", ts: 0, amount: 100 }];
-        let payments = [Payment { order_id: "OTHER", ts: 1000 }];
+        let orders = [Order {
+            order_id: "O1",
+            ts: 0,
+            amount: 100,
+        }];
+        let payments = [Payment {
+            order_id: "OTHER",
+            ts: 1000,
+        }];
         let pairs = keyed_window_join(
             &orders,
             &payments,
@@ -319,8 +343,15 @@ mod tests {
     // not join (unlike the symmetric `window_join`).
     #[test]
     fn keyed_window_join_window_is_forward_only() {
-        let orders = [Order { order_id: "O1", ts: 5000, amount: 100 }];
-        let payments = [Payment { order_id: "O1", ts: 4000 }];
+        let orders = [Order {
+            order_id: "O1",
+            ts: 5000,
+            amount: 100,
+        }];
+        let payments = [Payment {
+            order_id: "O1",
+            ts: 4000,
+        }];
         let pairs = keyed_window_join(
             &orders,
             &payments,

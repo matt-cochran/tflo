@@ -12,8 +12,8 @@
 
 use serde::Serialize;
 use std::time::Duration;
-use tflo_cep::prelude::*;
 use tflo_cep::PatternError;
+use tflo_cep::prelude::*;
 
 #[derive(Clone, Debug, Serialize)]
 struct Event {
@@ -122,7 +122,10 @@ fn cel_spec_json_roundtrip_and_compile() {
 
     // Compiles to the same behavior as the hand-built D1 pattern.
     let pattern = spec
-        .compile(|e: &Event| e.ts, |m| format!("abandoned {}", m.first().card))
+        .compile(
+            |e: &Event| e.ts,
+            |m| format!("abandoned {}", m.first().card),
+        )
         .expect("spec compiles");
     let events = vec![
         ev(0, "add_to_cart", 10, "c1"),
@@ -146,8 +149,11 @@ fn cel_spec_interior_negation_card_testing() {
     assert_eq!(spec, reparsed, "notBetween round-trips losslessly");
 
     let build = || {
-        spec.compile(|e: &Event| e.ts, |m| format!("card_testing {}", m.first().card))
-            .expect("spec compiles")
+        spec.compile(
+            |e: &Event| e.ts,
+            |m| format!("card_testing {}", m.first().card),
+        )
+        .expect("spec compiles")
     };
 
     // fail -> fail, no success between -> fires.
