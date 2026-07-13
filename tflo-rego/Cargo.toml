@@ -11,7 +11,7 @@ categories = ["config", "parsing"]
 
 [dependencies]
 tflo-core = { workspace = true }
-regorus = "0.2"
+regorus = "0.10"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

@@ -135,9 +135,9 @@ mod tests {
                 r#"
                 package test
 
-                default allow = false
+                default allow := false
 
-                allow {
+                allow if {
                     input.value > 10
                 }
             "#,
@@ -164,9 +164,9 @@ mod tests {
                 r#"
                 package authz
 
-                default allow = false
+                default allow := false
 
-                allow {
+                allow if {
                     input.role == data.admin_role
                 }
             "#,

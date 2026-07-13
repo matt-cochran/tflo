@@ -399,8 +399,8 @@ mod tests {
                 "test",
                 r#"
                 package test
-                default allow = false
-                allow { input.value > 10 }
+                default allow := false
+                allow if { input.value > 10 }
             "#,
             )
             .expect("should parse");
