@@ -226,13 +226,13 @@ mod tests {
         ];
 
         let mut reference = QuantileOp::Time {
-            window: MedianTimeWindow::new(Duration::from_secs(60)),
+            window: MedianTimeWindow::new(Duration::from_mins(1)),
             q: 0.75,
         };
         let reference_out = drive(&mut reference, &series);
 
         let mut original = QuantileOp::Time {
-            window: MedianTimeWindow::new(Duration::from_secs(60)),
+            window: MedianTimeWindow::new(Duration::from_mins(1)),
             q: 0.75,
         };
         let first_half = drive(&mut original, &series[..2]);
@@ -240,7 +240,7 @@ mod tests {
 
         // Fresh op with a different q (0.0); load must overwrite it with 0.75.
         let mut restored = QuantileOp::Time {
-            window: MedianTimeWindow::new(Duration::from_secs(60)),
+            window: MedianTimeWindow::new(Duration::from_mins(1)),
             q: 0.0,
         };
         restored.load(&bytes).expect("load should succeed");

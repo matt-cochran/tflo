@@ -1,5 +1,16 @@
+# The single source of truth for the toolchain, its components and its targets.
+#
+# CI installs exactly what this file specifies (`rustup show`) rather than
+# resolving a floating `stable`. That pin is load-bearing: `RUSTFLAGS` is
+# `-D warnings` in CI, so every lint a new Rust release adds becomes a hard
+# error. With a floating toolchain, `main` could go red with no code change —
+# 1.97 alone added `clippy::duration_suboptimal_units` and fired it 6 times.
+# Bump this deliberately, and take the new lints in that same commit.
+#
+# `llvm-tools-preview` is here (not just in the coverage job) so that one job
+# cannot drift onto a different toolchain than the rest.
 [toolchain]
-channel = "1.91"
-components = ["rustfmt", "clippy", "rust-src"]
+channel = "1.97"
+components = ["rustfmt", "clippy", "rust-src", "llvm-tools-preview"]
 targets = ["wasm32-unknown-unknown"]
 profile = "default"

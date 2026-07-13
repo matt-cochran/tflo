@@ -16,14 +16,21 @@ env:
   RUSTC_WRAPPER: ""
   SCCACHE_GHA_ENABLED: "false"
 
+# Every job below installs the toolchain the same way: `rustup show` reads
+# `rust-toolchain.toml` and installs exactly the channel, components and
+# targets it names. We deliberately do NOT use `dtolnay/rust-toolchain@stable`
+# here — that action exports `RUSTUP_TOOLCHAIN`, which *overrides*
+# `rust-toolchain.toml`, so CI silently floated on whatever `stable` was that
+# day while the repo claimed to be pinned. Combined with `-D warnings`, a new
+# Rust release could then turn `main` red with no code change. One file, one
+# toolchain, no drift.
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      - uses: actions/checkout@v5
+      - run: rustup show
       - uses: Swatinem/rust-cache@v2
       # rdkafka-sys (via tflo-connect-kafka) bundles librdkafka and unconditionally
       # includes curl/curl.h in rdkafka_conf.c even when WITH_CURL=0 is set, so
@@ -39,26 +46,31 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
+      - uses: actions/checkout@v5
+      # `llvm-tools-preview` comes from rust-toolchain.toml, so this job cannot
+      # drift onto a different toolchain than `check`.
+      - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
       - run: cargo llvm-cov --workspace --exclude tflo-wasm --all-features --lcov --output-path lcov.info
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
           fail_ci_if_error: false
 
+  # Deterministic supply-chain gates. `bans`, `licenses` and `sources` are a
+  # pure function of `Cargo.lock`, so this job can only fail because *this*
+  # change broke it. Advisories are deliberately NOT here — see `audit.yml`.
   deny:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # v1 ships krates 0.16.x which panics on rustls 0.21 (`aws-lc-rs`
       # feature resolution); v2 ships a newer krates that handles it.
       - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check bans licenses sources
 
   # Per-PR WASM gate. tflo's value proposition includes the WASM
   # deployment shape; if tflo-core or tflo-ops stops compiling for
@@ -68,10 +80,9 @@ jobs:
   wasm32:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      - uses: actions/checkout@v5
+      # The wasm32-unknown-unknown target comes from rust-toolchain.toml.
+      - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --target wasm32-unknown-unknown -p tflo-core -p tflo-ops
 
@@ -82,8 +93,8 @@ jobs:
   no-default-features:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v5
+      - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --no-default-features -p tflo-core
       - run: cargo check --no-default-features -p tflo-core -p tflo-ops
@@ -97,8 +108,8 @@ jobs:
     env:
       RUSTDOCFLAGS: "-D warnings"
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v5
+      - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
       - run: cargo doc --workspace --exclude tflo-wasm --no-deps --all-features
