@@ -554,8 +554,9 @@ fn drive_tumbling(
     let mut builder: TFlowBuilder<f64> = TFlowBuilder::new();
     builder.timestamp(|_v| 0_i64);
     let value = builder.prop(|v: &f64| *v);
-    let comp: Comp<f64, Option<f64>> =
-        value.tumbling_sum(Window::tumbling(Duration::from_millis(window_ms.max(0) as u64)));
+    let comp: Comp<f64, Option<f64>> = value.tumbling_sum(Window::tumbling(Duration::from_millis(
+        window_ms.max(0) as u64,
+    )));
     let output_ids = comp.output_ids();
     let timestamp_fn = builder
         .get_timestamp_fn()
@@ -661,25 +662,19 @@ pub fn tumbling_window(input_json: &str, config_json: &str) -> String {
 
     // Sum graph: drive the real values.
     let sum_events: Vec<(f64, i64)> = ticks.iter().map(|t| (t.value, t.ts)).collect();
-    let sum_fired = match drive_tumbling(
-        &sum_events,
-        config.window_ms,
-        config.allowed_lateness_ms,
-    ) {
+    let sum_fired = match drive_tumbling(&sum_events, config.window_ms, config.allowed_lateness_ms)
+    {
         Ok(f) => f,
         Err(e) => return json_err("tumbling sum failed", e),
     };
 
     // Count graph: drive value=1.0 per event; the "sum" is the count.
     let count_events: Vec<(f64, i64)> = ticks.iter().map(|t| (1.0_f64, t.ts)).collect();
-    let count_fired = match drive_tumbling(
-        &count_events,
-        config.window_ms,
-        config.allowed_lateness_ms,
-    ) {
-        Ok(f) => f,
-        Err(e) => return json_err("tumbling count failed", e),
-    };
+    let count_fired =
+        match drive_tumbling(&count_events, config.window_ms, config.allowed_lateness_ms) {
+            Ok(f) => f,
+            Err(e) => return json_err("tumbling count failed", e),
+        };
 
     // Combine by window-end fire_ts. Each fire_ts is unique per window edge
     // in a single-key tumbling stream, so a map keyed on it is sufficient.
@@ -768,7 +763,8 @@ mod bridge_native_tests {
     // O2's payment at ts=9000 is outside [1000,4000] → no join.
     #[test]
     fn window_join_keyed_matches_scenario_2() {
-        let orders = r#"[{"orderId":"O1","ts":0,"amount":100},{"orderId":"O2","ts":1000,"amount":50}]"#;
+        let orders =
+            r#"[{"orderId":"O1","ts":0,"amount":100},{"orderId":"O2","ts":1000,"amount":50}]"#;
         let payments = r#"[{"orderId":"O1","ts":2000},{"orderId":"O2","ts":9000}]"#;
         let config = r#"{"key":"orderId","ts":"ts","window":3000}"#;
 

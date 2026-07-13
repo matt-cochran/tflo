@@ -19,8 +19,8 @@
 
 use serde::Deserialize;
 use serde_json::Value;
-use tflo_cep::prelude::*;
 use tflo_cep::CelPatternSpec;
+use tflo_cep::prelude::*;
 
 #[derive(Deserialize)]
 struct Case {
@@ -53,6 +53,9 @@ fn parity_vectors_native() {
             .unwrap_or_else(|e| panic!("case `{name}` spec failed to compile: {e}"));
 
         let out: Vec<i64> = case.events.into_iter().match_pattern(pattern).collect();
-        assert_eq!(out, case.expected, "case `{name}`: native signals != expected");
+        assert_eq!(
+            out, case.expected,
+            "case `{name}`: native signals != expected"
+        );
     }
 }

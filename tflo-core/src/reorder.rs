@@ -23,6 +23,7 @@ pub const MAX_LATENESS_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Heap entry ordered by `(ts, seq)` — smallest `ts` first (via `Reverse`), ties
 /// broken by arrival order for deterministic, replay-stable release.
+#[derive(Debug)]
 struct PendingEntry<E> {
     ts: i64,
     seq: u64,
@@ -50,6 +51,7 @@ impl<E> Ord for PendingEntry<E> {
 /// that are now safe to release, **in timestamp order**. `max_lateness_ms` is how
 /// long it waits for stragglers — `0` releases greedily (no reordering), larger
 /// values trade latency for out-of-order tolerance.
+#[derive(Debug)]
 pub struct ReorderBuffer<E> {
     pending: BinaryHeap<Reverse<PendingEntry<E>>>,
     pending_seq: u64,

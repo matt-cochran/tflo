@@ -63,7 +63,11 @@ impl CelPatternSpec {
     /// # Errors
     /// Returns [`PatternError`] if a CEL string is invalid or the step structure
     /// is illegal (e.g. a `not_then` without `within`).
-    pub fn compile<E, M, Ts, Em>(&self, timestamp: Ts, emit: Em) -> Result<Pattern<E, M>, PatternError>
+    pub fn compile<E, M, Ts, Em>(
+        &self,
+        timestamp: Ts,
+        emit: Em,
+    ) -> Result<Pattern<E, M>, PatternError>
     where
         E: Clone + Serialize + 'static,
         M: 'static,

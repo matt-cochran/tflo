@@ -425,7 +425,7 @@ where
     /// deadline-reached derived matches. This is what makes "A then B within T,
     /// else fire" self-driving: a negative step whose window has closed emits its
     /// match on absence, and a positive partial whose window closed is dropped
-    /// observably — exactly the [`advance_deadlines`](Self::advance_deadlines)
+    /// observably — exactly the `advance_deadlines`
     /// behaviour `push_at` runs, but driven by a clock rather than an event.
     ///
     /// Purity is preserved: `now` is an explicit input, so the engine reads no
@@ -457,7 +457,10 @@ where
         let match_dl = self.in_flight.iter().filter_map(|pm| pm.deadline_ts).min();
         // A buffered event needs a tick when it ages past the lateness window, so
         // the driver must also wake for the buffer's next release instant.
-        let release = self.reorder.as_ref().and_then(|b| b.next_release_clock());
+        let release = self
+            .reorder
+            .as_ref()
+            .and_then(tflo_core::reorder::ReorderBuffer::next_release_clock);
         match (match_dl, release) {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
@@ -546,7 +549,11 @@ where
             if is_negative {
                 // A matching event cancels the (negative) partial; otherwise the
                 // deadline path decides it. Negatives don't repeat.
-                return if matches { Disposition::Remove } else { Disposition::Keep };
+                return if matches {
+                    Disposition::Remove
+                } else {
+                    Disposition::Keep
+                };
             }
 
             // The awaited positive takes precedence (it closes the interval); a
@@ -708,10 +715,26 @@ mod ctx_tests {
         let mut rt = Runtime::new(compiled);
 
         let mut out = Vec::new();
-        out.extend(rt.push(Ev { kind: "view", id: "P1", ts: 0 }));
-        out.extend(rt.push(Ev { kind: "view", id: "P2", ts: 100 }));
-        out.extend(rt.push(Ev { kind: "scroll", id: "P2", ts: 200 })); // matches P2
-        out.extend(rt.push(Ev { kind: "scroll", id: "P1", ts: 300 })); // matches P1
+        out.extend(rt.push(Ev {
+            kind: "view",
+            id: "P1",
+            ts: 0,
+        }));
+        out.extend(rt.push(Ev {
+            kind: "view",
+            id: "P2",
+            ts: 100,
+        }));
+        out.extend(rt.push(Ev {
+            kind: "scroll",
+            id: "P2",
+            ts: 200,
+        })); // matches P2
+        out.extend(rt.push(Ev {
+            kind: "scroll",
+            id: "P1",
+            ts: 300,
+        })); // matches P1
 
         assert_eq!(out, vec!["P2".to_string(), "P1".to_string()]);
     }
@@ -727,8 +750,16 @@ mod ctx_tests {
         let mut rt = Runtime::new(compiled);
 
         let mut out = Vec::new();
-        out.extend(rt.push(Ev { kind: "view", id: "P1", ts: 0 }));
-        out.extend(rt.push(Ev { kind: "scroll", id: "P2", ts: 100 })); // different product
+        out.extend(rt.push(Ev {
+            kind: "view",
+            id: "P1",
+            ts: 0,
+        }));
+        out.extend(rt.push(Ev {
+            kind: "scroll",
+            id: "P2",
+            ts: 100,
+        })); // different product
         out.extend(rt.flush());
 
         assert!(out.is_empty());
@@ -823,7 +854,10 @@ mod quant_tests {
             Step::positive("a", Kind("a"), None),
             Step::positive("b", Kind("b"), None).with_repeat(rep(3, 3)),
         ];
-        assert_eq!(run(steps, &[("a", 0), ("b", 1), ("b", 2), ("b", 3)]), vec![4]);
+        assert_eq!(
+            run(steps, &[("a", 0), ("b", 1), ("b", 2), ("b", 3)]),
+            vec![4]
+        );
         // Only 2 b's → never reaches min=3 → no emit.
         let steps = vec![
             Step::positive("a", Kind("a"), None),
@@ -856,7 +890,10 @@ mod quant_tests {
             Step::positive("b", Kind("b"), None).with_repeat(rep(1, 3)),
             Step::positive("c", Kind("c"), None),
         ];
-        assert_eq!(run(steps, &[("a", 0), ("b", 1), ("b", 2), ("c", 3)]), vec![4]);
+        assert_eq!(
+            run(steps, &[("a", 0), ("b", 1), ("b", 2), ("c", 3)]),
+            vec![4]
+        );
     }
 
     // ── Observable drops (C2) ────────────────────────────────────────────
@@ -943,7 +980,10 @@ mod quant_tests {
             Step::positive("a", Kind("a"), None),
             Step::positive("b", Kind("b"), None).with_repeat(rep(2, 5)),
         ];
-        assert_eq!(run(steps, &[("a", 0), ("b", 1), ("b", 2), ("b", 3)]), vec![4]);
+        assert_eq!(
+            run(steps, &[("a", 0), ("b", 1), ("b", 2), ("b", 3)]),
+            vec![4]
+        );
     }
 }
 
@@ -1011,14 +1051,23 @@ mod tick_tests {
         assert_eq!(rt.tick(6_000), vec![0]);
         // A second tick, and a later real event, emit nothing more.
         assert!(rt.tick(7_000).is_empty());
-        assert!(rt.push(Ev { kind: "b", ts: 8_000 }).is_empty());
+        assert!(
+            rt.push(Ev {
+                kind: "b",
+                ts: 8_000
+            })
+            .is_empty()
+        );
     }
 
     #[test]
     fn next_deadline_reports_the_earliest_across_partials() {
         let mut rt = Runtime::new(abandoned());
         let _ = rt.push(Ev { kind: "a", ts: 0 }); // deadline 5_000
-        let _ = rt.push(Ev { kind: "a", ts: 1_000 }); // deadline 6_000
+        let _ = rt.push(Ev {
+            kind: "a",
+            ts: 1_000,
+        }); // deadline 6_000
         assert_eq!(rt.next_deadline(), Some(5_000));
     }
 
@@ -1032,7 +1081,10 @@ mod tick_tests {
         let mut a = Runtime::new(abandoned());
         let mut ev_out = Vec::new();
         ev_out.extend(a.push(Ev { kind: "a", ts: 0 }));
-        ev_out.extend(a.push(Ev { kind: "z", ts: 6_000 }));
+        ev_out.extend(a.push(Ev {
+            kind: "z",
+            ts: 6_000,
+        }));
         ev_out.extend(a.flush());
 
         // Tick-driven: same logical timeline, no trailing event.

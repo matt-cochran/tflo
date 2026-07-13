@@ -1,3 +1,10 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::missing_const_for_fn,
+    reason = "integration tests"
+)]
 //! Poka-yoke: the CEP engine MUST stay pure — time is always an explicit input
 //! (`push_at(_, ts)`, `tick(now)`), never read from a wall clock. Determinism is
 //! the load-bearing property behind deterministic replay AND cross-tier parity
