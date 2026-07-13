@@ -1,5 +1,0 @@
-//! API: HysteresisCrossDetector::new(margin: f64) -> Self
-//! det.update(value: f64, threshold: f64) -> Option<ThresholdCrossEventMode>
-let mut hyst = HysteresisCrossDetector::new(2.0);
-let event = hyst.update(price, 100.0);
-// Rising only when price > 102.0, Falling only when price < 98.0

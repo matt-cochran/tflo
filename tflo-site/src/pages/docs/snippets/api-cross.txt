@@ -1,2 +1,0 @@
-//! API: fn cross<R: IntoComp>(&self, other: &Comp<R>) -> Comp<ThresholdCrossEventMode>
-let signal = price.rsi(14).cross(&t.constant(50.0));
