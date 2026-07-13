@@ -259,6 +259,13 @@ impl IntoDuration for usize {
     }
 }
 
+// These tests assert that the extension trait converts to the right number of
+// base units, so the expected value must be spelled in those base units:
+// `Duration::from_mins(2)` on the right of `2_u64.mins()` would assert nothing.
+#[allow(
+    clippy::duration_suboptimal_units,
+    reason = "base units are the assertion"
+)]
 #[cfg(test)]
 mod tests {
     use super::*;

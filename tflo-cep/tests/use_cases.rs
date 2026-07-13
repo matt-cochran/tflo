@@ -41,7 +41,7 @@ fn abandoned_cart_fires_when_purchase_does_not_arrive_within_window() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "add_to_cart")
         .not_then(|e| e.action == "purchase")
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|m| format!("abandoned at ts={}", m.first().ts))
         .expect("pattern is valid");
 
@@ -69,7 +69,7 @@ fn consumer_injected_clock_drives_abandonment_on_absence() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "add_to_cart")
         .not_then(|e| e.action == "purchase")
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|m| format!("abandoned at ts={}", m.first().ts))
         .expect("pattern is valid")
         .into_runtime()
@@ -82,7 +82,10 @@ fn consumer_injected_clock_drives_abandonment_on_absence() {
     assert!(rt.tick(clock.now_ms()).is_empty());
     // Clock passes the deadline: the abandonment fires on absence.
     clock.set(6_000);
-    assert_eq!(rt.tick(clock.now_ms()), vec!["abandoned at ts=0".to_string()]);
+    assert_eq!(
+        rt.tick(clock.now_ms()),
+        vec!["abandoned at ts=0".to_string()]
+    );
 }
 
 #[test]
@@ -91,7 +94,7 @@ fn abandoned_cart_does_not_fire_when_purchase_arrives_in_time() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "add_to_cart")
         .not_then(|e| e.action == "purchase")
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|m| format!("abandoned at ts={}", m.first().ts))
         .expect("pattern is valid");
 
@@ -116,7 +119,7 @@ fn abandoned_cart_fires_at_end_of_stream_if_no_purchase_seen() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "add_to_cart")
         .not_then(|e| e.action == "purchase")
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|m| m.first().ts)
         .expect("pattern is valid");
 
@@ -136,7 +139,7 @@ fn engaged_with_product_fires_on_view_then_deep_scroll_within_30s() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "product_view")
         .then(|e| e.action == "deep_scroll")
-        .within(Duration::from_millis(30_000))
+        .within(Duration::from_secs(30))
         .emit(|m| {
             assert_eq!(m.len(), 2);
             (m.first().ts, m.last().ts)
@@ -158,7 +161,7 @@ fn engaged_with_product_does_not_fire_when_deep_scroll_is_late() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "product_view")
         .then(|e| e.action == "deep_scroll")
-        .within(Duration::from_millis(30_000))
+        .within(Duration::from_secs(30))
         .emit(|_| "engaged")
         .expect("pattern is valid");
 
@@ -180,9 +183,9 @@ fn rage_click_shape_three_clicks_in_one_second() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "pointerdown" && e.target_id == "buy_button")
         .then(|e| e.action == "pointerdown" && e.target_id == "buy_button")
-        .within(Duration::from_millis(1_000))
+        .within(Duration::from_secs(1))
         .then(|e| e.action == "pointerdown" && e.target_id == "buy_button")
-        .within(Duration::from_millis(1_000))
+        .within(Duration::from_secs(1))
         .emit(|m| format!("rage_click on {} ({} taps)", m.first().target_id, m.len()))
         .expect("pattern is valid");
 
@@ -205,7 +208,7 @@ fn match_at_name_lookup() {
         .timestamp(|e| e.ts)
         .when(|e| e.action == "login")
         .then_named("checkout", |e| e.action == "checkout")
-        .within(Duration::from_millis(60_000))
+        .within(Duration::from_mins(1))
         .emit(|m| {
             let login = m.at("when_0").expect("login captured");
             let checkout = m.at("checkout").expect("checkout captured");
@@ -229,7 +232,7 @@ fn interior_negation_card_testing_fires_on_two_fails_with_no_success_between() {
         .when(|e| e.action == "auth_fail")
         .not_between(|e| e.action == "auth_success")
         .then(|e| e.action == "auth_fail")
-        .within(Duration::from_millis(60_000))
+        .within(Duration::from_mins(1))
         .emit(|m| format!("card_testing: {} fails", m.len()))
         .expect("pattern is valid");
 
@@ -254,7 +257,7 @@ fn interior_negation_card_testing_suppressed_by_success_in_between() {
         .when(|e| e.action == "auth_fail")
         .not_between(|e| e.action == "auth_success")
         .then(|e| e.action == "auth_fail")
-        .within(Duration::from_millis(60_000))
+        .within(Duration::from_mins(1))
         .emit(|m| format!("card_testing: {} fails", m.len()))
         .expect("pattern is valid");
 

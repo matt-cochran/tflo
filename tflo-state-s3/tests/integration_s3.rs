@@ -390,7 +390,7 @@ mod localstack_tests {
     /// across versions.
     #[tokio::test(flavor = "multi_thread")]
     async fn s3_missing_bucket_surfaces_error() {
-        tokio::time::timeout(Duration::from_secs(60), async {
+        tokio::time::timeout(Duration::from_mins(1), async {
             let h = start_harness().await;
             // Build a store pointing at a bucket name that was never
             // created. Unique UUID guarantees no collision with the harness
@@ -434,7 +434,7 @@ mod localstack_tests {
     /// The whole future is wrapped in a 60s timeout to make a hang loud.
     #[tokio::test(flavor = "multi_thread")]
     async fn s3_unreachable_endpoint_surfaces_error() {
-        tokio::time::timeout(Duration::from_secs(60), async {
+        tokio::time::timeout(Duration::from_mins(1), async {
             // Build an AWS client pointed at a port nothing is bound to.
             // Port 1 is privileged and never listened on by user code.
             let creds = Credentials::new(

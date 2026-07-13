@@ -12,8 +12,8 @@
 
 use serde::Serialize;
 use std::time::Duration;
-use tflo_cep::prelude::*;
 use tflo_cep::PatternError;
+use tflo_cep::prelude::*;
 
 #[derive(Clone, Debug, Serialize)]
 struct Event {
@@ -38,7 +38,7 @@ fn cel_abandoned_cart_fires_on_deadline() {
         .timestamp(|e| e.ts)
         .when_cel(r#"kind == "add_to_cart""#)
         .not_then_cel(r#"kind == "purchase""#)
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|m| format!("abandoned {}", m.first().card))
         .expect("pattern is valid");
 
@@ -57,7 +57,7 @@ fn cel_does_not_fire_when_purchase_arrives() {
         .timestamp(|e| e.ts)
         .when_cel(r#"kind == "add_to_cart""#)
         .not_then_cel(r#"kind == "purchase""#)
-        .within(Duration::from_millis(5_000))
+        .within(Duration::from_secs(5))
         .emit(|_| "x".to_string())
         .expect("pattern is valid");
 
@@ -78,7 +78,7 @@ fn cel_cross_step_correlation_via_first() {
         .timestamp(|e| e.ts)
         .when_cel(r#"kind == "auth_attempt""#)
         .then_cel(r#"kind == "auth_attempt" && card == first_card"#)
-        .within(Duration::from_millis(60_000))
+        .within(Duration::from_mins(1))
         .emit(|m| format!("retry {}", m.first().card))
         .expect("pattern is valid");
 
@@ -122,7 +122,10 @@ fn cel_spec_json_roundtrip_and_compile() {
 
     // Compiles to the same behavior as the hand-built D1 pattern.
     let pattern = spec
-        .compile(|e: &Event| e.ts, |m| format!("abandoned {}", m.first().card))
+        .compile(
+            |e: &Event| e.ts,
+            |m| format!("abandoned {}", m.first().card),
+        )
         .expect("spec compiles");
     let events = vec![
         ev(0, "add_to_cart", 10, "c1"),
@@ -146,8 +149,11 @@ fn cel_spec_interior_negation_card_testing() {
     assert_eq!(spec, reparsed, "notBetween round-trips losslessly");
 
     let build = || {
-        spec.compile(|e: &Event| e.ts, |m| format!("card_testing {}", m.first().card))
-            .expect("spec compiles")
+        spec.compile(
+            |e: &Event| e.ts,
+            |m| format!("card_testing {}", m.first().card),
+        )
+        .expect("spec compiles")
     };
 
     // fail -> fail, no success between -> fires.

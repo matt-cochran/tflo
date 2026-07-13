@@ -94,7 +94,7 @@ async fn start_kafka() -> (KafkaGuard, String) {
         .await
         .expect("KAFKA_GATE semaphore closed");
     let container = Kafka::default()
-        .with_startup_timeout(Duration::from_secs(300))
+        .with_startup_timeout(Duration::from_mins(5))
         .start()
         .await
         .expect("kafka container start");
