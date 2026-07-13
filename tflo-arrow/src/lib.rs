@@ -298,4 +298,25 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
         }
     }
+
+    // Smoke test for the `polars` feature. Nothing in the workspace enables
+    // it, so without this an upgrade could break `rows_as_named_values`
+    // silently. Exercises the exact Polars surface the helper relies on:
+    // `DataFrame` construction, `materialized_column_iter`, `Series::get`,
+    // and `AnyValue`'s `Display`.
+    #[cfg(feature = "polars")]
+    mod polars_tests {
+        use crate::polars_interop::rows_as_named_values;
+        use polars::prelude::*;
+
+        #[test]
+        fn rows_as_named_values_round_trip() {
+            let df = df!["id" => [1_i64, 2], "label" => ["a", "b"]].expect("build df");
+            let rows = rows_as_named_values(&df).expect("rows");
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0][0], ("id".to_string(), "1".to_string()));
+            assert_eq!(rows[0][1], ("label".to_string(), "\"a\"".to_string()));
+            assert_eq!(rows[1][0], ("id".to_string(), "2".to_string()));
+        }
+    }
 }
