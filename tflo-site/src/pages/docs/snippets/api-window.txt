@@ -1,5 +1,0 @@
-//! API: WindowDetector::new(low: f64, high: f64) -> Self
-//! det.update(value: f64) -> Option<WindowEvent>
-let mut window = WindowDetector::new(50.0, 100.0);
-let result = window.update(price);
-// match result { Some(EnteredWindow) => ..., Some(ExitedLow) => ..., Some(ExitedHigh) => ..., None => ... }
