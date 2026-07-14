@@ -30,7 +30,7 @@ serde_json = { workspace = true }
 async-trait = "0.1"
 tokio = { workspace = true, optional = true, features = ["rt", "sync", "macros"] }
 futures = { workspace = true, optional = true }
-rdkafka = { version = "0.36", optional = true, default-features = false, features = ["tokio", "cmake-build"] }
+rdkafka = { version = "0.39", optional = true, default-features = false, features = ["tokio", "cmake-build"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
