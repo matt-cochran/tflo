@@ -57,11 +57,11 @@ postcard = { version = "1", default-features = false, features = ["use-std"] }
 # Utilities (used by >=2 crates)
 pin-project = "1.1"
 hex = "0.4"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # Dev-only (used by >=2 crates as dev-dependency)
 proptest = "1.4"
-criterion = "0.5"
+criterion = "0.8"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
