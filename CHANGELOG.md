@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased — dependency majors]
+
+### Changed — `tflo-rego` (**breaking**)
+
+- Upgraded `regorus` 0.2 → 0.10, which evaluates **Rego v1** by default. Rego
+  v1 requires the `if` keyword before rule bodies and `:=` for `default`
+  assignments — e.g. `allow { ... }` becomes `allow if { ... }` and
+  `default allow = false` becomes `default allow := false`. **Existing v0
+  policies passed to `PolicyEngine` will no longer parse.** Migrate your
+  policies to Rego v1 (see the updated `tflo-rego` README), or track the
+  upstream `Engine::set_rego_v0` escape hatch if you need the legacy dialect.
+
+### Changed — dependencies
+
+- `thiserror` 1 → 2, `criterion` 0.5 → 0.8, `arrow`/`arrow-schema`/`parquet`
+  58 → 59, `reqwest` 0.12 → 0.13 (`tflo-sink-influx`), `rdkafka` 0.36 → 0.39
+  (`tflo-connect-kafka`), `polars` 0.53 → 0.54 (`tflo-arrow`). No API changes
+  for consumers of these crates beyond the `tflo-rego` note above.
+
 ## [Unreleased — event-pattern matching + browser SDK] — 2026-05-28
 
 Two new sibling crates plus a companion TypeScript SDK. The matching

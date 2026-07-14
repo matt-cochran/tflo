@@ -41,14 +41,14 @@
 //! engine.add_policy("spectrum", r#"
 //!     package spectrum
 //!     
-//!     default allow = false
-//!     
-//!     allow {
+//!     default allow := false
+//!
+//!     allow if {
 //!         input.snr > 10.0
 //!         not protected_band
 //!     }
-//!     
-//!     protected_band {
+//!
+//!     protected_band if {
 //!         input.freq_mhz >= 118.0
 //!         input.freq_mhz <= 137.0
 //!     }

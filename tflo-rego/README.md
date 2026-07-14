@@ -27,14 +27,14 @@ let mut engine = PolicyEngine::new();
 engine.add_policy("spectrum", r#"
     package spectrum
     
-    default allow = false
+    default allow := false
     
-    allow {
+    allow if {
         input.snr > 10.0
         not protected_band
     }
     
-    protected_band {
+    protected_band if {
         input.freq_mhz >= 118.0
         input.freq_mhz <= 137.0
     }
@@ -61,8 +61,8 @@ let engine = Arc::new(Mutex::new(PolicyEngine::new()));
     let mut e = engine.lock().unwrap();
     e.add_policy("filter", r#"
         package filter
-        default allow = false
-        allow { input.snr > 10.0 }
+        default allow := false
+        allow if { input.snr > 10.0 }
     "#)?;
 }
 
@@ -89,14 +89,14 @@ engine.add_data(serde_json::json!({
 engine.add_policy("rules", r#"
     package rules
     
-    default allow = false
+    default allow := false
     
-    allow {
+    allow if {
         input.snr >= data.min_snr
         not in_protected_band
     }
     
-    in_protected_band {
+    in_protected_band if {
         some band
         band := data.protected_bands[_]
         input.freq_mhz >= band.start
@@ -127,13 +127,13 @@ engine.add_data_from_file("data/config.json")?;
 ```rego
 package authz
 
-default allow = false
+default allow := false
 
-allow {
+allow if {
     input.user.role == "admin"
 }
 
-allow {
+allow if {
     input.user.role == "operator"
     input.action == "read"
 }
@@ -144,16 +144,16 @@ allow {
 ```rego
 package signal
 
-classification := "strong" {
+classification := "strong" if {
     input.snr > 30.0
 }
 
-classification := "moderate" {
+classification := "moderate" if {
     input.snr > 10.0
     input.snr <= 30.0
 }
 
-classification := "weak" {
+classification := "weak" if {
     input.snr <= 10.0
 }
 ```
@@ -163,13 +163,13 @@ classification := "weak" {
 ```rego
 package ratelimit
 
-default allow = false
+default allow := false
 
-allow {
+allow if {
     count(input.recent_requests) < data.max_requests_per_minute
 }
 
-deny_reason := "rate limit exceeded" {
+deny_reason := "rate limit exceeded" if {
     not allow
 }
 ```
