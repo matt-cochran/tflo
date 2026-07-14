@@ -107,9 +107,9 @@ fn demo_rego(events: &[AuthEvent]) {
             r#"
             package ids
 
-            default allow = false
+            default allow := false
 
-            allow {
+            allow if {
                 input.fail_count > 3.0
                 input.source_ip_score > 50.0
             }

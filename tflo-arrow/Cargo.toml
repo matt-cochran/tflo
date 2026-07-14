@@ -22,7 +22,7 @@ serde = { workspace = true, features = ["derive"] }
 arrow = { version = "59", optional = true, default-features = false }
 arrow-schema = { version = "59", optional = true, default-features = false }
 parquet = { version = "59", optional = true, default-features = false, features = ["arrow"] }
-polars = { version = "0.53", optional = true, default-features = false, features = ["lazy"] }
+polars = { version = "0.54", optional = true, default-features = false, features = ["lazy"] }
 blake3 = { version = "1", optional = true }
 
 [dev-dependencies]
