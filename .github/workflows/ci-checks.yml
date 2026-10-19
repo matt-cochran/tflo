@@ -1,0 +1,66 @@
+name: CI
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  RUSTC_WRAPPER: ''
+  SCCACHE_GHA_ENABLED: 'false'
+jobs:
+  check:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@v5
+    - run: rustup show
+    - uses: Swatinem/rust-cache@v2
+    - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
+    - run: cargo fmt --all --check
+    - run: cargo check --workspace --exclude tflo-wasm --all-features
+    - run: cargo clippy --workspace --exclude tflo-wasm --all-features --all-targets -- -D warnings
+    - run: cargo test --workspace --exclude tflo-wasm --all-features
+  coverage:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@v5
+    - run: rustup show
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@cargo-llvm-cov
+    - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
+    - run: cargo llvm-cov --workspace --exclude tflo-wasm --all-features --lcov --output-path lcov.info
+    - uses: codecov/codecov-action@v5
+      with:
+        files: lcov.info
+        fail_ci_if_error: false
+  deny:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@v5
+    - uses: EmbarkStudios/cargo-deny-action@v2
+      with:
+        command: check bans licenses sources
+  wasm32:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@v5
+    - run: rustup show
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo build --target wasm32-unknown-unknown -p tflo-core -p tflo-ops
+  no-default-features:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@v5
+    - run: rustup show
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo build --no-default-features -p tflo-core
+    - run: cargo check --no-default-features -p tflo-core -p tflo-ops
+  docs:
+    runs-on: ${{ vars.CI_RUNNER_MODE == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+    - uses: actions/checkout@v5
+    - run: rustup show
+    - uses: Swatinem/rust-cache@v2
+    - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev libssl-dev pkg-config
+    - run: cargo doc --workspace --exclude tflo-wasm --no-deps --all-features
